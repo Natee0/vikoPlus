@@ -44,3 +44,4 @@ flutter run
 ## Billing Policy
 
 Vikoplus platform access supports automatic payment only. Manual cash, bank transfer, mobile-money evidence upload, and administrator approval flows are not platform subscription mechanisms. Group contribution payments are separate records inside each group and may use group-configured workflows.
+

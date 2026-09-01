@@ -1,0 +1,25 @@
+{
+  "name": "vikoplus",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/api"
+  ],
+  "scripts": {
+    "api:dev": "npm --workspace apps/api run start:dev",
+    "api:test": "npm --workspace apps/api test",
+    "api:lint": "npm --workspace apps/api run lint",
+    "api:prisma:generate": "npm --workspace apps/api run prisma:generate",
+    "mobile:get": "cd apps/mobile && flutter pub get",
+    "mobile:test": "cd apps/mobile && flutter test"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  },
+  "dependencies": {
+    "class-validator": "^0.14.4",
+    "effect": "^3.21.0",
+    "lodash": "^4.17.21"
+  }
+}

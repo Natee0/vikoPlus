@@ -1,0 +1,614 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Locale {
+  en
+  sw
+}
+
+enum UserIdentityType {
+  EMAIL
+  PHONE
+}
+
+enum GroupRole {
+  GROUP_ADMIN
+  TREASURER
+  MEMBER
+  VIEWER
+}
+
+enum GroupMemberStatus {
+  INVITED
+  ACTIVE
+  DEACTIVATED
+}
+
+enum ContributionPlanType {
+  JOINING_FEE
+  RECURRING
+}
+
+enum ContributionFrequency {
+  ONCE
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum ContributionObligationStatus {
+  DUE
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum GroupContributionPaymentStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_VERIFICATION
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+  REVERSED
+}
+
+enum PaymentAllocationStatus {
+  PENDING
+  APPLIED
+  REVERSED
+}
+
+enum ReceiptStatus {
+  VALID
+  INVALIDATED
+}
+
+enum SubscriptionPlanStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+enum SubscriptionState {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  GRACE_PERIOD
+  CANCELLED
+  SUSPENDED
+  EXPIRED
+}
+
+enum BillingProvider {
+  MOCK
+  CONFIGURED
+}
+
+enum BillingEventStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  VOID
+  UNCOLLECTIBLE
+}
+
+enum BillingTransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum AuditAction {
+  ACCOUNT_VERIFIED
+  LOGIN_SECURITY_EVENT
+  LANGUAGE_PREFERENCE_CHANGED
+  GROUP_UPDATED
+  MEMBER_CREATED
+  MEMBER_DEACTIVATED
+  ROLE_CHANGED
+  CONTRIBUTION_SETTING_CHANGED
+  FINANCIAL_YEAR_CHANGED
+  GROUP_CONTRIBUTION_PAYMENT_SUBMITTED
+  GROUP_CONTRIBUTION_PAYMENT_APPROVED
+  GROUP_CONTRIBUTION_PAYMENT_REJECTED
+  GROUP_CONTRIBUTION_PAYMENT_CORRECTION_REQUESTED
+  GROUP_CONTRIBUTION_PAYMENT_EDITED
+  GROUP_CONTRIBUTION_PAYMENT_REVERSED
+  RECEIPT_CREATED
+  RECEIPT_INVALIDATED
+  SUBSCRIPTION_PLAN_CHANGED
+  SUBSCRIPTION_CHECKOUT_CREATED
+  BILLING_PROVIDER_WEBHOOK_RECEIVED
+  BILLING_EVENT_PROCESSED
+  SUBSCRIPTION_ACTIVATED
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_PAYMENT_FAILED
+  SUBSCRIPTION_CANCELLED
+  SUBSCRIPTION_RESUMED
+  SUBSCRIPTION_SUSPENDED
+  SUBSCRIPTION_EXPIRED
+  PAYMENT_METHOD_UPDATE_INITIATED
+  REPORT_GENERATED
+  REMINDER_CREATED
+  REMINDER_SENT
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  displayName        String?
+  preferredLocale    Locale              @default(en)
+  passwordHash       String
+  securityPinHash    String?
+  isPlatformAdmin    Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  identities         UserIdentity[]
+  refreshTokens      RefreshToken[]
+  otpChallenges      OtpChallenge[]
+  memberships        GroupMember[]
+  billingCustomers   BillingCustomer[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  notificationPrefs  NotificationPreference[]
+  notifications      Notification[]
+  createdPayments    GroupContributionPayment[] @relation("CreatedPayments")
+  reviewedPayments   GroupContributionPayment[] @relation("ReviewedPayments")
+}
+
+model UserIdentity {
+  id           String           @id @default(cuid())
+  userId       String
+  type         UserIdentityType
+  value        String
+  isVerified   Boolean          @default(false)
+  verifiedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([type, value])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String
+  revokedAt  DateTime?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model OtpChallenge {
+  id             String           @id @default(cuid())
+  userId         String
+  identityType   UserIdentityType
+  identifier     String
+  otpHash        String
+  attempts       Int              @default(0)
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identifier])
+}
+
+model Group {
+  id                  String              @id @default(cuid())
+  name                String
+  slug                String              @unique
+  defaultLocale       Locale              @default(en)
+  currency            String              @default("TZS")
+  logoObjectKey       String?
+  billingOwnerUserId  String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  members             GroupMember[]
+  invitations         GroupInvitation[]
+  financialYears      FinancialYear[]
+  contributionPlans   ContributionPlan[]
+  contributionPeriods ContributionPeriod[]
+  payments            GroupContributionPayment[]
+  subscriptions       Subscription[]
+  billingCustomers    BillingCustomer[]
+  receipts            Receipt[]
+  auditLogs           AuditLog[]
+  reminderTemplates   ReminderTemplate[]
+  reminderCampaigns   ReminderCampaign[]
+}
+
+model GroupMember {
+  id              String            @id @default(cuid())
+  groupId         String
+  userId          String?
+  memberNumber    String?
+  fullName        String
+  phone           String?
+  email           String?
+  role            GroupRole         @default(MEMBER)
+  status          GroupMemberStatus @default(ACTIVE)
+  joinedAt        DateTime?
+  deactivatedAt   DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  group           Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user            User?             @relation(fields: [userId], references: [id])
+  obligations     MemberContributionObligation[]
+  payments        GroupContributionPayment[]
+
+  @@unique([groupId, memberNumber])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupInvitation {
+  id          String    @id @default(cuid())
+  groupId     String
+  tokenHash   String    @unique
+  role        GroupRole @default(MEMBER)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model FinancialYear {
+  id        String    @id @default(cuid())
+  groupId   String
+  name      String
+  startsAt  DateTime
+  endsAt    DateTime
+  isActive  Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  periods   ContributionPeriod[]
+
+  @@unique([groupId, startsAt, endsAt])
+  @@index([groupId])
+}
+
+model ContributionPlan {
+  id              String                @id @default(cuid())
+  groupId         String
+  name            String
+  type            ContributionPlanType
+  frequency       ContributionFrequency @default(MONTHLY)
+  amountMinor     Int
+  currency        String                @default("TZS")
+  allowsPartial   Boolean               @default(true)
+  isActive        Boolean               @default(true)
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  group           Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  periods         ContributionPeriod[]
+  obligations     MemberContributionObligation[]
+  allocations     PaymentAllocation[]
+
+  @@unique([groupId, name])
+  @@index([groupId])
+}
+
+model ContributionPeriod {
+  id              String    @id @default(cuid())
+  groupId         String
+  financialYearId String
+  planId          String
+  label           String
+  startsAt        DateTime
+  endsAt          DateTime
+  dueAt           DateTime
+  sortOrder       Int
+  createdAt       DateTime  @default(now())
+  group           Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  financialYear   FinancialYear @relation(fields: [financialYearId], references: [id], onDelete: Cascade)
+  plan            ContributionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  obligations     MemberContributionObligation[]
+  allocations     PaymentAllocation[]
+
+  @@unique([groupId, planId, startsAt])
+  @@index([financialYearId])
+}
+
+model MemberContributionObligation {
+  id              String                       @id @default(cuid())
+  groupMemberId   String
+  planId          String
+  periodId        String?
+  amountDueMinor  Int
+  amountPaidMinor Int                          @default(0)
+  currency        String                       @default("TZS")
+  status          ContributionObligationStatus @default(DUE)
+  dueAt           DateTime
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  member          GroupMember                  @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+  plan            ContributionPlan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  period          ContributionPeriod?          @relation(fields: [periodId], references: [id])
+  allocations     PaymentAllocation[]
+
+  @@unique([groupMemberId, planId, periodId])
+  @@index([groupMemberId])
+  @@index([periodId])
+}
+
+model GroupContributionPayment {
+  id                    String                         @id @default(cuid())
+  groupId               String
+  groupMemberId         String
+  createdByUserId       String?
+  reviewedByUserId      String?
+  idempotencyKey        String?
+  amountMinor           Int
+  currency              String                         @default("TZS")
+  method                String
+  reference             String?
+  evidenceObjectKey     String?
+  status                GroupContributionPaymentStatus @default(SUBMITTED)
+  submittedAt           DateTime?
+  reviewedAt            DateTime?
+  reversalReason        String?
+  correctionMessage     String?
+  createdAt             DateTime                       @default(now())
+  updatedAt             DateTime                       @updatedAt
+  group                 Group                          @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member                GroupMember                    @relation(fields: [groupMemberId], references: [id])
+  createdBy             User?                          @relation("CreatedPayments", fields: [createdByUserId], references: [id])
+  reviewedBy            User?                          @relation("ReviewedPayments", fields: [reviewedByUserId], references: [id])
+  allocations           PaymentAllocation[]
+  receipt               Receipt?
+
+  @@unique([groupId, idempotencyKey])
+  @@index([groupId])
+  @@index([groupMemberId])
+}
+
+model PaymentAllocation {
+  id              String                  @id @default(cuid())
+  paymentId       String
+  planId          String
+  periodId        String?
+  obligationId    String?
+  amountMinor     Int
+  status          PaymentAllocationStatus @default(PENDING)
+  createdAt       DateTime                @default(now())
+  payment         GroupContributionPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  plan            ContributionPlan         @relation(fields: [planId], references: [id])
+  period          ContributionPeriod?      @relation(fields: [periodId], references: [id])
+  obligation      MemberContributionObligation? @relation(fields: [obligationId], references: [id])
+
+  @@index([paymentId])
+  @@index([periodId])
+}
+
+model Receipt {
+  id             String        @id @default(cuid())
+  groupId        String
+  paymentId      String        @unique
+  receiptNumber  String        @unique
+  status         ReceiptStatus @default(VALID)
+  issuedAt       DateTime      @default(now())
+  invalidatedAt  DateTime?
+  verificationHash String
+  group          Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payment        GroupContributionPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+}
+
+model SubscriptionPlan {
+  id                String                 @id @default(cuid())
+  code              String                 @unique
+  name              String
+  description       String?
+  priceMinor        Int
+  currency          String                 @default("TZS")
+  interval          BillingInterval
+  trialDays         Int                    @default(0)
+  status            SubscriptionPlanStatus @default(ACTIVE)
+  featureEntitlements Json
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+  subscriptions     Subscription[]
+}
+
+model Subscription {
+  id                       String            @id @default(cuid())
+  groupId                  String
+  planId                   String
+  billingCustomerId        String?
+  provider                 BillingProvider   @default(MOCK)
+  providerSubscriptionId   String?
+  state                    SubscriptionState @default(TRIAL)
+  currentPeriodStartsAt    DateTime?
+  currentPeriodEndsAt      DateTime?
+  trialEndsAt              DateTime?
+  cancelAtPeriodEnd        Boolean           @default(false)
+  cancelledAt              DateTime?
+  suspendedAt              DateTime?
+  expiredAt                DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+  group                    Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  plan                     SubscriptionPlan  @relation(fields: [planId], references: [id])
+  billingCustomer          BillingCustomer?  @relation(fields: [billingCustomerId], references: [id])
+  invoices                 BillingInvoice[]
+  transactions             BillingTransaction[]
+
+  @@index([groupId])
+  @@index([providerSubscriptionId])
+}
+
+model BillingCustomer {
+  id                 String          @id @default(cuid())
+  groupId            String
+  userId             String?
+  provider           BillingProvider @default(MOCK)
+  providerCustomerId String
+  email              String?
+  phone              String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  group              Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user               User?           @relation(fields: [userId], references: [id])
+  subscriptions      Subscription[]
+  paymentMethods     BillingPaymentMethod[]
+
+  @@unique([provider, providerCustomerId])
+  @@index([groupId])
+}
+
+model BillingPaymentMethod {
+  id                      String          @id @default(cuid())
+  billingCustomerId       String
+  provider                BillingProvider @default(MOCK)
+  providerPaymentMethodId String
+  brand                   String?
+  last4                   String?
+  expiresMonth            Int?
+  expiresYear             Int?
+  isDefault               Boolean         @default(false)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  billingCustomer         BillingCustomer @relation(fields: [billingCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentMethodId])
+}
+
+model BillingInvoice {
+  id                String        @id @default(cuid())
+  subscriptionId    String
+  providerInvoiceId String?
+  status            InvoiceStatus
+  amountDueMinor    Int
+  amountPaidMinor   Int           @default(0)
+  currency          String
+  dueAt             DateTime?
+  paidAt            DateTime?
+  createdAt         DateTime      @default(now())
+  subscription      Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([providerInvoiceId])
+  @@index([subscriptionId])
+}
+
+model BillingTransaction {
+  id                    String                   @id @default(cuid())
+  subscriptionId         String
+  providerTransactionId  String?
+  status                BillingTransactionStatus
+  amountMinor           Int
+  currency              String
+  processedAt           DateTime?
+  failureCode           String?
+  createdAt             DateTime                 @default(now())
+  subscription          Subscription             @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([providerTransactionId])
+  @@index([subscriptionId])
+}
+
+model BillingEvent {
+  id              String             @id @default(cuid())
+  provider        BillingProvider    @default(MOCK)
+  providerEventId String
+  type            String
+  status          BillingEventStatus @default(RECEIVED)
+  payload         Json
+  processedAt     DateTime?
+  failureReason   String?
+  createdAt       DateTime           @default(now())
+
+  @@unique([provider, providerEventId])
+}
+
+model ReminderTemplate {
+  id          String   @id @default(cuid())
+  groupId     String
+  locale      Locale
+  code        String
+  title       String
+  body        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, locale, code])
+}
+
+model ReminderCampaign {
+  id          String    @id @default(cuid())
+  groupId     String
+  title       String
+  channel     String
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime  @default(now())
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  channel   String
+  isEnabled Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  locale    Locale   @default(en)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id           String      @id @default(cuid())
+  actorUserId  String?
+  groupId      String?
+  action       AuditAction
+  entityType   String
+  entityId     String
+  previousValue Json?
+  newValue     Json?
+  reason       String?
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime    @default(now())
+  actor        User?       @relation("AuditActor", fields: [actorUserId], references: [id])
+  group        Group?      @relation(fields: [groupId], references: [id])
+
+  @@index([groupId])
+  @@index([actorUserId])
+  @@index([entityType, entityId])
+}

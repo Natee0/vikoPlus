@@ -11,7 +11,10 @@
     "api:lint": "npm --workspace apps/api run lint",
     "api:prisma:generate": "npm --workspace apps/api run prisma:generate",
     "mobile:get": "cd apps/mobile && flutter pub get",
-    "mobile:test": "cd apps/mobile && flutter test"
+    "mobile:test": "cd apps/mobile && flutter test",
+    "mobile:analyze": "cd apps/mobile && flutter analyze",
+    "mobile:build:debug": "cd apps/mobile && flutter build apk --debug --target-platform android-arm64 --no-pub",
+    "mobile:run": "cd apps/mobile && flutter run --target-platform android-arm64 --no-pub"
   },
   "engines": {
     "node": ">=24.0.0",

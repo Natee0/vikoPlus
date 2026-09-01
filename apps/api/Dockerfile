@@ -1,9 +1,8 @@
-# 1. Base stage - Install dependencies vyema bila hitaji la package-lock.json
+# 1. Base stage - Install dependencies
 FROM node:22-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
 
-# Tumia npm install badala ya npm ci ili kuepuka error ya missing lockfile
 RUN npm install
 
 # 2. Build stage - Generate Prisma client & build NestJS JS code
@@ -16,10 +15,9 @@ COPY . .
 # Generate Prisma Client
 RUN npx prisma generate
 
-# Build NestJS (inatumia npm run build -> nest build)
+# Build NestJS
 RUN npm run build
 
-# Safisha devDependencies ili kubaki na production modules pekee
 RUN npm prune --production
 
 # 3. Production Runtime stage

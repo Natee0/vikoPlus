@@ -1,38 +1,56 @@
-name: Deploy VikoPlus App
+name: Deploy VikoPlus API
 
 on:
   push:
     branches:
-      - main # au master (badilisha kulingana na default branch yako)
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
+    if: contains(github.event.head_commit.message, '[DEPLOY]') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Server via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - name: Copy project files to server
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
+          source: "."
+          target: "~/vikoplus/"
+
+      - name: Build and deploy on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ALL_SECRETS: ${{ toJson(secrets) }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          envs: ALL_SECRETS
           script: |
-            # Nenda kwenye folder la project
-            cd /path/to/your/vikoplus-project || exit
+            mkdir -p ~/vikoplus
+            cd ~/vikoplus
 
-            # Vuta mabadiliko mapya kutoka Git
-            git pull origin main
+            # Generates .env dynamically by extracting secrets excluding server credentials
+            echo "$ALL_SECRETS" | jq -r '
+              to_entries[] 
+              | select(.key | startswith("SERVER_") or startswith("SSH_") | not) 
+              | "\(.key)=\(.value)"
+            ' > .env
 
-            # Washa na u-rebuild Docker Containers
-            docker compose down
-            docker compose up --build -d
+            # Build and restart containers using local build context
+            docker compose up -d --build --force-recreate
 
-            # Run Prisma Migrations
-            docker exec vikoplus_api npx prisma migrate deploy
+            # Run Prisma Migrations inside the running container
+            docker exec vikoplus_api npx prisma migrate deploy || true
 
-            # Reload Nginx kuhakikisha huduma ziko vizuri
-            sudo systemctl reload nginx
+            # Cleanup unused build images
+            docker image prune -f

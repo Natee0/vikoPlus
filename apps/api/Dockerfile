@@ -1,26 +1,32 @@
-# 1. Base stage kwa ajili ya dependencies zote (dev + prod)
+# 1. Base stage - Install dependencies vyema bila hitaji la package-lock.json
 FROM node:22-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
 
-# 2. Build stage - Generate Prisma client & build JS code
+# Tumia npm install badala ya npm ci ili kuepuka error ya missing lockfile
+RUN npm install
+
+# 2. Build stage - Generate Prisma client & build NestJS JS code
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN npm run prisma:generate
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build NestJS (inatumia npm run build -> nest build)
 RUN npm run build
-# Prune devDependencies ili kubaki na production modules pekee
+
+# Safisha devDependencies ili kubaki na production modules pekee
 RUN npm prune --production
 
-# 3. Final Runtime stage - Lean & clean production image
+# 3. Production Runtime stage
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
-# Nakili production node_modules na built dist pekee
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
@@ -28,4 +34,5 @@ COPY package*.json ./
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+# Start NestJS production build
+CMD ["node", "dist/src/main.js"]

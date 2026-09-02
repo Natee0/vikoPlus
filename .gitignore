@@ -16,6 +16,5 @@ dist/
 .idea/
 .vscode/
 !.vscode/extensions.json
-mobile/
 .discovery/
 docs/

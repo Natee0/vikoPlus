@@ -1,14 +1,17 @@
 services:
   postgres:
+    container_name: vikoplus_postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: vikoplus
       POSTGRES_USER: vikoplus
       POSTGRES_PASSWORD: vikoplus
     ports:
-      - "5432:5432"
+      - "5435:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - vikoplus_data:/var/lib/postgresql/data
+    networks:
+      - vikoplus_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vikoplus -d vikoplus"]
       interval: 10s
@@ -16,9 +19,12 @@ services:
       retries: 5
 
   redis:
+    container_name: vikoplus_redis
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "6380:6379"
+    networks:
+      - vikoplus_network
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -26,6 +32,7 @@ services:
       retries: 5
 
   api:
+    container_name: vikoplus_api
     build:
       context: ./apps/api
     env_file:
@@ -34,12 +41,18 @@ services:
       DATABASE_URL: postgresql://vikoplus:vikoplus@postgres:5432/vikoplus?schema=public
       REDIS_URL: redis://redis:6379
     ports:
-      - "3000:3000"
+      - "3002:3000"
+    networks:
+      - vikoplus_network
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+networks:
+  vikoplus_network:
+    driver: bridge
+
 volumes:
-  postgres-data:
+  vikoplus_data:

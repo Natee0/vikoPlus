@@ -1,21 +1,36 @@
-FROM node:24-alpine AS dependencies
+# 1. Base stage - Install dependencies
+FROM node:22-alpine AS dependencies
 WORKDIR /app
 COPY package*.json ./
+
 RUN npm install
 
-FROM node:24-alpine AS build
+# 2. Build stage - Generate Prisma client & build NestJS JS code
+FROM node:22-alpine AS build
 WORKDIR /app
+COPY package*.json ./
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
-RUN npm run prisma:generate
+
+# Generate Prisma Client
+RUN npx prisma generate
+
+# Build NestJS
 RUN npm run build
 
-FROM node:24-alpine AS runtime
+RUN npm prune --production
+
+# 3. Production Runtime stage
+FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
+
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
 COPY package*.json ./
+
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+
+# Start NestJS production build
+CMD ["node", "dist/src/main.js"]

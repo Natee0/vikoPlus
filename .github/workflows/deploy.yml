@@ -1,0 +1,64 @@
+name: Deploy VikoPlus API
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: contains(github.event.head_commit.message, '[DEPLOY]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy project files directly to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "."
+          target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
+
+      - name: Build image and start containers on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ALL_SECRETS: ${{ toJson(secrets) }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          envs: ALL_SECRETS
+          script: |
+            set -e
+
+            # Nenda moja kwa moja kwenye folder la project
+            cd /home/${{ secrets.SERVER_USER }}/vikoplus
+
+            # Install jq dynamically kama haipo
+            if ! command -v jq &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y jq
+            fi
+
+            # Extract GitHub secrets to .env (excluding server deployment credentials)
+            echo "$ALL_SECRETS" | jq -r '
+              to_entries[] 
+              | select(.key | startswith("SERVER_") or startswith("SSH_") | not) 
+              | "\(.key)=\(.value)"
+            ' > .env
+
+            # Build na Start Containers
+            docker compose down --remove-orphans || true
+            docker compose up --build -d --force-recreate
+
+            # Run Prisma Migrations ndani ya container mpya
+            docker exec vikoplus_api npx prisma migrate deploy || true
+
+            # Prune dangling Docker images
+            docker image prune -f

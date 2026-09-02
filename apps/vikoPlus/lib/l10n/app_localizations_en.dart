@@ -10,7 +10,7 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
-  String get appName => 'Vikoplus';
+  String get appName => 'vikoPlus';
 
   @override
   String get splashTagline => 'Group contributions, made clear.';

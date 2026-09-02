@@ -15,7 +15,7 @@ class VikoplusApp extends ConsumerWidget {
     final locale = ref.watch(localeControllerProvider).value;
 
     return MaterialApp.router(
-      title: 'Vikoplus',
+      title: 'vikoPlus',
       debugShowCheckedModeBanner: false,
       onGenerateTitle: (context) => AppLocalizations.of(context).appName,
       theme: AppTheme.light(),

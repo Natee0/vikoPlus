@@ -10,11 +10,11 @@
     "api:test": "npm --workspace apps/api test",
     "api:lint": "npm --workspace apps/api run lint",
     "api:prisma:generate": "npm --workspace apps/api run prisma:generate",
-    "mobile:get": "cd apps/mobile && flutter pub get",
-    "mobile:test": "cd apps/mobile && flutter test",
-    "mobile:analyze": "cd apps/mobile && flutter analyze",
-    "mobile:build:debug": "cd apps/mobile && flutter build apk --debug --target-platform android-arm64 --no-pub",
-    "mobile:run": "cd apps/mobile && flutter run --target-platform android-arm64 --no-pub"
+    "android:get": "cd apps/vikoPlus && flutter pub get",
+    "android:test": "cd apps/vikoPlus && flutter test",
+    "android:analyze": "cd apps/vikoPlus && flutter analyze",
+    "android:build:debug": "cd apps/vikoPlus && flutter build apk --debug --target-platform android-arm64 --no-pub",
+    "android:run": "cd apps/vikoPlus && flutter run --target-platform android-arm64 --no-pub"
   },
   "engines": {
     "node": ">=24.0.0",

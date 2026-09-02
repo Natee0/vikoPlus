@@ -7,7 +7,7 @@ This repository is a monorepo:
 ```text
 apps/
   api/      NestJS, Prisma, PostgreSQL, Redis
-  mobile/   Flutter Android app
+  vikoPlus/ Flutter Android app
 docs/
 infrastructure/
 docker-compose.yml
@@ -33,10 +33,10 @@ npm --workspace apps/api run prisma:generate
 docker compose up --build
 ```
 
-For mobile:
+For Android:
 
 ```bash
-cd apps/mobile
+cd apps/vikoPlus
 flutter pub get
 flutter run
 ```
@@ -44,4 +44,3 @@ flutter run
 ## Billing Policy
 
 Vikoplus platform access supports automatic payment only. Manual cash, bank transfer, mobile-money evidence upload, and administrator approval flows are not platform subscription mechanisms. Group contribution payments are separate records inside each group and may use group-configured workflows.
-

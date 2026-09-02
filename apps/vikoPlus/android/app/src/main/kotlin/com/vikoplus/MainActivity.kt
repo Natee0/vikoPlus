@@ -1,4 +1,4 @@
-package com.vikoplus.mobile
+package com.vikoplus
 
 import io.flutter.embedding.android.FlutterActivity
 

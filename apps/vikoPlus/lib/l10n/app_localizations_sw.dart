@@ -10,7 +10,7 @@ class AppLocalizationsSw extends AppLocalizations {
   AppLocalizationsSw([String locale = 'sw']) : super(locale);
 
   @override
-  String get appName => 'Vikoplus';
+  String get appName => 'vikoPlus';
 
   @override
   String get splashTagline => 'Michango ya kikundi kwa uwazi.';

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_design_widgets.dart';
 
 class CreateOrJoinGroupScreen extends StatelessWidget {
@@ -27,11 +28,7 @@ class CreateOrJoinGroupScreen extends StatelessWidget {
                 Positioned(
                   top: AppSpacing.xs,
                   right: AppSpacing.xs,
-                  child: IconButton(
-                    tooltip: 'Logout',
-                    onPressed: () => context.go('/sign-in'),
-                    icon: const Icon(Icons.logout_outlined),
-                  ),
+                  child: const AuthLogoutIconButton(),
                 ),
                 ListView(
                   padding: const EdgeInsets.fromLTRB(

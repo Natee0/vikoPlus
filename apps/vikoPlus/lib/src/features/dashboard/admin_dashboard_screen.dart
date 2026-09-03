@@ -5,6 +5,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
@@ -39,11 +40,7 @@ class AdminDashboardScreen extends StatelessWidget {
           onPressed: () => context.go('/groups'),
           icon: const Icon(Icons.groups_2_outlined),
         ),
-        IconButton(
-          tooltip: 'Logout',
-          onPressed: () => context.go('/sign-in'),
-          icon: const Icon(Icons.logout_outlined),
-        ),
+        const AuthLogoutIconButton(),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

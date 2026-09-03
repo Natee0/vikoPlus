@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_logout_controls.dart';
 
 class MemberDashboardScreen extends StatelessWidget {
   const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
@@ -42,11 +43,7 @@ class MemberDashboardScreen extends StatelessWidget {
             onPressed: () => context.go('/groups'),
             icon: const Icon(Icons.groups_2_outlined),
           ),
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => context.go('/sign-in'),
-            icon: const Icon(Icons.logout_outlined),
-          ),
+          const AuthLogoutIconButton(),
         ],
       ),
       body: SafeArea(

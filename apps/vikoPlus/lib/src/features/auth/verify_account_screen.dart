@@ -1,27 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_session.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_design_widgets.dart';
 import 'auth_widgets.dart';
 
-class VerifyAccountScreen extends StatefulWidget {
+class VerifyAccountScreen extends ConsumerStatefulWidget {
   const VerifyAccountScreen({
     this.nextRoute = '/create-or-join-group',
     this.backRoute = '/create-account',
+    this.challengeId,
+    this.destination,
+    this.channel,
     super.key,
   });
 
   final String nextRoute;
   final String backRoute;
+  final String? challengeId;
+  final String? destination;
+  final String? channel;
 
   @override
-  State<VerifyAccountScreen> createState() => _VerifyAccountScreenState();
+  ConsumerState<VerifyAccountScreen> createState() =>
+      _VerifyAccountScreenState();
 }
 
-class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
+class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   static const int _codeLength = 6;
 
   late final List<TextEditingController> _controllers;
@@ -47,6 +57,10 @@ class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
 
   bool get _isComplete {
     return _controllers.every((controller) => controller.text.length == 1);
+  }
+
+  String get _code {
+    return _controllers.map((controller) => controller.text).join();
   }
 
   void _goBack() {
@@ -106,6 +120,30 @@ class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
     );
   }
 
+  Future<void> _verify() async {
+    if (!_isComplete) {
+      _showMessage('Enter the full verification code.');
+      return;
+    }
+
+    try {
+      final route = await ref
+          .read(authControllerProvider.notifier)
+          .verifyPendingOtp(_code);
+      if (!mounted) return;
+      context.go(route);
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
   KeyEventResult _handleKeyEvent(KeyEvent event, int index) {
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.backspace ||
@@ -122,6 +160,13 @@ class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final session = ref.watch(authSessionProvider);
+    final pending = session.pendingVerification;
+    final destination =
+        widget.destination ?? pending?.destination ?? 'your phone or email';
+    final channel = widget.channel ?? pending?.channel ?? 'sms';
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
@@ -201,11 +246,12 @@ class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
                                   const SizedBox(height: AppSpacing.sm),
                                   Text.rich(
                                     TextSpan(
-                                      text: 'Enter the verification code sent to\n',
-                                      children: const [
+                                      text:
+                                          'Enter the verification code sent to\n',
+                                      children: [
                                         TextSpan(
-                                          text: '+1 (555) 019-2834',
-                                          style: TextStyle(
+                                          text: destination,
+                                          style: const TextStyle(
                                             color: AppColors.primaryText,
                                             fontWeight: FontWeight.w700,
                                           ),
@@ -320,27 +366,50 @@ class _VerifyAccountScreenState extends State<VerifyAccountScreen> {
                                     ],
                                   ),
                                   TextButton(
-                                    onPressed: () {},
-                                    child: const Text('Resend code'),
+                                    onPressed: isLoading
+                                        ? null
+                                        : () {
+                                            _showMessage(
+                                              'Resend code will be enabled after the resend endpoint is added.',
+                                            );
+                                          },
+                                    child: Text(
+                                      channel == 'email'
+                                          ? 'Resend email'
+                                          : 'Resend code',
+                                    ),
                                   ),
                                   const SizedBox(height: AppSpacing.sm),
                                   FilledButton.icon(
-                                    onPressed: () {
-                                      context.go(widget.nextRoute);
-                                    },
+                                    onPressed:
+                                        isLoading || !_isComplete ? null : _verify,
                                     iconAlignment: IconAlignment.end,
-                                    icon: Icon(
-                                      _isComplete
-                                          ? Icons.check_circle_outline
-                                          : Icons.verified_outlined,
-                                      size: 18,
+                                    icon: isLoading
+                                        ? const SizedBox(
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Icon(
+                                            _isComplete
+                                                ? Icons.check_circle_outline
+                                                : Icons.verified_outlined,
+                                            size: 18,
+                                          ),
+                                    label: Text(
+                                      isLoading ? 'Verifying' : 'Verify',
                                     ),
-                                    label: const Text('Verify'),
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
                                   TextButton(
                                     onPressed: _goBack,
-                                    child: const Text('Change phone number'),
+                                    child: Text(
+                                      channel == 'email'
+                                          ? 'Change email address'
+                                          : 'Change phone number',
+                                    ),
                                   ),
                                 ],
                               ),

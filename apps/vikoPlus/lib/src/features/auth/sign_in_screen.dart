@@ -1,37 +1,66 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/roles/vikoplus_role.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
 
-class SignInScreen extends StatefulWidget {
+class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  State<SignInScreen> createState() => _SignInScreenState();
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _SignInScreenState extends ConsumerState<SignInScreen> {
+  final _identifierController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
   VikoplusRole _selectedRole = VikoplusRole.newUser;
 
-  void _submit() {
-    final next = Uri.encodeQueryComponent(_selectedRole.verifyDestination);
-    final back = Uri.encodeQueryComponent('/sign-in');
-    context.push('/verify-account?next=$next&back=$back');
+  @override
+  void dispose() {
+    _identifierController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
-  void _startGroupSetup() {
-    final next = Uri.encodeQueryComponent('/create-or-join-group');
-    final back = Uri.encodeQueryComponent('/sign-in');
-    context.push('/verify-account?next=$next&back=$back');
+  Future<void> _submit() async {
+    final identifier = _identifierController.text.trim();
+    final password = _passwordController.text;
+    if (identifier.isEmpty || password.isEmpty) {
+      _showMessage('Enter your phone/email and password.');
+      return;
+    }
+
+    try {
+      final route = await ref.read(authControllerProvider.notifier).login(
+            identifier: identifier,
+            password: password,
+            previewRoute: _selectedRole.verifyDestination,
+          );
+      if (!mounted) return;
+      context.go(route);
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+
     return AuthScaffold(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -56,18 +85,25 @@ class _SignInScreenState extends State<SignInScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const AuthField(
+                AuthField(
                   label: 'Phone number or email',
                   hint: 'Enter your detail',
                   icon: Icons.person_outline,
                   keyboardType: TextInputType.emailAddress,
+                  controller: _identifierController,
+                  textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AuthField(
                   label: 'Password',
                   hint: 'Password',
                   icon: Icons.lock_outline,
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) {
+                    if (!isLoading) _submit();
+                  },
                   suffixIcon: IconButton(
                     tooltip: _obscurePassword
                         ? 'Show password'
@@ -118,10 +154,21 @@ class _SignInScreenState extends State<SignInScreen> {
                   ],
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                FilledButton(onPressed: _submit, child: const Text('Sign in')),
+                FilledButton(
+                  onPressed: isLoading ? null : _submit,
+                  child: isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Sign in'),
+                ),
                 const SizedBox(height: AppSpacing.sm),
                 OutlinedButton.icon(
-                  onPressed: _startGroupSetup,
+                  onPressed: isLoading
+                      ? null
+                      : () => context.push('/create-account'),
                   icon: const Icon(Icons.group_add_outlined, size: 18),
                   label: const Text('Create or join a group'),
                 ),

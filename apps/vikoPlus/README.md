@@ -24,23 +24,27 @@ flutter pub get
 
 ## Run On Android
 
+Set the backend base URL through `VIKOPLUS_API_BASE_URL`. The value must include
+the API version path, for example `<backend-url>/v1`.
+
 From the repository root:
 
 ```bash
-npm run android:run
+cd apps/vikoPlus
+flutter run --dart-define=VIKOPLUS_API_BASE_URL=<backend-url>/v1
 ```
 
 Or directly from this app folder:
 
 ```bash
-flutter run
+flutter run --dart-define=VIKOPLUS_API_BASE_URL=<backend-url>/v1
 ```
 
 To run on a specific connected device:
 
 ```bash
 flutter devices
-flutter run -d <device-id>
+flutter run -d <device-id> --dart-define=VIKOPLUS_API_BASE_URL=<backend-url>/v1
 ```
 
 ## Quality Checks

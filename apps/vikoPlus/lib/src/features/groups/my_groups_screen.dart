@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -15,11 +16,7 @@ class MyGroupsScreen extends StatelessWidget {
       title: 'My Groups',
       backRoute: '/dashboard',
       actions: [
-        IconButton(
-          tooltip: 'Logout',
-          onPressed: () => context.go('/sign-in'),
-          icon: const Icon(Icons.logout_outlined),
-        ),
+        const AuthLogoutIconButton(),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

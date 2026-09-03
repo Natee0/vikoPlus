@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -127,13 +128,7 @@ class MoreMenuScreen extends StatelessWidget {
             route: '/language',
           ),
           SizedBox(height: 12),
-          ActionTile(
-            title: 'Logout',
-            subtitle: 'Leave this role preview and return to sign in',
-            icon: Icons.logout_outlined,
-            route: '/sign-in',
-            color: AppColors.error,
-          ),
+          AuthLogoutTile(),
         ],
       ),
     );

@@ -87,6 +87,9 @@ class AuthField extends StatelessWidget {
     this.obscureText = false,
     this.suffixIcon,
     this.helperText,
+    this.controller,
+    this.textInputAction,
+    this.onSubmitted,
     super.key,
   });
 
@@ -97,6 +100,9 @@ class AuthField extends StatelessWidget {
   final bool obscureText;
   final Widget? suffixIcon;
   final String? helperText;
+  final TextEditingController? controller;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -114,8 +120,11 @@ class AuthField extends StatelessWidget {
         SizedBox(
           height: AppSizes.inputHeight,
           child: TextField(
+            controller: controller,
             keyboardType: keyboardType,
             obscureText: obscureText,
+            textInputAction: textInputAction,
+            onSubmitted: onSubmitted,
             style: Theme.of(context).textTheme.bodyLarge,
             decoration: InputDecoration(
               hintText: hint,

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_screen.dart';
 
 class DashboardEmptyStateScreen extends StatelessWidget {
@@ -20,11 +21,7 @@ class DashboardEmptyStateScreen extends StatelessWidget {
           onPressed: () => context.go('/notifications'),
           icon: const Icon(Icons.notifications_none_outlined),
         ),
-        IconButton(
-          tooltip: 'Logout',
-          onPressed: () => context.go('/sign-in'),
-          icon: const Icon(Icons.logout_outlined),
-        ),
+        const AuthLogoutIconButton(),
         Padding(
           padding: const EdgeInsets.only(right: AppSpacing.xs),
           child: CircleAvatar(

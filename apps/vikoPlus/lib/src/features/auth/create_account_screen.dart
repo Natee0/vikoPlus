@@ -1,25 +1,94 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
 
-class CreateAccountScreen extends StatefulWidget {
+class CreateAccountScreen extends ConsumerStatefulWidget {
   const CreateAccountScreen({super.key});
 
   @override
-  State<CreateAccountScreen> createState() => _CreateAccountScreenState();
+  ConsumerState<CreateAccountScreen> createState() =>
+      _CreateAccountScreenState();
 }
 
-class _CreateAccountScreenState extends State<CreateAccountScreen> {
+class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
+  final _fullNameController = TextEditingController();
+  final _identityController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
   bool _useEmail = false;
 
   @override
+  void dispose() {
+    _fullNameController.dispose();
+    _identityController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _createAccount() async {
+    final fullName = _fullNameController.text.trim();
+    final identity = _identityController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (fullName.isEmpty || identity.isEmpty || password.isEmpty) {
+      _showMessage('Complete all required fields.');
+      return;
+    }
+    if (password.length < 8) {
+      _showMessage('Password must be at least 8 characters.');
+      return;
+    }
+    if (password != confirmPassword) {
+      _showMessage('Passwords do not match.');
+      return;
+    }
+    if (!_acceptedTerms) {
+      _showMessage('Accept the terms before creating an account.');
+      return;
+    }
+
+    try {
+      final challengeId = await ref.read(authControllerProvider.notifier).register(
+            fullName: fullName,
+            email: _useEmail ? identity : null,
+            phone: _useEmail ? null : identity,
+            password: password,
+          );
+      if (!mounted) return;
+      final query = Uri(queryParameters: {
+        'challengeId': challengeId,
+        'destination': identity,
+        'channel': _useEmail ? 'email' : 'sms',
+        'next': '/create-or-join-group',
+        'back': '/create-account',
+      }).query;
+      context.push('/verify-account?$query');
+    } on AuthFailure catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isLoading = ref.watch(authControllerProvider).isLoading;
+
     return AuthScaffold(
       child: AuthCard(
         child: Column(
@@ -41,11 +110,13 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                   ?.copyWith(color: AppColors.onSurfaceVariant, fontSize: 14),
             ),
             const SizedBox(height: AppSpacing.md),
-            const AuthField(
+            AuthField(
               label: 'Full Name',
               hint: 'John Doe',
               icon: Icons.person_outline,
               keyboardType: TextInputType.name,
+              controller: _fullNameController,
+              textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -62,7 +133,10 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                 ),
                 TextButton(
                   onPressed: () {
-                    setState(() => _useEmail = !_useEmail);
+                    setState(() {
+                      _useEmail = !_useEmail;
+                      _identityController.clear();
+                    });
                   },
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
@@ -79,9 +153,11 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             SizedBox(
               height: AppSizes.inputHeight,
               child: TextField(
+                controller: _identityController,
                 keyboardType: _useEmail
                     ? TextInputType.emailAddress
                     : TextInputType.phone,
+                textInputAction: TextInputAction.next,
                 decoration: InputDecoration(
                   hintText: _useEmail ? 'you@example.com' : '+1 234 567 8900',
                   prefixIcon: Icon(
@@ -107,7 +183,9 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               label: 'Password',
               hint: 'Password',
               icon: Icons.lock_outline,
+              controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.next,
               suffixIcon: IconButton(
                 tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
@@ -126,7 +204,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
               label: 'Confirm Password',
               hint: 'Password',
               icon: Icons.lock_outline,
+              controller: _confirmPasswordController,
               obscureText: _obscureConfirmPassword,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) {
+                if (!isLoading) _createAccount();
+              },
               suffixIcon: IconButton(
                 tooltip: _obscureConfirmPassword
                     ? 'Show password'
@@ -190,10 +273,16 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton.icon(
-              onPressed: () => context.push('/verify-account'),
+              onPressed: isLoading ? null : _createAccount,
               iconAlignment: IconAlignment.end,
-              icon: const Icon(Icons.arrow_forward, size: 18),
-              label: const Text('Create account'),
+              icon: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.arrow_forward, size: 18),
+              label: Text(isLoading ? 'Creating account' : 'Create account'),
             ),
             const SizedBox(height: 12),
             AuthTextLink(

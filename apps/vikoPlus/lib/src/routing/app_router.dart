@@ -72,7 +72,13 @@ final appRouter = GoRouter(
             state.uri.queryParameters['next'] ?? '/create-or-join-group';
         final backRoute =
             state.uri.queryParameters['back'] ?? '/create-account';
-        return VerifyAccountScreen(nextRoute: nextRoute, backRoute: backRoute);
+        return VerifyAccountScreen(
+          nextRoute: nextRoute,
+          backRoute: backRoute,
+          challengeId: state.uri.queryParameters['challengeId'],
+          destination: state.uri.queryParameters['destination'],
+          channel: state.uri.queryParameters['channel'],
+        );
       },
     ),
     GoRoute(

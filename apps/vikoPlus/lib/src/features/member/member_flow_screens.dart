@@ -5,6 +5,7 @@ import '../../core/formatters/app_formatters.dart';
 import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -16,11 +17,7 @@ class MemberDashboardNewUserScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'Member Portal',
       actions: [
-        IconButton(
-          tooltip: 'Logout',
-          onPressed: () => context.go('/sign-in'),
-          icon: const Icon(Icons.logout_outlined),
-        ),
+        const AuthLogoutIconButton(),
       ],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

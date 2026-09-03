@@ -79,11 +79,7 @@ jobs:
             fi
 
             # Extract GitHub secrets to .env (excluding server deployment credentials)
-            echo "$ALL_SECRETS" | jq -r '
-              to_entries[] 
-              | select((.key | startswith("SERVER_") or startswith("SSH_") or .key == "GITHUB_TOKEN") | not) 
-              | "\(.key)=\"\(.value | tostring)\""
-            ' > .env
+            printf '%s' "$ALL_SECRETS" | jq -r 'to_entries[] | select(((.key | startswith("SERVER_")) or (.key | startswith("SSH_")) or .key == "GITHUB_TOKEN") | not) | "\(.key)=\(.value | tostring | @json)"' > .env
             chmod 600 .env
 
             # Build na Start Containers

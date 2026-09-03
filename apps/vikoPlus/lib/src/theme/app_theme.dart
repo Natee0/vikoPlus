@@ -42,6 +42,15 @@ class AppTheme {
       colorScheme: colorScheme,
       scaffoldBackgroundColor: AppColors.background,
       fontFamily: 'Roboto',
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _FastPageTransitionsBuilder(),
+          TargetPlatform.iOS: _FastPageTransitionsBuilder(),
+          TargetPlatform.linux: _FastPageTransitionsBuilder(),
+          TargetPlatform.macOS: _FastPageTransitionsBuilder(),
+          TargetPlatform.windows: _FastPageTransitionsBuilder(),
+        },
+      ),
       textTheme:
           const TextTheme(
             displayLarge: TextStyle(
@@ -180,6 +189,36 @@ class AppTheme {
             borderRadius: BorderRadius.circular(AppRadii.pill),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _FastPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FastPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final fastAnimation = CurvedAnimation(
+      parent: animation,
+      curve: const Interval(0, 0.12, curve: Curves.easeOutCubic),
+      reverseCurve: const Interval(0, 0.12, curve: Curves.easeInCubic),
+    );
+
+    return FadeTransition(
+      opacity: fastAnimation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.02, 0),
+          end: Offset.zero,
+        ).animate(fastAnimation),
+        child: child,
       ),
     );
   }

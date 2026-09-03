@@ -8,7 +8,9 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class ReportsDashboardScreen extends StatelessWidget {
-  const ReportsDashboardScreen({super.key});
+  const ReportsDashboardScreen({this.showBottomNavigation = true, super.key});
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +21,7 @@ class ReportsDashboardScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'Reports',
       bottomNavigationIndex: 3,
+      showBottomNavigation: showBottomNavigation,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

@@ -99,7 +99,7 @@ class _FullyPaidProfile extends StatelessWidget {
               child: OutlinedButton.icon(
                 onPressed: () => context.go('/reminders/new'),
                 icon: const Icon(Icons.notifications_active_outlined),
-                label: const Text('Reminder'),
+                label: const Text('Send Reminder'),
               ),
             ),
           ],
@@ -175,7 +175,7 @@ class _OutstandingProfile extends StatelessWidget {
                 style: FilledButton.styleFrom(backgroundColor: AppColors.error),
                 onPressed: () => context.go('/reminders/new'),
                 icon: const Icon(Icons.notifications_active),
-                label: const Text('Reminder'),
+                label: const Text('Send Reminder'),
               ),
             ),
             const SizedBox(width: AppSpacing.sm),

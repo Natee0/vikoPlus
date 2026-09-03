@@ -10,7 +10,9 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+  const AdminDashboardScreen({this.showBottomNavigation = true, super.key});
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -22,6 +24,7 @@ class AdminDashboardScreen extends StatelessWidget {
     return VikoplusScreen(
       title: loc.adminDashboardTitle,
       bottomNavigationIndex: 0,
+      showBottomNavigation: showBottomNavigation,
       actions: [
         IconButton(
           tooltip: 'Notifications',
@@ -116,6 +119,14 @@ class AdminDashboardScreen extends StatelessWidget {
             subtitle: 'Review balances, roles and contact details',
             icon: Icons.groups_2_outlined,
             route: '/members',
+          ),
+          const SizedBox(height: 12),
+          const ActionTile(
+            title: 'Loans',
+            subtitle: 'Borrowing power, active loans and repayment tracking',
+            icon: Icons.account_balance_wallet_outlined,
+            route: '/loans',
+            color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: 12),
           const ActionTile(

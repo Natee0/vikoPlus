@@ -67,11 +67,11 @@ class MyGroupsScreen extends StatelessWidget {
           SizedBox(height: AppSpacing.sm),
           const _GroupAccessCard(
             name: 'Upendo Savings',
-            subtitle: 'Treasurer workspace',
+            subtitle: 'Loan approvals and contribution register',
             role: 'Treasurer',
             status: 'Active',
             members: '41 members',
-            route: '/contributions',
+            route: '/loans/applications',
             icon: Icons.account_balance_wallet_outlined,
           ),
           SizedBox(height: AppSpacing.sm),

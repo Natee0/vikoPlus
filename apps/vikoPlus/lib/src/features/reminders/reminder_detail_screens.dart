@@ -4,47 +4,399 @@ import 'package:go_router/go_router.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_components.dart';
+import '../common/vikoplus_design_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
-class SendNewReminderScreen extends StatelessWidget {
+class SendNewReminderScreen extends StatefulWidget {
   const SendNewReminderScreen({super.key});
 
   @override
+  State<SendNewReminderScreen> createState() => _SendNewReminderScreenState();
+}
+
+class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
+  static const _limit = 160;
+  late final TextEditingController _messageController;
+  bool _useSms = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _messageController = TextEditingController(
+      text: 'Dear member, this is a friendly reminder regarding your outstanding dues of TZS 45,000 for the current month. Please complete the payment by Friday.',
+    );
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return VikoplusScreen(
-      title: 'New Reminder',
-      backRoute: '/reminders',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const _ReminderPreviewCard(),
-          const SizedBox(height: AppSpacing.md),
-          const _ReminderField(
-            label: 'Audience',
-            value: 'Members with outstanding July dues',
-            icon: Icons.groups_2_outlined,
+    return Scaffold(
+      backgroundColor: AppColors.surface,
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: 0,
+        onDestinationSelected: (index) {
+          switch (index) {
+            case 0:
+              context.go('/dashboard');
+              break;
+            case 1:
+              context.go('/members');
+              break;
+            case 2:
+              context.go('/reminders');
+              break;
+            case 3:
+              context.go('/settings/admin');
+              break;
+          }
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.dashboard_outlined),
+            selectedIcon: Icon(Icons.dashboard),
+            label: 'Dashboard',
           ),
-          const SizedBox(height: AppSpacing.sm),
-          const _ReminderField(
-            label: 'Channel',
-            value: 'SMS + WhatsApp',
-            icon: Icons.forum_outlined,
+          NavigationDestination(
+            icon: Icon(Icons.groups_2_outlined),
+            selectedIcon: Icon(Icons.groups_2),
+            label: 'Members',
           ),
-          const SizedBox(height: AppSpacing.sm),
-          const TextField(
-            maxLines: 5,
-            decoration: InputDecoration(
-              labelText: 'Message',
-              hintText: 'Hi {member_name}, your {amount} contribution is due for Sofia Wajukuu.',
-            ),
+          NavigationDestination(
+            icon: Icon(Icons.insert_chart_outlined),
+            selectedIcon: Icon(Icons.insert_chart),
+            label: 'Activity',
           ),
-          const SizedBox(height: AppSpacing.md),
-          FilledButton.icon(
-            onPressed: () => context.go('/reminders/campaigns/july-dues'),
-            icon: const Icon(Icons.schedule_send_outlined, size: 18),
-            label: const Text('Send Reminder'),
+          NavigationDestination(
+            icon: Icon(Icons.settings_outlined),
+            selectedIcon: Icon(Icons.settings),
+            label: 'Settings',
           ),
         ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _ReminderTopBar(
+              title: 'Dashboard',
+              onBack: () => context.go('/dashboard'),
+            ),
+            VikoplusTopBar(
+              title: 'Send Reminder',
+              onBack: () => context.go('/reminders'),
+              showBorder: false,
+            ),
+            Expanded(
+              child: VikoplusConstrainedContent(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.screenMobile,
+                    AppSpacing.sm,
+                    AppSpacing.screenMobile,
+                    AppSpacing.lg,
+                  ),
+                  children: [
+                    const _AudienceCard(),
+                    const SizedBox(height: AppSpacing.md),
+                    Text(
+                      'Channel',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _ChannelButton(
+                            label: 'SMS',
+                            icon: Icons.sms_outlined,
+                            selected: _useSms,
+                            onPressed: () => setState(() => _useSms = true),
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: _ChannelButton(
+                            label: 'WhatsApp',
+                            icon: Icons.chat_outlined,
+                            selected: !_useSms,
+                            onPressed: () => setState(() => _useSms = false),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Message',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => context.go('/reminders/templates'),
+                          icon: const Icon(Icons.copy_all_outlined, size: 16),
+                          label: const Text('Use Template'),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      controller: _messageController,
+                      maxLines: 6,
+                      maxLength: _limit,
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        counterText: '',
+                        hintText: 'Write reminder message',
+                        alignLabelWithHint: true,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Text(
+                        '${_messageController.text.length}/$_limit',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: AppColors.onSurfaceVariant),
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.remove_red_eye_outlined,
+                          color: AppColors.onSurfaceVariant,
+                          size: 18,
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        Text(
+                          'Message Preview',
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _MessagePreview(message: _messageController.text),
+                    const SizedBox(height: AppSpacing.lg),
+                    FilledButton.icon(
+                      onPressed: () =>
+                          context.go('/reminders/campaigns/july-dues'),
+                      icon: const Icon(Icons.send_outlined),
+                      label: const Text('Send Reminder'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReminderTopBar extends StatelessWidget {
+  const _ReminderTopBar({required this.title, required this.onBack});
+
+  final String title;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: AppSizes.topBarHeight,
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.outlineVariant)),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: AppSizes.iconButton,
+            child: IconButton(
+              tooltip: 'Back',
+              onPressed: onBack,
+              icon: const Icon(Icons.arrow_back),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: AppSpacing.sm),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: AppColors.primary,
+              child: const Icon(
+                Icons.person_outline,
+                color: AppColors.onPrimary,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AudienceCard extends StatelessWidget {
+  const _AudienceCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainer,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.errorContainer,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+            ),
+            child: const Icon(Icons.group_outlined, color: AppColors.error),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'To',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                Text(
+                  '14 Members with Outstanding\nDues',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChannelButton extends StatelessWidget {
+  const _ChannelButton({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: selected
+          ? FilledButton.icon(
+              onPressed: onPressed,
+              icon: Icon(icon, size: 17),
+              label: Text(label),
+            )
+          : FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.surfaceContainer,
+                foregroundColor: AppColors.onSurface,
+                elevation: 0,
+              ),
+              onPressed: onPressed,
+              icon: Icon(icon, size: 17),
+              label: Text(label),
+            ),
+    );
+  }
+}
+
+class _MessagePreview extends StatelessWidget {
+  const _MessagePreview({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.card,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F1FB),
+        borderRadius: BorderRadius.circular(AppRadii.xl),
+      ),
+      child: Align(
+        alignment: Alignment.center,
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          padding: AppInsets.compactCard,
+          decoration: BoxDecoration(
+            color: const Color(0xFFE0E1EB),
+            borderRadius: BorderRadius.circular(AppRadii.md),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Vikoplus:',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.62),
+                ),
+              ),
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Text(
+                  'Delivered',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant.withValues(alpha: 0.58),
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -121,48 +473,6 @@ class CampaignDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ReminderPreviewCard extends StatelessWidget {
-  const _ReminderPreviewCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: AppInsets.card,
-      decoration: BoxDecoration(
-        color: AppColors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        boxShadow: AppShadows.level2(),
-      ),
-      child: Text(
-        'Prepare targeted SMS and WhatsApp reminders for members who still owe contributions.',
-        style: Theme.of(context).textTheme.bodyLarge
-            ?.copyWith(color: AppColors.onPrimary, fontWeight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _ReminderField extends StatelessWidget {
-  const _ReminderField({
-    required this.label,
-    required this.value,
-    required this.icon,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      readOnly: true,
-      controller: TextEditingController(text: value),
-      decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon)),
     );
   }
 }

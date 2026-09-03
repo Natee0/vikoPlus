@@ -49,7 +49,9 @@ class MemberDashboardNewUserScreen extends StatelessWidget {
 }
 
 class MyContributionsScreen extends StatelessWidget {
-  const MyContributionsScreen({super.key});
+  const MyContributionsScreen({this.showBackButton = true, super.key});
+
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
@@ -61,6 +63,7 @@ class MyContributionsScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'My Contributions',
       backRoute: '/member/dashboard',
+      showBackButton: showBackButton,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -163,13 +166,16 @@ class DuesArrearsScreen extends StatelessWidget {
 }
 
 class MyProfileScreen extends StatelessWidget {
-  const MyProfileScreen({super.key});
+  const MyProfileScreen({this.showBackButton = true, super.key});
+
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'My Profile',
       backRoute: '/member/dashboard',
+      showBackButton: showBackButton,
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -193,13 +199,16 @@ class MyProfileScreen extends StatelessWidget {
 }
 
 class SelectContributionScreen extends StatelessWidget {
-  const SelectContributionScreen({super.key});
+  const SelectContributionScreen({this.showBackButton = true, super.key});
+
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'Select Contribution',
       backRoute: '/member/dashboard',
+      showBackButton: showBackButton,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -544,14 +553,14 @@ class _ArrearsMonthTile extends StatelessWidget {
               ),
               primaryAction
                   ? FilledButton.icon(
-                      onPressed: () {},
+                      onPressed: () => context.go('/reminders/new'),
                       icon: const Icon(Icons.campaign_outlined, size: 18),
-                      label: const Text('Notify'),
+                      label: const Text('Send Reminder'),
                     )
                   : OutlinedButton.icon(
-                      onPressed: () {},
+                      onPressed: () => context.go('/reminders/new'),
                       icon: const Icon(Icons.campaign_outlined, size: 18),
-                      label: const Text('Notify'),
+                      label: const Text('Send Reminder'),
                     ),
             ],
           ),

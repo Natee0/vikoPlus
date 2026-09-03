@@ -17,50 +17,56 @@ import {
 export class MockSubscriptionBillingProvider implements SubscriptionBillingProvider {
   constructor(private readonly config: ConfigService) {}
 
-  async createCustomer(
-    input: CreateBillingCustomerInput,
-  ): Promise<BillingCustomer> {
-    return { providerCustomerId: `mock_customer_${input.groupId}` };
+  createCustomer(input: CreateBillingCustomerInput): Promise<BillingCustomer> {
+    return Promise.resolve({
+      providerCustomerId: `mock_customer_${input.groupId}`,
+    });
   }
 
-  async createCheckoutSession(
+  createCheckoutSession(
     input: CreateCheckoutSessionInput,
   ): Promise<CheckoutSession> {
-    return {
+    return Promise.resolve({
       providerSessionId: `mock_checkout_${randomUUID()}`,
       checkoutUrl: `vikoplus://billing/mock-checkout?groupId=${input.groupId}&plan=${input.planCode}`,
       expiresAt: addMinutes(new Date(), 30),
-    };
+    });
   }
 
-  async getSubscription(
+  getSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription> {
-    return mockSubscription(providerSubscriptionId, "active", false);
+    return Promise.resolve(
+      mockSubscription(providerSubscriptionId, "active", false),
+    );
   }
 
-  async cancelSubscription(
+  cancelSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription> {
-    return mockSubscription(providerSubscriptionId, "cancelled", true);
+    return Promise.resolve(
+      mockSubscription(providerSubscriptionId, "cancelled", true),
+    );
   }
 
-  async resumeSubscription(
+  resumeSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription> {
-    return mockSubscription(providerSubscriptionId, "active", false);
+    return Promise.resolve(
+      mockSubscription(providerSubscriptionId, "active", false),
+    );
   }
 
-  async createBillingPortalSession(
+  createBillingPortalSession(
     input: BillingPortalInput,
   ): Promise<BillingPortalSession> {
-    return {
+    return Promise.resolve({
       portalUrl: `vikoplus://billing/mock-portal?customer=${input.providerCustomerId}`,
       expiresAt: addMinutes(new Date(), 30),
-    };
+    });
   }
 
-  async verifyWebhookSignature(
+  verifyWebhookSignature(
     payload: Buffer,
     signature: string,
   ): Promise<VerifiedBillingEvent> {
@@ -79,11 +85,11 @@ export class MockSubscriptionBillingProvider implements SubscriptionBillingProvi
     }
 
     const parsed = JSON.parse(payload.toString("utf8")) as VerifiedBillingEvent;
-    return {
+    return Promise.resolve({
       providerEventId: parsed.providerEventId,
       type: parsed.type,
       payload: parsed.payload,
-    };
+    });
   }
 }
 

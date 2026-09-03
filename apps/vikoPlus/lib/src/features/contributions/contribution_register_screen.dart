@@ -9,7 +9,12 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class ContributionRegisterScreen extends StatelessWidget {
-  const ContributionRegisterScreen({super.key});
+  const ContributionRegisterScreen({
+    this.showBottomNavigation = true,
+    super.key,
+  });
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +28,7 @@ class ContributionRegisterScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'Contribution Register',
       bottomNavigationIndex: 2,
+      showBottomNavigation: showBottomNavigation,
       actions: [
         IconButton(
           tooltip: 'Record payment',
@@ -34,6 +40,13 @@ class ContributionRegisterScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const StatusPill(label: sofiaFinancialYear),
+          const SizedBox(height: 16),
+          const ActionTile(
+            title: 'Loan applications',
+            subtitle: 'Review guarantors, approve loans, and disburse funds',
+            icon: Icons.fact_check_outlined,
+            route: '/loans/applications',
+          ),
           const SizedBox(height: 16),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,

@@ -82,7 +82,10 @@ class ActionTile extends StatelessWidget {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        onTap: () => context.go(route),
+        onTap: () {
+          if (GoRouterState.of(context).uri.toString() == route) return;
+          context.go(route);
+        },
         child: Padding(
           padding: AppInsets.compactCard,
           child: Row(

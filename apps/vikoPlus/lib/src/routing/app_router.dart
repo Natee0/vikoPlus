@@ -10,8 +10,10 @@ import '../features/contributions/digital_receipt_screen.dart';
 import '../features/contributions/record_payment_screen.dart';
 import '../features/contributions/record_payment_select_member_screen.dart';
 import '../features/dashboard/admin_dashboard_screen.dart';
+import '../features/dashboard/admin_tab_shell_screen.dart';
 import '../features/dashboard/dashboard_empty_state_screen.dart';
 import '../features/dashboard/member_dashboard_screen.dart';
+import '../features/dashboard/member_tab_shell_screen.dart';
 import '../features/groups/verify_group_details_screen.dart';
 import '../features/groups/configure_contributions_screen.dart';
 import '../features/groups/configure_financial_year_screen.dart';
@@ -26,6 +28,7 @@ import '../features/members/add_member_screen.dart';
 import '../features/members/invite_members_screen.dart';
 import '../features/members/member_list_screen.dart';
 import '../features/members/member_profile_screen.dart';
+import '../features/loans/loan_screens.dart';
 import '../features/more/more_menu_screen.dart';
 import '../features/more/stitch_screen_catalog_screen.dart';
 import '../features/notifications/notifications_screen.dart';
@@ -123,37 +126,132 @@ final appRouter = GoRouter(
       path: '/billing',
       builder: (context, state) => const BillingOverviewScreen(),
     ),
-    GoRoute(
-      path: '/dashboard',
-      builder: (context, state) => const AdminDashboardScreen(),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          AdminTabShellScreen(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/dashboard',
+              builder: (context, state) =>
+                  const AdminDashboardScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/members',
+              builder: (context, state) =>
+                  const MemberListScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/contributions',
+              builder: (context, state) =>
+                  const ContributionRegisterScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/reports',
+              builder: (context, state) =>
+                  const ReportsDashboardScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/more',
+              builder: (context, state) =>
+                  const MoreMenuScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+      ],
     ),
     GoRoute(
       path: '/dashboard/empty',
       builder: (context, state) => const DashboardEmptyStateScreen(),
     ),
-    GoRoute(
-      path: '/member/dashboard',
-      builder: (context, state) => const MemberDashboardScreen(),
+    StatefulShellRoute.indexedStack(
+      builder: (context, state, navigationShell) =>
+          MemberTabShellScreen(navigationShell: navigationShell),
+      branches: [
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/member/dashboard',
+              builder: (context, state) =>
+                  const MemberDashboardScreen(showBottomNavigation: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/member/contributions',
+              builder: (context, state) =>
+                  const MyContributionsScreen(showBackButton: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/member/payments/select',
+              builder: (context, state) =>
+                  const SelectContributionScreen(showBackButton: false),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/member/profile',
+              builder: (context, state) =>
+                  const MyProfileScreen(showBackButton: false),
+            ),
+          ],
+        ),
+      ],
     ),
     GoRoute(
       path: '/member/dashboard/new',
       builder: (context, state) => const MemberDashboardNewUserScreen(),
     ),
     GoRoute(
-      path: '/member/contributions',
-      builder: (context, state) => const MyContributionsScreen(),
-    ),
-    GoRoute(
       path: '/member/dues',
       builder: (context, state) => const DuesArrearsScreen(),
     ),
     GoRoute(
-      path: '/member/profile',
-      builder: (context, state) => const MyProfileScreen(),
+      path: '/loans',
+      builder: (context, state) => const LoansOverviewScreen(),
     ),
     GoRoute(
-      path: '/member/payments/select',
-      builder: (context, state) => const SelectContributionScreen(),
+      path: '/loans/apply',
+      builder: (context, state) => const ApplyForLoanScreen(),
+    ),
+    GoRoute(
+      path: '/loans/repayment',
+      builder: (context, state) => const LoanRepaymentScreen(),
+    ),
+    GoRoute(
+      path: '/loans/applications',
+      builder: (context, state) => const LoanApplicationsScreen(),
+    ),
+    GoRoute(
+      path: '/loans/applications/:id',
+      builder: (context, state) => LoanApplicationReviewScreen(
+        applicationId: state.pathParameters['id'] ?? 'david-kiprop',
+      ),
     ),
     GoRoute(
       path: '/member/payments/method',
@@ -192,10 +290,6 @@ final appRouter = GoRouter(
       builder: (context, state) => const DigitalReceiptScreen(),
     ),
     GoRoute(
-      path: '/members',
-      builder: (context, state) => const MemberListScreen(),
-    ),
-    GoRoute(
       path: '/members/invite',
       builder: (context, state) => const InviteMembersScreen(),
     ),
@@ -222,10 +316,6 @@ final appRouter = GoRouter(
       },
     ),
     GoRoute(
-      path: '/contributions',
-      builder: (context, state) => const ContributionRegisterScreen(),
-    ),
-    GoRoute(
       path: '/contributions/record',
       builder: (context, state) => const RecordPaymentSelectMemberScreen(),
     ),
@@ -244,10 +334,6 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/contributions/receipt/:id',
       builder: (context, state) => const DigitalReceiptScreen(),
-    ),
-    GoRoute(
-      path: '/reports',
-      builder: (context, state) => const ReportsDashboardScreen(),
     ),
     GoRoute(
       path: '/reports/outstanding',
@@ -325,6 +411,5 @@ final appRouter = GoRouter(
       path: '/stitch-screens',
       builder: (context, state) => const StitchScreenCatalogScreen(),
     ),
-    GoRoute(path: '/more', builder: (context, state) => const MoreMenuScreen()),
   ],
 );

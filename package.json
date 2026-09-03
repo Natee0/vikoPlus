@@ -24,5 +24,8 @@
     "class-validator": "^0.14.4",
     "effect": "^3.21.0",
     "lodash": "^4.17.21"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.69.0"
   }
 }

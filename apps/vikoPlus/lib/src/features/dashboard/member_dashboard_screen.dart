@@ -6,7 +6,9 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
 class MemberDashboardScreen extends StatelessWidget {
-  const MemberDashboardScreen({super.key});
+  const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -109,50 +111,57 @@ class MemberDashboardScreen extends StatelessWidget {
               icon: const Icon(Icons.hub_outlined, size: 18),
               label: const Text('Switch, create or join group'),
             ),
+            const SizedBox(height: AppSpacing.sm),
+            FilledButton.icon(
+              onPressed: () => context.go('/loans'),
+              icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+              label: const Text('Loans'),
+            ),
           ],
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              context.go('/member/dashboard');
-              break;
-            case 1:
-              context.go('/member/contributions');
-              break;
-            case 2:
-              context.go('/member/payments/select');
-              break;
-            case 3:
-              context.go('/member/profile');
-              break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Home',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.payments_outlined),
-            selectedIcon: Icon(Icons.payments),
-            label: 'Payments',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Account',
-          ),
-        ],
-      ),
+      bottomNavigationBar: showBottomNavigation
+          ? NavigationBar(
+              selectedIndex: 0,
+              onDestinationSelected: (index) {
+                if (index == 0) return;
+
+                switch (index) {
+                  case 1:
+                    context.go('/member/contributions');
+                    break;
+                  case 2:
+                    context.go('/member/payments/select');
+                    break;
+                  case 3:
+                    context.go('/member/profile');
+                    break;
+                }
+              },
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history_outlined),
+                  selectedIcon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.payments_outlined),
+                  selectedIcon: Icon(Icons.payments),
+                  label: 'Payments',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Account',
+                ),
+              ],
+            )
+          : null,
     );
   }
 }

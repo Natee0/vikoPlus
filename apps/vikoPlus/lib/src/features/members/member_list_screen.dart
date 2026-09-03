@@ -9,7 +9,9 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class MemberListScreen extends StatelessWidget {
-  const MemberListScreen({super.key});
+  const MemberListScreen({this.showBottomNavigation = true, super.key});
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +25,7 @@ class MemberListScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'Members',
       bottomNavigationIndex: 1,
+      showBottomNavigation: showBottomNavigation,
       actions: [
         IconButton(
           tooltip: 'Invite members',

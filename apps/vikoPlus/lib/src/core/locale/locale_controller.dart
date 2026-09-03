@@ -8,7 +8,7 @@ final localeControllerProvider =
 class LocaleController extends AsyncNotifier<Locale?> {
   @override
   Future<Locale?> build() async {
-    return const Locale('sw');
+    return const Locale('en');
   }
 
   Future<void> setLocale(Locale locale) async {

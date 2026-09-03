@@ -20,8 +20,8 @@ enum UserIdentityType {
 enum GroupRole {
   GROUP_ADMIN
   TREASURER
+  SECRETARY
   MEMBER
-  VIEWER
 }
 
 enum GroupMemberStatus {

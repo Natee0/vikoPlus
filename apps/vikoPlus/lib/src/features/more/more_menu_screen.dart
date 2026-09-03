@@ -5,13 +5,16 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class MoreMenuScreen extends StatelessWidget {
-  const MoreMenuScreen({super.key});
+  const MoreMenuScreen({this.showBottomNavigation = true, super.key});
+
+  final bool showBottomNavigation;
 
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'More',
       bottomNavigationIndex: 4,
+      showBottomNavigation: showBottomNavigation,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: const [
@@ -35,6 +38,14 @@ class MoreMenuScreen extends StatelessWidget {
             subtitle: 'SMS and WhatsApp campaigns',
             icon: Icons.notifications_active_outlined,
             route: '/reminders',
+          ),
+          SizedBox(height: 12),
+          ActionTile(
+            title: 'Loans',
+            subtitle: 'Borrowing power, applications and repayments',
+            icon: Icons.account_balance_wallet_outlined,
+            route: '/loans',
+            color: AppColors.secondaryGreen,
           ),
           SizedBox(height: 12),
           ActionTile(

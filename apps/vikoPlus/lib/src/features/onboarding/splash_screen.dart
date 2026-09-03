@@ -21,7 +21,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 1800), () {
+    _timer = Timer(const Duration(seconds: 9), () {
       if (!mounted) return;
       context.go('/welcome');
     });
@@ -92,12 +92,13 @@ class _SplashScreenState extends State<SplashScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const Spacer(flex: 5),
-                const SizedBox(
-                  width: 18,
-                  height: 18,
+                SizedBox(
+                  width: 26,
+                  height: 26,
                   child: CircularProgressIndicator(
-                    strokeWidth: 2.2,
+                    strokeWidth: 2.6,
                     color: AppColors.onPrimaryContainer,
+                    backgroundColor: Colors.white.withValues(alpha: 0.10),
                   ),
                 ),
               ],

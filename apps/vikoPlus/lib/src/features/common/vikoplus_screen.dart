@@ -13,6 +13,7 @@ class VikoplusScreen extends StatelessWidget {
     this.bottomNavigationIndex,
     this.backRoute,
     this.showBackButton,
+    this.showBottomNavigation = true,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class VikoplusScreen extends StatelessWidget {
   final int? bottomNavigationIndex;
   final String? backRoute;
   final bool? showBackButton;
+  final bool showBottomNavigation;
 
   void _goBack(BuildContext context) {
     if (context.canPop()) {
@@ -79,11 +81,14 @@ class VikoplusScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: bottomNavigationIndex == null
+      bottomNavigationBar:
+          bottomNavigationIndex == null || !showBottomNavigation
           ? null
           : NavigationBar(
               selectedIndex: bottomNavigationIndex!,
               onDestinationSelected: (index) {
+                if (index == bottomNavigationIndex) return;
+
                 switch (index) {
                   case 0:
                     context.go('/dashboard');

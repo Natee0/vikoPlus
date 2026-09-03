@@ -4,6 +4,7 @@ import { resolve } from "path";
 import { BillingModule } from "./billing/billing.module";
 import { envValidationSchema } from "./config/env.validation";
 import { HealthModule } from "./health/health.module";
+import { MobileApiModule } from "./mobile-api/mobile-api.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SubscriptionPlansModule } from "./subscription-plans/subscription-plans.module";
@@ -25,6 +26,7 @@ import { SubscriptionsModule } from "./subscriptions/subscriptions.module";
     SubscriptionPlansModule,
     SubscriptionsModule,
     ReportsModule,
+    MobileApiModule,
   ],
 })
 export class AppModule {}

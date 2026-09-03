@@ -15,7 +15,7 @@ class LanguageScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
     final selected =
-        ref.watch(localeControllerProvider).value?.languageCode ?? 'sw';
+        ref.watch(localeControllerProvider).value?.languageCode ?? 'en';
 
     return VikoplusScreen(
       title: loc.selectLanguage,
@@ -64,17 +64,17 @@ class LanguageScreen extends ConsumerWidget {
             child: Column(
               children: [
                 _LanguageTile(
-                  value: 'sw',
-                  title: loc.languageSwahili,
-                  subtitle: 'Tumia Vikoplus kwa Kiswahili',
-                  selected: selected == 'sw',
-                ),
-                const SizedBox(height: AppSpacing.sm),
-                _LanguageTile(
                   value: 'en',
                   title: loc.languageEnglish,
                   subtitle: 'Use Vikoplus in English',
                   selected: selected == 'en',
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _LanguageTile(
+                  value: 'sw',
+                  title: loc.languageSwahili,
+                  subtitle: 'Tumia Vikoplus kwa Kiswahili',
+                  selected: selected == 'sw',
                 ),
               ],
             ),

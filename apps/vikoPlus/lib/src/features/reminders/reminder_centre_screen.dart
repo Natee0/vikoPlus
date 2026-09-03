@@ -29,14 +29,23 @@ class ReminderCentreScreen extends StatelessWidget {
             accentColor: AppColors.warning,
           ),
           SizedBox(height: 16),
+          ActionTile(
+            title: 'Send Reminder',
+            subtitle:
+                'Compose SMS or WhatsApp for members with outstanding dues',
+            icon: Icons.schedule_send_outlined,
+            route: '/reminders/new',
+            color: AppColors.primaryGreen,
+          ),
+          SizedBox(height: 16),
           SectionHeader(title: 'Campaigns'),
           SizedBox(height: 12),
           ActionTile(
             title: 'July dues reminder',
-            subtitle: 'SMS campaign prepared for outstanding members',
+            subtitle: 'Review delivery status for the latest sent campaign',
             icon: Icons.sms_outlined,
             route: '/reminders/campaigns/july-dues',
-            color: AppColors.primaryGreen,
+            color: AppColors.secondaryGreen,
           ),
           SizedBox(height: 12),
           ActionTile(

@@ -81,7 +81,7 @@ jobs:
             # Extract GitHub secrets to .env (excluding server deployment credentials)
             echo "$ALL_SECRETS" | jq -r '
               to_entries[] 
-              | select((.key | startswith("SERVER_") or startswith("SSH_") or . == "GITHUB_TOKEN") | not) 
+              | select((.key | startswith("SERVER_") or startswith("SSH_") or .key == "GITHUB_TOKEN") | not) 
               | "\(.key)=\"\(.value | tostring)\""
             ' > .env
             chmod 600 .env

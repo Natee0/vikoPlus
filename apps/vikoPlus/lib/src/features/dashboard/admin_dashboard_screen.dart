@@ -166,6 +166,14 @@ class AdminDashboardScreen extends StatelessWidget {
             route: '/groups/contributions',
             color: AppColors.secondaryGreen,
           ),
+          const SizedBox(height: 12),
+          const ActionTile(
+            title: 'Historical records',
+            subtitle: 'Import old contribution data one by one or in bulk',
+            icon: Icons.history_edu_outlined,
+            route: '/groups/history',
+            color: AppColors.gold,
+          ),
           const SizedBox(height: 16),
           Card(
             child: Padding(

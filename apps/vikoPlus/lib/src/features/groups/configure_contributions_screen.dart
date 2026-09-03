@@ -6,8 +6,48 @@ import '../../theme/app_design_tokens.dart';
 import '../common/info_card.dart';
 import '../common/vikoplus_screen.dart';
 
-class ConfigureContributionsScreen extends StatelessWidget {
+class ConfigureContributionsScreen extends StatefulWidget {
   const ConfigureContributionsScreen({super.key});
+
+  @override
+  State<ConfigureContributionsScreen> createState() =>
+      _ConfigureContributionsScreenState();
+}
+
+class _ConfigureContributionsScreenState
+    extends State<ConfigureContributionsScreen> {
+  String _frequency = 'Monthly';
+  int _weeklyDay = 6;
+  int _monthlyDay = 5;
+  bool _joiningFeeEnabled = true;
+  bool _allowPartialPayments = true;
+  bool _autoAllocatePayments = true;
+
+  String get _dueLabel {
+    if (_frequency == 'Daily') return 'Every day';
+    if (_frequency == 'Weekly') return _weekDays[_weeklyDay - 1];
+    return '${_ordinal(_monthlyDay)} of each cycle';
+  }
+
+  static const _weekDays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  String _ordinal(int value) {
+    if (value >= 11 && value <= 13) return '${value}th';
+    return switch (value % 10) {
+      1 => '${value}st',
+      2 => '${value}nd',
+      3 => '${value}rd',
+      _ => '${value}th',
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,57 +76,103 @@ class ConfigureContributionsScreen extends StatelessWidget {
           _ContributionSection(
             title: 'Joining Fee',
             subtitle: 'Require members to pay a fee upon joining.',
-            trailing: Switch(value: true, onChanged: (_) {}),
+            trailing: Switch(
+              value: _joiningFeeEnabled,
+              onChanged: (value) {
+                setState(() => _joiningFeeEnabled = value);
+              },
+            ),
             children: const [
               _MoneyField(label: 'Joining Fee Amount', hint: '10000'),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          const _ContributionSection(
+          _ContributionSection(
             title: 'Membership Fee',
-            subtitle:
-                'Set the monthly membership contribution for every member.',
+            subtitle: 'Set the recurring contribution cycle for every member.',
             children: [
-              _MoneyField(label: 'Monthly Membership Amount', hint: '5000'),
-              SizedBox(height: AppSpacing.sm),
-              _SelectField(label: 'Contribution Frequency', value: 'Monthly'),
-              SizedBox(height: AppSpacing.sm),
-              _SelectField(label: 'Due Day', value: '5th of the month'),
+              const _MoneyField(label: 'Membership Amount', hint: '5000'),
+              const SizedBox(height: AppSpacing.sm),
+              _SelectField(
+                label: 'Contribution Frequency',
+                value: _frequency,
+                values: const ['Daily', 'Weekly', 'Monthly'],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _frequency = value);
+                },
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              if (_frequency == 'Weekly')
+                _SelectField(
+                  label: 'Weekly Due Day',
+                  value: _weekDays[_weeklyDay - 1],
+                  values: _weekDays,
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() => _weeklyDay = _weekDays.indexOf(value) + 1);
+                  },
+                )
+              else if (_frequency == 'Monthly')
+                _SelectField(
+                  label: 'Monthly Due Day',
+                  value: 'Day $_monthlyDay',
+                  values: List.generate(31, (index) => 'Day ${index + 1}'),
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _monthlyDay = int.parse(value.replaceFirst('Day ', ''));
+                    });
+                  },
+                )
+              else
+                const _LockedCycleField(
+                  label: 'Due Schedule',
+                  value: 'Every day',
+                ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          const _ContributionSection(
+          _ContributionSection(
             title: 'Payment Rules',
-            subtitle: 'Configure how members can pay their contributions.',
+            subtitle: 'Group payments stay manual. Members submit requests and the treasurer confirms receipt.',
             children: [
               _RuleRow(
                 title: 'Allow Partial Payments',
                 subtitle: 'Members can pay their contribution in installments.',
-                enabled: true,
+                enabled: _allowPartialPayments,
+                onChanged: (value) {
+                  setState(() => _allowPartialPayments = value);
+                },
               ),
-              Divider(color: AppColors.outlineVariant),
+              const Divider(color: AppColors.outlineVariant),
               _RuleRow(
                 title: 'Auto Allocate Payments',
                 subtitle: 'Apply payments to oldest unpaid periods first.',
-                enabled: true,
+                enabled: _autoAllocatePayments,
+                onChanged: (value) {
+                  setState(() => _autoAllocatePayments = value);
+                },
               ),
             ],
           ),
+          const SizedBox(height: AppSpacing.sm),
+          _HistoricalDataCard(onImport: () => context.go('/groups/history')),
           const SizedBox(height: AppSpacing.md),
-          const Row(
+          Row(
             children: [
-              Expanded(
+              const Expanded(
                 child: InfoCard(
                   title: 'Joining fee',
                   value: 'TZS 10,000',
                   icon: Icons.person_add_alt_1_outlined,
                 ),
               ),
-              SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: InfoCard(
-                  title: 'Monthly',
-                  value: 'TZS 5,000',
+                  title: _frequency,
+                  value: _dueLabel,
                   icon: Icons.event_repeat_outlined,
                 ),
               ),
@@ -187,10 +273,17 @@ class _MoneyField extends StatelessWidget {
 }
 
 class _SelectField extends StatelessWidget {
-  const _SelectField({required this.label, required this.value});
+  const _SelectField({
+    required this.label,
+    required this.value,
+    required this.values,
+    required this.onChanged,
+  });
 
   final String label;
   final String value;
+  final List<String> values;
+  final ValueChanged<String?> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -198,10 +291,29 @@ class _SelectField extends StatelessWidget {
       initialValue: value,
       icon: const Icon(Icons.expand_more),
       decoration: InputDecoration(labelText: label),
-      items: [value]
+      items: values
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
-      onChanged: (_) {},
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _LockedCycleField extends StatelessWidget {
+  const _LockedCycleField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      readOnly: true,
+      controller: TextEditingController(text: value),
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.today_outlined),
+      ),
     );
   }
 }
@@ -211,11 +323,13 @@ class _RuleRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.enabled,
+    required this.onChanged,
   });
 
   final String title;
   final String subtitle;
   final bool enabled;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +338,7 @@ class _RuleRow extends StatelessWidget {
       child: SwitchListTile(
         value: enabled,
         contentPadding: EdgeInsets.zero,
-        onChanged: (_) {},
+        onChanged: onChanged,
         title: Text(
           title,
           style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -233,6 +347,76 @@ class _RuleRow extends StatelessWidget {
           ),
         ),
         subtitle: Text(subtitle),
+      ),
+    );
+  }
+}
+
+class _HistoricalDataCard extends StatelessWidget {
+  const _HistoricalDataCard({required this.onImport});
+
+  final VoidCallback onImport;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryContainer.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadii.md),
+                ),
+                child: const Icon(
+                  Icons.upload_file_outlined,
+                  color: AppColors.primary,
+                ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Historical group data',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      'Admins and secretaries can add previous payments one by one or import them in bulk.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: onImport,
+            icon: const Icon(Icons.history_outlined, size: 18),
+            label: const Text('Import historical records'),
+          ),
+        ],
       ),
     );
   }

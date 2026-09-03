@@ -20,6 +20,7 @@ import '../features/groups/configure_financial_year_screen.dart';
 import '../features/groups/configure_reminders_screen.dart';
 import '../features/groups/create_group_screen.dart';
 import '../features/groups/create_or_join_group_screen.dart';
+import '../features/groups/historical_records_screen.dart';
 import '../features/groups/join_group_invitation_screen.dart';
 import '../features/groups/my_groups_screen.dart';
 import '../features/groups/onboarding_success_screen.dart';
@@ -109,6 +110,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/groups/contributions',
       builder: (context, state) => const ConfigureContributionsScreen(),
+    ),
+    GoRoute(
+      path: '/groups/history',
+      builder: (context, state) => const HistoricalRecordsScreen(),
     ),
     GoRoute(
       path: '/groups/reminders',

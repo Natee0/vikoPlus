@@ -44,6 +44,14 @@ class AdminSettingsDashboardScreen extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.sm),
           ActionTile(
+            title: 'Historical records',
+            subtitle: 'Import previous group contributions and old ledgers',
+            icon: Icons.history_edu_outlined,
+            route: '/groups/history',
+            color: AppColors.secondaryGreen,
+          ),
+          SizedBox(height: AppSpacing.sm),
+          ActionTile(
             title: 'Contribution penalties',
             subtitle: 'Late-fee rules and grace periods',
             icon: Icons.gavel_outlined,

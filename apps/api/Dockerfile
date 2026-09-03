@@ -1,16 +1,13 @@
-# 1. Base stage - Install dependencies
-FROM node:22-alpine AS dependencies
+# 1. Build stage - install from the monorepo lockfile and compile API only.
+FROM node:24-alpine AS build
 WORKDIR /app
-COPY package*.json ./
 
-RUN npm install
+COPY package.json package-lock.json .npmrc ./
+COPY apps/api/package.json ./apps/api/package.json
+RUN npm ci
 
-# 2. Build stage - Generate Prisma client & build NestJS JS code
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-COPY --from=dependencies /app/node_modules ./node_modules
-COPY . .
+COPY apps/api ./apps/api
+WORKDIR /app/apps/api
 
 # Generate Prisma Client
 RUN npx prisma generate
@@ -18,17 +15,24 @@ RUN npx prisma generate
 # Build NestJS
 RUN npm run build
 
-RUN npm prune --production
+WORKDIR /app
+RUN npm prune --omit=dev
 
-# 3. Production Runtime stage
-FROM node:22-alpine AS runtime
+# 2. Production runtime stage.
+FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 
+RUN apk add --no-cache openssl
+
 COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
-COPY package*.json ./
+COPY --from=build /app/apps/api/dist ./apps/api/dist
+COPY --from=build /app/apps/api/prisma ./apps/api/prisma
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/package.json
+
+USER node
+WORKDIR /app/apps/api
 
 EXPOSE 3000
 

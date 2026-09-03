@@ -37,6 +37,8 @@ enum ContributionPlanType {
 
 enum ContributionFrequency {
   ONCE
+  DAILY
+  WEEKLY
   MONTHLY
   QUARTERLY
   ANNUAL
@@ -82,6 +84,19 @@ enum BillingInterval {
   YEAR
 }
 
+enum ReminderChannel {
+  SMS
+  WHATSAPP
+  BOTH
+}
+
+enum ReminderPackagePurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+}
+
 enum SubscriptionState {
   TRIAL
   ACTIVE
@@ -94,7 +109,7 @@ enum SubscriptionState {
 
 enum BillingProvider {
   MOCK
-  CONFIGURED
+  SAYARI
 }
 
 enum BillingEventStatus {
@@ -123,6 +138,8 @@ enum AuditAction {
   ACCOUNT_VERIFIED
   LOGIN_SECURITY_EVENT
   LANGUAGE_PREFERENCE_CHANGED
+  PLATFORM_PRICE_CHANGED
+  PLATFORM_PACKAGE_PURCHASE_CREATED
   GROUP_UPDATED
   MEMBER_CREATED
   MEMBER_DEACTIVATED
@@ -173,6 +190,7 @@ model User {
   notifications      Notification[]
   createdPayments    GroupContributionPayment[] @relation("CreatedPayments")
   reviewedPayments   GroupContributionPayment[] @relation("ReviewedPayments")
+  reminderPackagePurchases ReminderPackagePurchase[] @relation("ReminderPackagePurchasesCreatedBy")
 }
 
 model UserIdentity {
@@ -225,6 +243,8 @@ model Group {
   currency            String              @default("TZS")
   logoObjectKey       String?
   billingOwnerUserId  String?
+  establishedAt       DateTime?
+  historicalDataStartsAt DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   members             GroupMember[]
@@ -239,6 +259,7 @@ model Group {
   auditLogs           AuditLog[]
   reminderTemplates   ReminderTemplate[]
   reminderCampaigns   ReminderCampaign[]
+  reminderPackagePurchases ReminderPackagePurchase[]
 }
 
 model GroupMember {
@@ -298,6 +319,9 @@ model ContributionPlan {
   name            String
   type            ContributionPlanType
   frequency       ContributionFrequency @default(MONTHLY)
+  dueDayOfWeek    Int?
+  dueDayOfMonth   Int?
+  cycleAnchorDate DateTime?
   amountMinor     Int
   currency        String                @default("TZS")
   allowsPartial   Boolean               @default(true)
@@ -369,6 +393,7 @@ model GroupContributionPayment {
   reference             String?
   evidenceObjectKey     String?
   status                GroupContributionPaymentStatus @default(SUBMITTED)
+  paidAt                DateTime?
   submittedAt           DateTime?
   reviewedAt            DateTime?
   reversalReason        String?
@@ -426,12 +451,56 @@ model SubscriptionPlan {
   priceMinor        Int
   currency          String                 @default("TZS")
   interval          BillingInterval
+  intervalCount     Int                    @default(1)
   trialDays         Int                    @default(0)
   status            SubscriptionPlanStatus @default(ACTIVE)
   featureEntitlements Json
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
   subscriptions     Subscription[]
+}
+
+model PlatformPrice {
+  id              String    @id @default(cuid())
+  code            String    @unique
+  name            String
+  description     String?
+  channel         ReminderChannel?
+  amountMinor     Int
+  currency        String    @default("TZS")
+  isActive        Boolean   @default(true)
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  purchases       ReminderPackagePurchase[]
+
+  @@index([updatedByUserId])
+}
+
+model ReminderPackagePurchase {
+  id                  String                        @id @default(cuid())
+  groupId             String
+  platformPriceId     String
+  createdByUserId     String
+  provider            BillingProvider               @default(SAYARI)
+  providerCheckoutId  String?
+  quantity            Int
+  amountMinor         Int
+  currency            String                        @default("TZS")
+  status              ReminderPackagePurchaseStatus @default(PENDING)
+  checkoutUrl         String?
+  expiresAt           DateTime?
+  paidAt              DateTime?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  group               Group                         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  platformPrice       PlatformPrice                 @relation(fields: [platformPriceId], references: [id])
+  createdBy           User                          @relation("ReminderPackagePurchasesCreatedBy", fields: [createdByUserId], references: [id])
+
+  @@index([groupId])
+  @@index([platformPriceId])
+  @@index([createdByUserId])
+  @@index([providerCheckoutId])
 }
 
 model Subscription {

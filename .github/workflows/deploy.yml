@@ -8,22 +8,36 @@ on:
 
 jobs:
   deploy:
-    if: contains(github.event.head_commit.message, '[DEPLOY]') || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[DEPLOY]')
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Copy project files directly to server
+      - name: Prepare clean backend staging directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          script_stop: true
+          script: |
+            set -e
+            STAGING_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus-api-staging"
+            rm -rf "$STAGING_DIR"
+            mkdir -p "$STAGING_DIR"
+
+      - name: Copy backend files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          source: "."
-          target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
+          source: "docker-compose.yml,.env.example,package.json,package-lock.json,.npmrc,apps/api/**"
+          target: "/home/${{ secrets.SERVER_USER }}/vikoplus-api-staging"
 
       - name: Build image and start containers on server
         uses: appleboy/ssh-action@v1.0.3
@@ -35,11 +49,29 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
           envs: ALL_SECRETS
+          script_stop: true
           script: |
             set -e
 
-            # Nenda moja kwa moja kwenye folder la project
-            cd /home/${{ secrets.SERVER_USER }}/vikoplus
+            APP_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
+            STAGING_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus-api-staging"
+
+            mkdir -p "$APP_DIR/apps"
+
+            # Keep deploy backend-only in this monorepo. Remove stale mobile
+            # folders if an older deploy copied the full repository.
+            rm -rf "$APP_DIR/apps/api" "$APP_DIR/apps/mobile" "$APP_DIR/apps/vikoPlus"
+            rm -f "$APP_DIR/docker-compose.yml" "$APP_DIR/.env.example"
+
+            cp -r "$STAGING_DIR/apps/api" "$APP_DIR/apps/api"
+            cp "$STAGING_DIR/docker-compose.yml" "$APP_DIR/docker-compose.yml"
+            cp "$STAGING_DIR/.env.example" "$APP_DIR/.env.example"
+            cp "$STAGING_DIR/package.json" "$APP_DIR/package.json"
+            cp "$STAGING_DIR/package-lock.json" "$APP_DIR/package-lock.json"
+            cp "$STAGING_DIR/.npmrc" "$APP_DIR/.npmrc"
+            rm -rf "$STAGING_DIR"
+
+            cd "$APP_DIR"
 
             # Install jq dynamically kama haipo
             if ! command -v jq &> /dev/null; then
@@ -49,16 +81,44 @@ jobs:
             # Extract GitHub secrets to .env (excluding server deployment credentials)
             echo "$ALL_SECRETS" | jq -r '
               to_entries[] 
-              | select(.key | startswith("SERVER_") or startswith("SSH_") | not) 
-              | "\(.key)=\(.value)"
+              | select((.key | startswith("SERVER_") or startswith("SSH_") or . == "GITHUB_TOKEN") | not) 
+              | "\(.key)=\"\(.value | tostring)\""
             ' > .env
+            chmod 600 .env
 
             # Build na Start Containers
             docker compose down --remove-orphans || true
             docker compose up --build -d --force-recreate
 
             # Run Prisma Migrations ndani ya container mpya
-            docker exec vikoplus_api npx prisma migrate deploy || true
+            docker exec vikoplus_api npx prisma migrate deploy
+
+            # Verify API health before marking deploy green
+            HEALTH_PORT="$(grep -E '^API_PUBLIC_PORT=' .env | tail -1 | cut -d= -f2- | tr -d '"')"
+            HEALTH_PORT="${HEALTH_PORT:-3002}"
+            HEALTH_URL="http://127.0.0.1:${HEALTH_PORT}/v1/health"
+            for attempt in $(seq 1 90); do
+              if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
+                echo "VikoPlus API is healthy."
+                break
+              fi
+
+              if ! docker ps --format '{{.Names}}' | grep -qx vikoplus_api; then
+                echo "API container stopped before becoming healthy."
+                docker ps -a | grep vikoplus || true
+                docker logs vikoplus_api --tail 200 || true
+                exit 1
+              fi
+
+              if [ "$attempt" -eq 90 ]; then
+                echo "API did not become healthy in time."
+                docker ps -a | grep vikoplus || true
+                docker logs vikoplus_api --tail 200 || true
+                exit 1
+              fi
+
+              sleep 2
+            done
 
             # Prune dangling Docker images
             docker image prune -f

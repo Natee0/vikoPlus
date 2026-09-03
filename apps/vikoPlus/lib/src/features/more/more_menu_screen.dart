@@ -78,6 +78,14 @@ class MoreMenuScreen extends StatelessWidget {
           ),
           SizedBox(height: 12),
           ActionTile(
+            title: 'Historical records',
+            subtitle: 'Add old records manually or import a CSV',
+            icon: Icons.history_edu_outlined,
+            route: '/groups/history',
+            color: AppColors.gold,
+          ),
+          SizedBox(height: 12),
+          ActionTile(
             title: 'Create or join group',
             subtitle: 'Open first-time group setup choices',
             icon: Icons.group_add_outlined,

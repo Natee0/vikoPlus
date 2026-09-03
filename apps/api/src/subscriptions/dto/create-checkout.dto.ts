@@ -1,5 +1,5 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsUrl } from "class-validator";
+import { IsEmail, IsOptional, IsString, IsUrl } from "class-validator";
 
 export class CreateCheckoutDto {
   @ApiProperty()
@@ -13,4 +13,19 @@ export class CreateCheckoutDto {
   @ApiProperty()
   @IsUrl({ require_tld: false })
   cancelUrl!: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsEmail()
+  buyerEmail?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  buyerName?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  buyerPhone?: string;
 }

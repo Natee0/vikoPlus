@@ -15,6 +15,8 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen> {
   String? _groupType;
+  DateTime? _establishedAt;
+  DateTime? _historicalDataStartsAt;
 
   void _goBack() {
     if (context.canPop()) {
@@ -23,6 +25,53 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     }
 
     context.go('/create-or-join-group');
+  }
+
+  String _formatDate(DateTime value) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${value.day} ${months[value.month - 1]} ${value.year}';
+  }
+
+  Future<void> _pickEstablishedDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _establishedAt ?? DateTime(2015),
+      firstDate: DateTime(1970),
+      lastDate: DateTime.now(),
+    );
+    if (picked == null) return;
+    setState(() {
+      _establishedAt = picked;
+      if (_historicalDataStartsAt != null &&
+          _historicalDataStartsAt!.isBefore(picked)) {
+        _historicalDataStartsAt = picked;
+      }
+    });
+  }
+
+  Future<void> _pickHistoricalStartDate() async {
+    final firstDate = _establishedAt ?? DateTime(1970);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _historicalDataStartsAt ?? _establishedAt ?? DateTime(2015),
+      firstDate: firstDate,
+      lastDate: DateTime.now(),
+    );
+    if (picked == null) return;
+    setState(() => _historicalDataStartsAt = picked);
   }
 
   @override
@@ -88,6 +137,27 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                           textCapitalization: TextCapitalization.words,
                         ),
                         const SizedBox(height: AppSpacing.sm),
+                        _DateField(
+                          label: 'Group Established Date',
+                          hint: 'When did this group start?',
+                          value: _establishedAt == null
+                              ? null
+                              : _formatDate(_establishedAt!),
+                          onTap: _pickEstablishedDate,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        _DateField(
+                          label: 'Historical Records Start',
+                          optionalLabel: '(Optional)',
+                          hint: 'Earliest data to import',
+                          value: _historicalDataStartsAt == null
+                              ? null
+                              : _formatDate(_historicalDataStartsAt!),
+                          onTap: _pickHistoricalStartDate,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        const _HistoryNoteCard(),
+                        const SizedBox(height: AppSpacing.sm),
                         const _LockedCurrencyField(),
                       ],
                     ),
@@ -101,6 +171,76 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
+    required this.hint,
+    required this.onTap,
+    this.optionalLabel,
+    this.value,
+  });
+
+  final String label;
+  final String hint;
+  final VoidCallback onTap;
+  final String? optionalLabel;
+  final String? value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FieldLabel(label: label, optionalLabel: optionalLabel),
+        const SizedBox(height: AppSpacing.xs),
+        TextField(
+          readOnly: true,
+          controller: TextEditingController(text: value ?? ''),
+          onTap: onTap,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: const Icon(Icons.event_outlined, size: 22),
+            suffixIcon: const Icon(Icons.expand_more, size: 22),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HistoryNoteCard extends StatelessWidget {
+  const _HistoryNoteCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.history_edu_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              'Existing groups can keep their real start date and import previous contribution records after setup.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.35),
+            ),
+          ),
+        ],
       ),
     );
   }

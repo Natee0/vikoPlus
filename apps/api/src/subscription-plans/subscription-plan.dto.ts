@@ -24,6 +24,9 @@ export class SubscriptionPlanDto {
   interval!: BillingInterval;
 
   @ApiProperty()
+  intervalCount!: number;
+
+  @ApiProperty()
   trialDays!: number;
 
   @ApiProperty({ enum: SubscriptionPlanStatus })

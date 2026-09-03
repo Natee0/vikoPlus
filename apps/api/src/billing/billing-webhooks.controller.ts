@@ -1,9 +1,11 @@
 import { Body, Controller, Headers, Param, Post } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { BillingProvider } from "@prisma/client";
+import { Public } from "../common/auth/public.decorator";
 import { BillingWebhookService } from "./billing-webhook.service";
 
 @ApiTags("billing-webhooks")
+@Public()
 @Controller({ path: "billing/webhooks", version: "1" })
 export class BillingWebhooksController {
   constructor(private readonly webhooks: BillingWebhookService) {}

@@ -1,3 +1,5 @@
+import { BillingInterval, BillingProvider } from "@prisma/client";
+
 export type CreateBillingCustomerInput = {
   groupId: string;
   email?: string;
@@ -12,9 +14,20 @@ export type BillingCustomer = {
 export type CreateCheckoutSessionInput = {
   groupId: string;
   planCode: string;
+  productType: "group-access" | "reminder-package";
+  productName: string;
   providerCustomerId: string;
+  amountMinor: number;
+  currency: string;
+  interval: BillingInterval;
+  intervalCount: number;
+  trialDays: number;
+  metadata?: Record<string, unknown>;
   successUrl: string;
   cancelUrl: string;
+  buyerEmail?: string;
+  buyerName?: string;
+  buyerPhone?: string;
 };
 
 export type CheckoutSession = {
@@ -50,6 +63,7 @@ export type VerifiedBillingEvent = {
 };
 
 export interface SubscriptionBillingProvider {
+  readonly provider: BillingProvider;
   createCustomer(input: CreateBillingCustomerInput): Promise<BillingCustomer>;
   createCheckoutSession(
     input: CreateCheckoutSessionInput,

@@ -76,6 +76,12 @@ class OnboardingSuccessScreen extends StatelessWidget {
                   title: 'Invite members and assign roles',
                   subtitle: 'Chairperson/admin controls member permissions.',
                 ),
+                SizedBox(height: AppSpacing.xs),
+                _NextStep(
+                  number: '3',
+                  title: 'Import historical records',
+                  subtitle: 'Admin or secretary can add old contribution data.',
+                ),
               ],
             ),
           ),

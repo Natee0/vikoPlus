@@ -1,5 +1,6 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
+import { BillingProvider } from "@prisma/client";
 import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import {
   BillingCustomer,
@@ -15,6 +16,8 @@ import {
 
 @Injectable()
 export class MockSubscriptionBillingProvider implements SubscriptionBillingProvider {
+  readonly provider = BillingProvider.MOCK;
+
   constructor(private readonly config: ConfigService) {}
 
   createCustomer(input: CreateBillingCustomerInput): Promise<BillingCustomer> {
@@ -28,7 +31,7 @@ export class MockSubscriptionBillingProvider implements SubscriptionBillingProvi
   ): Promise<CheckoutSession> {
     return Promise.resolve({
       providerSessionId: `mock_checkout_${randomUUID()}`,
-      checkoutUrl: `vikoplus://billing/mock-checkout?groupId=${input.groupId}&plan=${input.planCode}`,
+      checkoutUrl: `vikoplus://billing/mock-checkout?groupId=${input.groupId}&product=${input.productType}&code=${input.planCode}&interval=${input.interval}&intervalCount=${input.intervalCount}&trialDays=${input.trialDays}`,
       expiresAt: addMinutes(new Date(), 30),
     });
   }

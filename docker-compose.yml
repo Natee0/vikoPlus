@@ -1,58 +1,25 @@
 services:
-  postgres:
-    container_name: vikoplus_postgres
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: vikoplus
-      POSTGRES_USER: vikoplus
-      POSTGRES_PASSWORD: vikoplus
-    ports:
-      - "5435:5432"
-    volumes:
-      - vikoplus_data:/var/lib/postgresql/data
-    networks:
-      - vikoplus_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vikoplus -d vikoplus"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    container_name: vikoplus_redis
-    image: redis:7-alpine
-    ports:
-      - "6380:6379"
-    networks:
-      - vikoplus_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   api:
     container_name: vikoplus_api
     build:
-      context: ./apps/api
+      context: .
+      dockerfile: apps/api/Dockerfile
     env_file:
       - .env
-    environment:
-      DATABASE_URL: postgresql://vikoplus:vikoplus@postgres:5432/vikoplus?schema=public
-      REDIS_URL: redis://redis:6379
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "3002:3000"
+      - "${API_HOST_BIND:-127.0.0.1}:${API_PUBLIC_PORT:-3002}:${API_PORT:-3000}"
+    restart: unless-stopped
     networks:
       - vikoplus_network
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:${API_PORT:-3000}/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 networks:
   vikoplus_network:
     driver: bridge
-
-volumes:
-  vikoplus_data:

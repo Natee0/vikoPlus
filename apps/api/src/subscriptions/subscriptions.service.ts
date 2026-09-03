@@ -1,5 +1,15 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { BillingProvider, SubscriptionState } from "@prisma/client";
+import {
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
+import {
+  GroupMemberStatus,
+  GroupRole,
+  SubscriptionPlanStatus,
+  SubscriptionState,
+} from "@prisma/client";
 import { ApiErrorCode } from "../common/errors/api-error-code";
 import { hasPaidFeatureAccess } from "../common/subscriptions/subscription-access.policy";
 import { PrismaService } from "../prisma/prisma.service";
@@ -7,6 +17,7 @@ import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
 import { CreateCheckoutDto } from "./dto/create-checkout.dto";
 import { SubscriptionDto } from "./dto/subscription.dto";
+import { AuthenticatedUser } from "../common/auth/authenticated-user";
 
 @Injectable()
 export class SubscriptionsService {
@@ -45,9 +56,12 @@ export class SubscriptionsService {
   }
 
   async createCheckout(
+    user: AuthenticatedUser,
     groupId: string,
     input: CreateCheckoutDto,
   ): Promise<{ checkoutUrl: string; expiresAt: Date }> {
+    await this.requireBillingAuthority(user, groupId);
+
     const [group, plan] = await Promise.all([
       this.prisma.group.findUnique({ where: { id: groupId } }),
       this.prisma.subscriptionPlan.findUnique({
@@ -61,23 +75,34 @@ export class SubscriptionsService {
         message: "Group or subscription plan was not found.",
       });
     }
+    if (plan.status !== SubscriptionPlanStatus.ACTIVE) {
+      throw new NotFoundException({
+        code: ApiErrorCode.ResourceNotFound,
+        message: "Subscription plan was not found.",
+      });
+    }
 
     const providerCustomer = await this.billingProvider.createCustomer({
       groupId,
       name: group.name,
+      email: input.buyerEmail,
+      phone: input.buyerPhone,
     });
+    const billingProvider = this.billingProvider.provider;
 
     const billingCustomer = await this.prisma.billingCustomer.upsert({
       where: {
         provider_providerCustomerId: {
-          provider: BillingProvider.MOCK,
+          provider: billingProvider,
           providerCustomerId: providerCustomer.providerCustomerId,
         },
       },
       create: {
         groupId,
-        provider: BillingProvider.MOCK,
+        provider: billingProvider,
         providerCustomerId: providerCustomer.providerCustomerId,
+        email: input.buyerEmail,
+        phone: input.buyerPhone,
       },
       update: {},
     });
@@ -89,7 +114,7 @@ export class SubscriptionsService {
         groupId,
         planId: plan.id,
         billingCustomerId: billingCustomer.id,
-        provider: BillingProvider.MOCK,
+        provider: billingProvider,
         state: SubscriptionState.TRIAL,
         trialEndsAt:
           plan.trialDays > 0 ? addDays(new Date(), plan.trialDays) : null,
@@ -103,9 +128,19 @@ export class SubscriptionsService {
     const checkout = await this.billingProvider.createCheckoutSession({
       groupId,
       planCode: plan.code,
+      productType: "group-access",
+      productName: plan.name,
       providerCustomerId: billingCustomer.providerCustomerId,
+      amountMinor: plan.priceMinor,
+      currency: plan.currency,
+      interval: plan.interval,
+      intervalCount: plan.intervalCount,
+      trialDays: plan.trialDays,
       successUrl: input.successUrl,
       cancelUrl: input.cancelUrl,
+      buyerEmail: input.buyerEmail,
+      buyerName: input.buyerName ?? group.name,
+      buyerPhone: input.buyerPhone,
     });
 
     return {
@@ -115,9 +150,12 @@ export class SubscriptionsService {
   }
 
   async createBillingPortal(
+    user: AuthenticatedUser,
     groupId: string,
     returnUrl: string,
   ): Promise<{ portalUrl: string; expiresAt: Date }> {
+    await this.requireBillingAuthority(user, groupId);
+
     const customer = await this.prisma.billingCustomer.findFirst({
       where: { groupId },
     });
@@ -135,11 +173,19 @@ export class SubscriptionsService {
     return { portalUrl: session.portalUrl, expiresAt: session.expiresAt };
   }
 
-  async cancel(groupId: string): Promise<SubscriptionDto> {
+  async cancel(
+    user: AuthenticatedUser,
+    groupId: string,
+  ): Promise<SubscriptionDto> {
+    await this.requireBillingAuthority(user, groupId);
     return this.updateProviderState(groupId, "cancel");
   }
 
-  async resume(groupId: string): Promise<SubscriptionDto> {
+  async resume(
+    user: AuthenticatedUser,
+    groupId: string,
+  ): Promise<SubscriptionDto> {
+    await this.requireBillingAuthority(user, groupId);
     return this.updateProviderState(groupId, "resume");
   }
 
@@ -193,6 +239,37 @@ export class SubscriptionsService {
       currentPeriodEndsAt: updated.currentPeriodEndsAt,
       cancelAtPeriodEnd: updated.cancelAtPeriodEnd,
     };
+  }
+
+  private async requireBillingAuthority(
+    user: AuthenticatedUser,
+    groupId: string,
+  ): Promise<void> {
+    const [group, membership] = await Promise.all([
+      this.prisma.group.findUnique({
+        where: { id: groupId },
+        select: { billingOwnerUserId: true },
+      }),
+      this.prisma.groupMember.findFirst({
+        where: {
+          groupId,
+          userId: user.id,
+          status: GroupMemberStatus.ACTIVE,
+        },
+        select: { role: true },
+      }),
+    ]);
+
+    if (!group || !membership) {
+      throw new ForbiddenException("Group billing access denied.");
+    }
+
+    if (
+      group.billingOwnerUserId !== user.id &&
+      membership.role !== GroupRole.GROUP_ADMIN
+    ) {
+      throw new ForbiddenException("Group billing access denied.");
+    }
   }
 }
 

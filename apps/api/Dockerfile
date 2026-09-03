@@ -27,8 +27,10 @@ WORKDIR /app
 ENV NPM_CONFIG_AUDIT=false
 ENV NPM_CONFIG_FUND=false
 
-COPY package.json package-lock.json .npmrc ./
-COPY apps/api/package.json ./apps/api/package.json
+# Copy manifests from the completed build stage so Docker does not run the
+# full dev install and production install in parallel on small VPS instances.
+COPY --from=build /app/package.json /app/package-lock.json /app/.npmrc ./
+COPY --from=build /app/apps/api/package.json ./apps/api/package.json
 RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 # 4. Production runtime stage.

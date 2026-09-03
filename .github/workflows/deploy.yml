@@ -15,6 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies and build API
+        run: |
+          npm ci
+          npm --workspace apps/api run prisma:generate
+          npm --workspace apps/api run build
+
       - name: Prepare clean backend staging directory
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -36,10 +48,10 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          source: ".dockerignore,docker-compose.yml,.env.example,package.json,package-lock.json,.npmrc,apps/api/**"
+          source: "docker-compose.yml,.env.example,package.json,package-lock.json,.npmrc,apps/api/package.json,apps/api/dist/**,apps/api/prisma/**"
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus-api-staging"
 
-      - name: Build image and start containers on server
+      - name: Deploy API on server
         uses: appleboy/ssh-action@v1.0.3
         env:
           ALL_SECRETS: ${{ toJson(secrets) }}
@@ -56,15 +68,15 @@ jobs:
             APP_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
             STAGING_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus-api-staging"
 
-            mkdir -p "$APP_DIR/apps"
+            mkdir -p "$APP_DIR/apps/api"
 
             # Keep deploy backend-only in this monorepo. Remove stale mobile
             # folders if an older deploy copied the full repository.
             rm -rf "$APP_DIR/apps/api" "$APP_DIR/apps/mobile" "$APP_DIR/apps/vikoPlus"
-            rm -f "$APP_DIR/.dockerignore" "$APP_DIR/docker-compose.yml" "$APP_DIR/.env.example"
+            rm -f "$APP_DIR/docker-compose.yml" "$APP_DIR/.env.example" "$APP_DIR/deploy-prisma.sh"
 
+            mkdir -p "$APP_DIR/apps"
             cp -r "$STAGING_DIR/apps/api" "$APP_DIR/apps/api"
-            cp "$STAGING_DIR/.dockerignore" "$APP_DIR/.dockerignore"
             cp "$STAGING_DIR/docker-compose.yml" "$APP_DIR/docker-compose.yml"
             cp "$STAGING_DIR/.env.example" "$APP_DIR/.env.example"
             cp "$STAGING_DIR/package.json" "$APP_DIR/package.json"
@@ -83,15 +95,23 @@ jobs:
             printf '%s' "$ALL_SECRETS" | jq -r 'to_entries[] | select(((.key | startswith("SERVER_")) or (.key | startswith("SSH_")) or .key == "GITHUB_TOKEN") | not) | "\(.key)=\(.value | tostring | @json)"' > .env
             chmod 600 .env
 
-            # Build and update only the API service. This keeps Docker layer
-            # cache warm and avoids extra memory spikes from full teardown.
-            export DOCKER_BUILDKIT=1
-            export COMPOSE_DOCKER_CLI_BUILD=1
-            docker compose build api
-            docker compose up -d --no-deps --no-build api
+            docker rm -f vikoplus_api 2>/dev/null || true
 
-            # Run Prisma Migrations ndani ya container mpya
-            docker exec vikoplus_api npx prisma migrate deploy
+            echo "Running Prisma migrations..."
+            cat > deploy-prisma.sh <<'PRISMA_MIGRATE_SCRIPT'
+            #!/bin/sh
+            set -e
+            cd /app
+            apk add --no-cache openssl
+            npm install --omit=dev --prefer-offline --no-audit --fund=false
+            cd /app/apps/api
+            node ../../node_modules/prisma/build/index.js migrate deploy
+            PRISMA_MIGRATE_SCRIPT
+            chmod +x deploy-prisma.sh
+            docker compose run --rm --no-deps api sh ./deploy-prisma.sh
+
+            echo "Starting VikoPlus API container..."
+            docker compose up -d --force-recreate api
 
             # Verify API health before marking deploy green
             HEALTH_PORT="$(grep -E '^API_PUBLIC_PORT=' .env | tail -1 | cut -d= -f2- | tr -d '"')"
@@ -119,6 +139,3 @@ jobs:
 
               sleep 1
             done
-
-            # Prune dangling Docker images
-            docker image prune -f --filter "until=24h"

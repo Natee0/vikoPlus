@@ -1,9 +1,10 @@
 services:
   api:
+    image: node:24-alpine
     container_name: vikoplus_api
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    working_dir: /app
+    volumes:
+      - ./:/app
     env_file:
       - .env
     extra_hosts:
@@ -11,6 +12,10 @@ services:
     ports:
       - "${API_HOST_BIND:-127.0.0.1}:${API_PUBLIC_PORT:-3002}:${API_PORT:-3000}"
     restart: unless-stopped
+    command: >
+      sh -c "apk add --no-cache openssl
+      && npm install --omit=dev --prefer-offline --no-audit --fund=false
+      && node apps/api/dist/src/main.js"
     networks:
       - vikoplus_network
     healthcheck:

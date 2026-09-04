@@ -1,8 +1,11 @@
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/create_account_screen.dart';
-import '../features/auth/password_reset_screens.dart';
+import '../features/auth/forgot_password_screen.dart';
+import '../features/auth/password_reset_success_screen.dart';
 import '../features/auth/sign_in_screen.dart';
+import '../features/auth/set_new_password_screen.dart';
+import '../features/auth/verify_reset_code_screen.dart';
 import '../features/auth/verify_account_screen.dart';
 import '../features/billing/billing_overview_screen.dart';
 import '../features/billing/subscription_plan_screen.dart';

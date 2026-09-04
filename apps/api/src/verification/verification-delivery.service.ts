@@ -5,14 +5,17 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import * as nodemailer from "nodemailer";
+import { verificationEmailTemplate } from "./verification-email.template";
 
 export type VerificationChannel = "sms" | "email";
+export type VerificationPurpose = "account_verification" | "password_reset";
 
 type VerificationInput = {
   channel: VerificationChannel;
   destination: string;
   code: string;
   name?: string | null;
+  purpose?: VerificationPurpose;
 };
 
 @Injectable()
@@ -46,7 +49,7 @@ export class VerificationDeliveryService {
         "X-API-Key": apiKey,
       },
       body: JSON.stringify({
-        content: `Your vikoPlus verification code is ${input.code}.`,
+        content: this.smsMessage(input),
         recipients: [this.normalizeMsisdn(input.destination)],
         sender_id: senderId,
       }),
@@ -78,12 +81,13 @@ export class VerificationDeliveryService {
     });
 
     try {
+      const message = verificationEmailTemplate(input);
       await transport.sendMail({
         from: this.config.getOrThrow<string>("EMAIL_FROM"),
         to: input.destination,
-        subject: "Your vikoPlus verification code",
-        text: `Your vikoPlus verification code is ${input.code}.`,
-        html: `<p>Your vikoPlus verification code is <strong>${input.code}</strong>.</p>`,
+        subject: message.subject,
+        text: message.text,
+        html: message.html,
       });
       return { provider: "smtp-email", delivered: true };
     } catch (error) {
@@ -112,4 +116,11 @@ export class VerificationDeliveryService {
     }
   }
 
+  private smsMessage(input: VerificationInput): string {
+    const action =
+      input.purpose === "password_reset"
+        ? "reset your Vikoplus password"
+        : "verify your Vikoplus account";
+    return `Your Vikoplus code is ${input.code}. Use it to ${action}. It expires in 10 minutes. Do not share it.`;
+  }
 }

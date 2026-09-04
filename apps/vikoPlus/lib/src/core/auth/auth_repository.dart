@@ -23,8 +23,8 @@ class AuthRepository {
       '/auth/register',
       data: {
         'fullName': fullName,
-        ?'phone': phone,
-        ?'email': email,
+        'phone': phone,
+        'email': email,
         'password': password,
         'preferredLocale': 'en',
       },

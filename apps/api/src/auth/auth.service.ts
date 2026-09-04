@@ -84,6 +84,7 @@ export class AuthService {
       destination: identity.value,
       code,
       name: user.displayName,
+      purpose: "account_verification",
     });
 
     return {
@@ -199,6 +200,7 @@ export class AuthService {
       destination: identity.value,
       code,
       name: identity.user.displayName,
+      purpose: "password_reset",
     });
 
     await this.prisma.auditLog.create({

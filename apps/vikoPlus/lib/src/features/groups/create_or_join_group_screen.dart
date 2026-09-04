@@ -25,11 +25,6 @@ class CreateOrJoinGroupScreen extends StatelessWidget {
           child: VikoplusConstrainedContent(
             child: Stack(
               children: [
-                Positioned(
-                  top: AppSpacing.xs,
-                  right: AppSpacing.xs,
-                  child: const AuthLogoutIconButton(),
-                ),
                 ListView(
                   padding: const EdgeInsets.fromLTRB(
                     AppSpacing.screenEdge,
@@ -86,6 +81,11 @@ class CreateOrJoinGroupScreen extends StatelessWidget {
                       ),
                     ),
                   ],
+                ),
+                Positioned(
+                  top: AppSpacing.xs,
+                  right: AppSpacing.xs,
+                  child: const AuthLogoutIconButton(),
                 ),
               ],
             ),

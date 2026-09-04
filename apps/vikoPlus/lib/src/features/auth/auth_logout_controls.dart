@@ -17,8 +17,7 @@ class AuthLogoutIconButton extends ConsumerWidget {
       onPressed: isLoading
           ? null
           : () async {
-              await ref.read(authControllerProvider.notifier).logout();
-              if (context.mounted) context.go('/sign-in');
+              await _logoutAndOpenSignIn(context, ref);
             },
       icon: isLoading
           ? const SizedBox(
@@ -48,8 +47,7 @@ class AuthLogoutTile extends ConsumerWidget {
         onTap: isLoading
             ? null
             : () async {
-                await ref.read(authControllerProvider.notifier).logout();
-                if (context.mounted) context.go('/sign-in');
+                await _logoutAndOpenSignIn(context, ref);
               },
         child: Padding(
           padding: AppInsets.compactCard,
@@ -95,5 +93,13 @@ class AuthLogoutTile extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+Future<void> _logoutAndOpenSignIn(BuildContext context, WidgetRef ref) async {
+  try {
+    await ref.read(authControllerProvider.notifier).logout();
+  } finally {
+    if (context.mounted) context.go('/sign-in');
   }
 }

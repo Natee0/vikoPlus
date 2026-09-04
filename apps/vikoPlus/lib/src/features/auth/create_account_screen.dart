@@ -24,6 +24,8 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
   bool _useEmail = false;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -35,30 +37,40 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   Future<void> _createAccount() async {
+    if (_isSubmitting) return;
+
     final fullName = _fullNameController.text.trim();
     final identity = _identityController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
     if (fullName.isEmpty || identity.isEmpty || password.isEmpty) {
-      _showMessage('Complete all required fields.');
+      setState(() => _errorMessage = 'Complete all required fields.');
       return;
     }
     if (password.length < 8) {
-      _showMessage('Password must be at least 8 characters.');
+      setState(() => _errorMessage = 'Password must be at least 8 characters.');
       return;
     }
     if (password != confirmPassword) {
-      _showMessage('Passwords do not match.');
+      setState(() => _errorMessage = 'Passwords do not match.');
       return;
     }
     if (!_acceptedTerms) {
-      _showMessage('Accept the terms before creating an account.');
+      setState(
+        () => _errorMessage = 'Accept the terms before creating an account.',
+      );
       return;
     }
 
     try {
-      final challengeId = await ref.read(authControllerProvider.notifier).register(
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
+      final challengeId = await ref
+          .read(authControllerProvider.notifier)
+          .register(
             fullName: fullName,
             email: _useEmail ? identity : null,
             phone: _useEmail ? null : identity,
@@ -75,19 +87,23 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
       context.push('/verify-account?$query');
     } on AuthFailure catch (error) {
       if (!mounted) return;
-      _showMessage(error.message);
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _clearError() {
+    if (_errorMessage.isEmpty) return;
+    setState(() => _errorMessage = '');
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = ref.watch(authControllerProvider).isLoading;
+    final isLoading =
+        ref.watch(authControllerProvider).isLoading || _isSubmitting;
 
     return AuthScaffold(
       child: AuthCard(
@@ -117,6 +133,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               keyboardType: TextInputType.name,
               controller: _fullNameController,
               textInputAction: TextInputAction.next,
+              onChanged: (_) => _clearError(),
             ),
             const SizedBox(height: AppSpacing.sm),
             Row(
@@ -136,6 +153,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     setState(() {
                       _useEmail = !_useEmail;
                       _identityController.clear();
+                      _errorMessage = '';
                     });
                   },
                   style: TextButton.styleFrom(
@@ -158,6 +176,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     ? TextInputType.emailAddress
                     : TextInputType.phone,
                 textInputAction: TextInputAction.next,
+                onChanged: (_) => _clearError(),
                 decoration: InputDecoration(
                   hintText: _useEmail ? 'you@example.com' : '+1 234 567 8900',
                   prefixIcon: Icon(
@@ -186,6 +205,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               controller: _passwordController,
               obscureText: _obscurePassword,
               textInputAction: TextInputAction.next,
+              onChanged: (_) => _clearError(),
               suffixIcon: IconButton(
                 tooltip: _obscurePassword ? 'Show password' : 'Hide password',
                 onPressed: () {
@@ -207,6 +227,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               controller: _confirmPasswordController,
               obscureText: _obscureConfirmPassword,
               textInputAction: TextInputAction.done,
+              onChanged: (_) => _clearError(),
               onSubmitted: (_) {
                 if (!isLoading) _createAccount();
               },
@@ -236,7 +257,10 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                   child: Checkbox(
                     value: _acceptedTerms,
                     onChanged: (value) {
-                      setState(() => _acceptedTerms = value ?? false);
+                      setState(() {
+                        _acceptedTerms = value ?? false;
+                        _errorMessage = '';
+                      });
                     },
                   ),
                 ),
@@ -272,6 +296,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               ],
             ),
             const SizedBox(height: AppSpacing.md),
+            AuthErrorMessage(message: _errorMessage),
+            if (_errorMessage.isNotEmpty)
+              const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
               onPressed: isLoading ? null : _createAccount,
               iconAlignment: IconAlignment.end,

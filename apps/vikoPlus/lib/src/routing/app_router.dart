@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 
 import '../features/auth/create_account_screen.dart';
+import '../features/auth/password_reset_screens.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/verify_account_screen.dart';
 import '../features/billing/billing_overview_screen.dart';
@@ -60,6 +61,22 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/sign-in',
       builder: (context, state) => const SignInScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password/verify',
+      builder: (context, state) => const VerifyResetCodeScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password/reset',
+      builder: (context, state) => const SetNewPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/forgot-password/success',
+      builder: (context, state) => const PasswordResetSuccessScreen(),
     ),
     GoRoute(
       path: '/create-account',

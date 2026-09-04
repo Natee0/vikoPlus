@@ -23,15 +23,15 @@ class AuthRepository {
       '/auth/register',
       data: {
         'fullName': fullName,
-        if (phone != null) 'phone': phone,
-        if (email != null) 'email': email,
+        ?'phone': phone,
+        ?'email': email,
         'password': password,
         'preferredLocale': 'en',
       },
       options: Options(extra: {'skipAuth': true}),
     );
 
-    return RegisterResult.fromJson(response.data ?? {});
+    return RegisterResult.fromJson(_responseBody(response.data));
   }
 
   Future<AuthTokens> login({
@@ -44,7 +44,7 @@ class AuthRepository {
       options: Options(extra: {'skipAuth': true}),
     );
 
-    return AuthTokens.fromJson(response.data ?? {});
+    return AuthTokens.fromJson(_responseBody(response.data));
   }
 
   Future<void> verifyOtp({
@@ -58,6 +58,48 @@ class AuthRepository {
     );
   }
 
+  Future<PasswordResetRequestResult> requestPasswordReset({
+    required String identifier,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/password-reset/request',
+      data: {'identifier': identifier},
+      options: Options(extra: {'skipAuth': true}),
+    );
+
+    return PasswordResetRequestResult.fromJson(_responseBody(response.data));
+  }
+
+  Future<PasswordResetVerificationResult> verifyPasswordResetCode({
+    required String identifier,
+    required String code,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/password-reset/verify',
+      data: {'identifier': identifier, 'code': code},
+      options: Options(extra: {'skipAuth': true}),
+    );
+
+    return PasswordResetVerificationResult.fromJson(
+      _responseBody(response.data),
+    );
+  }
+
+  Future<void> completePasswordReset({
+    required String resetToken,
+    required String password,
+  }) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/auth/password-reset/complete',
+      data: {
+        'resetToken': resetToken,
+        'password': password,
+        'logoutOtherSessions': true,
+      },
+      options: Options(extra: {'skipAuth': true}),
+    );
+  }
+
   Future<AuthTokens> refresh(String refreshToken) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/refresh',
@@ -65,7 +107,7 @@ class AuthRepository {
       options: Options(extra: {'skipAuth': true}),
     );
 
-    return AuthTokens.fromJson(response.data ?? {});
+    return AuthTokens.fromJson(_responseBody(response.data));
   }
 
   Future<void> logout() async {
@@ -74,7 +116,20 @@ class AuthRepository {
 
   Future<AuthUser> me() async {
     final response = await _dio.get<Map<String, dynamic>>('/auth/me');
-    return AuthUser.fromJson(response.data ?? {});
+    return AuthUser.fromJson(_responseBody(response.data));
+  }
+
+  Map<String, dynamic> _responseBody(Map<String, dynamic>? json) {
+    if (json == null) {
+      throw const FormatException('API returned an empty response.');
+    }
+
+    final data = json['data'];
+    if (data is Map<String, dynamic>) {
+      return data;
+    }
+
+    return json;
   }
 }
 
@@ -88,9 +143,16 @@ class RegisterResult {
 
   factory RegisterResult.fromJson(Map<String, dynamic> json) {
     final challenge = json['otpChallenge'] as Map<String, dynamic>? ?? {};
+    final challengeId = challenge['id'];
+    if (challengeId is! String || challengeId.isEmpty) {
+      throw const FormatException(
+        'Registration response did not include a verification challenge.',
+      );
+    }
+
     return RegisterResult(
       user: AuthUser.fromJson(json['user'] as Map<String, dynamic>? ?? {}),
-      challengeId: challenge['id'] as String? ?? '',
+      challengeId: challengeId,
       destination: challenge['destination'] as String? ?? '',
       channel: challenge['channel'] as String? ?? 'sms',
     );
@@ -102,6 +164,50 @@ class RegisterResult {
   final String channel;
 }
 
+class PasswordResetRequestResult {
+  const PasswordResetRequestResult({
+    required this.status,
+    required this.destination,
+    required this.expiresInSeconds,
+  });
+
+  factory PasswordResetRequestResult.fromJson(Map<String, dynamic> json) {
+    return PasswordResetRequestResult(
+      status: json['status'] as String? ?? 'RESET_CODE_SENT_IF_ACCOUNT_EXISTS',
+      destination: json['destination'] as String? ?? '',
+      expiresInSeconds: json['expiresInSeconds'] as int? ?? 600,
+    );
+  }
+
+  final String status;
+  final String destination;
+  final int expiresInSeconds;
+}
+
+class PasswordResetVerificationResult {
+  const PasswordResetVerificationResult({
+    required this.resetToken,
+    required this.expiresAt,
+  });
+
+  factory PasswordResetVerificationResult.fromJson(Map<String, dynamic> json) {
+    final resetToken = json['resetToken'];
+    if (resetToken is! String || resetToken.isEmpty) {
+      throw const FormatException(
+        'Password reset response did not include a reset token.',
+      );
+    }
+
+    return PasswordResetVerificationResult(
+      resetToken: resetToken,
+      expiresAt: DateTime.tryParse(json['expiresAt'] as String? ?? ''),
+    );
+  }
+
+  final String resetToken;
+  final DateTime? expiresAt;
+}
+
 class AuthTokens {
   const AuthTokens({
     required this.accessToken,
@@ -110,10 +216,27 @@ class AuthTokens {
   });
 
   factory AuthTokens.fromJson(Map<String, dynamic> json) {
+    final accessToken = json['accessToken'];
+    final refreshToken = json['refreshToken'];
+    final user = json['user'];
+    if (accessToken is! String || accessToken.isEmpty) {
+      throw const FormatException(
+        'Login response did not include an access token.',
+      );
+    }
+    if (refreshToken is! String || refreshToken.isEmpty) {
+      throw const FormatException(
+        'Login response did not include a refresh token.',
+      );
+    }
+    if (user is! Map<String, dynamic>) {
+      throw const FormatException('Login response did not include user data.');
+    }
+
     return AuthTokens(
-      accessToken: json['accessToken'] as String? ?? '',
-      refreshToken: json['refreshToken'] as String? ?? '',
-      user: AuthUser.fromJson(json['user'] as Map<String, dynamic>? ?? {}),
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      user: AuthUser.fromJson(user),
     );
   }
 

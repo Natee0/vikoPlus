@@ -4,18 +4,26 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
-import { GroupMemberStatus, Locale, UserIdentityType } from "@prisma/client";
+import {
+  GroupMemberStatus,
+  Locale,
+  OtpPurpose,
+  UserIdentityType,
+} from "@prisma/client";
 import * as argon2 from "argon2";
-import { createHash, randomInt } from "crypto";
+import { createHash, randomBytes, randomInt } from "crypto";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { TokenService } from "../common/auth/token.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { VerificationDeliveryService } from "../verification/verification-delivery.service";
 import {
+  CompletePasswordResetDto,
   LoginDto,
   RefreshTokenDto,
   RegisterDto,
+  RequestPasswordResetDto,
+  VerifyPasswordResetCodeDto,
   VerifyOtpDto,
 } from "./dto/auth.dto";
 
@@ -56,6 +64,7 @@ export class AuthService {
         otpChallenges: {
           create: {
             identityType: identity.type,
+            purpose: OtpPurpose.ACCOUNT_VERIFICATION,
             identifier: identity.value,
             otpHash,
             expiresAt: this.minutesFromNow(10),
@@ -110,6 +119,7 @@ export class AuthService {
     });
     if (
       !challenge ||
+      challenge.purpose !== OtpPurpose.ACCOUNT_VERIFICATION ||
       challenge.consumedAt ||
       challenge.expiresAt <= new Date()
     ) {
@@ -153,6 +163,157 @@ export class AuthService {
     ]);
 
     return { verified: true, nextRoute: "/groups" };
+  }
+
+  async requestPasswordReset(input: RequestPasswordResetDto) {
+    const identity = await this.findIdentity(input.identifier);
+    if (!identity || !identity.isVerified) {
+      return this.passwordResetRequestedResponse(input.identifier);
+    }
+
+    await this.prisma.otpChallenge.updateMany({
+      where: {
+        userId: identity.userId,
+        identifier: identity.value,
+        purpose: OtpPurpose.PASSWORD_RESET,
+        consumedAt: null,
+      },
+      data: { consumedAt: new Date() },
+    });
+
+    const code = this.otpCode();
+    const otpHash = await argon2.hash(code);
+    await this.prisma.otpChallenge.create({
+      data: {
+        userId: identity.userId,
+        identityType: identity.type,
+        purpose: OtpPurpose.PASSWORD_RESET,
+        identifier: identity.value,
+        otpHash,
+        expiresAt: this.minutesFromNow(10),
+      },
+    });
+
+    const delivery = await this.verificationDelivery.sendCode({
+      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      destination: identity.value,
+      code,
+      name: identity.user.displayName,
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: identity.userId,
+        action: "PASSWORD_RESET_REQUESTED",
+        entityType: "User",
+        entityId: identity.userId,
+      },
+    });
+
+    return this.passwordResetRequestedResponse(identity.value, delivery);
+  }
+
+  async verifyPasswordResetCode(input: VerifyPasswordResetCodeDto) {
+    const identity = await this.findIdentity(input.identifier);
+    const challenge = identity
+      ? await this.prisma.otpChallenge.findFirst({
+          where: {
+            userId: identity.userId,
+            identifier: identity.value,
+            purpose: OtpPurpose.PASSWORD_RESET,
+            consumedAt: null,
+            expiresAt: { gt: new Date() },
+          },
+          orderBy: { createdAt: "desc" },
+        })
+      : null;
+
+    if (!challenge) {
+      throw new UnauthorizedException("Verification code expired or invalid.");
+    }
+    if (challenge.attempts >= 5) {
+      throw new UnauthorizedException("Too many verification attempts.");
+    }
+
+    const verified = await argon2.verify(challenge.otpHash, input.code);
+    if (!verified) {
+      await this.prisma.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw new UnauthorizedException("Invalid verification code.");
+    }
+
+    const resetToken = this.resetToken();
+    const resetTokenRecord = await this.prisma.$transaction(async (tx) => {
+      await tx.otpChallenge.update({
+        where: { id: challenge.id },
+        data: { consumedAt: new Date() },
+      });
+      return tx.passwordResetToken.create({
+        data: {
+          userId: challenge.userId,
+          tokenHash: this.hashToken(resetToken),
+          expiresAt: this.minutesFromNow(10),
+        },
+      });
+    });
+
+    return {
+      resetToken,
+      expiresAt: resetTokenRecord.expiresAt,
+    };
+  }
+
+  async completePasswordReset(input: CompletePasswordResetDto) {
+    const tokenHash = this.hashToken(input.resetToken);
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: true },
+    });
+
+    if (
+      !resetToken ||
+      resetToken.usedAt ||
+      resetToken.expiresAt <= new Date()
+    ) {
+      throw new UnauthorizedException("Password reset session expired.");
+    }
+
+    if (await argon2.verify(resetToken.user.passwordHash, input.password)) {
+      throw new BadRequestException(
+        "New password must be different from the current password.",
+      );
+    }
+
+    const passwordHash = await argon2.hash(input.password);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetToken.update({
+        where: { id: resetToken.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.updateMany({
+        where: { userId: resetToken.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+      this.prisma.auditLog.create({
+        data: {
+          actorUserId: resetToken.userId,
+          action: "PASSWORD_RESET_COMPLETED",
+          entityType: "User",
+          entityId: resetToken.userId,
+          newValue: {
+            logoutOtherSessions: input.logoutOtherSessions ?? true,
+          },
+        },
+      }),
+    ]);
+
+    return { status: "PASSWORD_RESET" };
   }
 
   async refresh(input: RefreshTokenDto) {
@@ -307,11 +468,29 @@ export class AuthService {
     return String(randomInt(100000, 999999));
   }
 
+  private resetToken(): string {
+    return randomBytes(32).toString("base64url");
+  }
+
   private minutesFromNow(minutes: number): Date {
     return new Date(Date.now() + minutes * 60_000);
   }
 
   private hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
+  }
+
+  private passwordResetRequestedResponse(
+    identifier: string,
+    delivery?: { provider: string; delivered: boolean },
+  ) {
+    return {
+      status: "RESET_CODE_SENT_IF_ACCOUNT_EXISTS",
+      destination: identifier.includes("@")
+        ? identifier.trim().toLowerCase()
+        : this.normalizePhone(identifier),
+      expiresInSeconds: 600,
+      ...(delivery ? { delivery } : {}),
+    };
   }
 }

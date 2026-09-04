@@ -17,6 +17,11 @@ enum UserIdentityType {
   PHONE
 }
 
+enum OtpPurpose {
+  ACCOUNT_VERIFICATION
+  PASSWORD_RESET
+}
+
 enum GroupRole {
   GROUP_ADMIN
   TREASURER
@@ -136,6 +141,8 @@ enum BillingTransactionStatus {
 
 enum AuditAction {
   ACCOUNT_VERIFIED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
   LOGIN_SECURITY_EVENT
   LANGUAGE_PREFERENCE_CHANGED
   PLATFORM_PRICE_CHANGED
@@ -183,6 +190,7 @@ model User {
   identities         UserIdentity[]
   refreshTokens      RefreshToken[]
   otpChallenges      OtpChallenge[]
+  passwordResetTokens PasswordResetToken[]
   memberships        GroupMember[]
   billingCustomers   BillingCustomer[]
   auditLogs          AuditLog[]          @relation("AuditActor")
@@ -224,6 +232,7 @@ model OtpChallenge {
   id             String           @id @default(cuid())
   userId         String
   identityType   UserIdentityType
+  purpose        OtpPurpose       @default(ACCOUNT_VERIFICATION)
   identifier     String
   otpHash        String
   attempts       Int              @default(0)
@@ -233,6 +242,19 @@ model OtpChallenge {
   user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([identifier])
+  @@index([identifier, purpose])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Group {

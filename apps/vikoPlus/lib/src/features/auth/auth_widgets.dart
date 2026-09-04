@@ -90,6 +90,7 @@ class AuthField extends StatelessWidget {
     this.controller,
     this.textInputAction,
     this.onSubmitted,
+    this.onChanged,
     super.key,
   });
 
@@ -103,6 +104,7 @@ class AuthField extends StatelessWidget {
   final TextEditingController? controller;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -125,6 +127,7 @@ class AuthField extends StatelessWidget {
             obscureText: obscureText,
             textInputAction: textInputAction,
             onSubmitted: onSubmitted,
+            onChanged: onChanged,
             style: Theme.of(context).textTheme.bodyLarge,
             decoration: InputDecoration(
               hintText: hint,
@@ -180,6 +183,46 @@ class AuthTextLink extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class AuthErrorMessage extends StatelessWidget {
+  const AuthErrorMessage({required this.message, super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    if (message.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.errorContainer.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(AppRadii.sm),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline, color: AppColors.error, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.error,
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

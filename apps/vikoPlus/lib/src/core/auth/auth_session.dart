@@ -10,8 +10,13 @@ class AuthUser {
   });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    if (id is! String || id.isEmpty) {
+      throw const FormatException('Login response did not include a user id.');
+    }
+
     return AuthUser(
-      id: json['id'] as String,
+      id: id,
       displayName: json['displayName'] as String?,
       preferredLocale: json['preferredLocale'] as String? ?? 'en',
       selectedRole: json['selectedRole'] as String? ?? 'NEW_USER',
@@ -24,6 +29,16 @@ class AuthUser {
   final String preferredLocale;
   final String selectedRole;
   final bool isPlatformAdmin;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'displayName': displayName,
+      'preferredLocale': preferredLocale,
+      'selectedRole': selectedRole,
+      'isPlatformAdmin': isPlatformAdmin,
+    };
+  }
 }
 
 class PendingVerification {
@@ -102,6 +117,10 @@ class AuthSessionNotifier extends Notifier<AuthSession> {
       refreshToken: refreshToken,
       user: user,
     );
+  }
+
+  void restore(AuthSession session) {
+    state = session;
   }
 
   void clear() {

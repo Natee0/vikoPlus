@@ -7,9 +7,12 @@ import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { Public } from "../common/auth/public.decorator";
 import { AuthService } from "./auth.service";
 import {
+  CompletePasswordResetDto,
   LoginDto,
   RefreshTokenDto,
   RegisterDto,
+  RequestPasswordResetDto,
+  VerifyPasswordResetCodeDto,
   VerifyOtpDto,
 } from "./dto/auth.dto";
 
@@ -37,6 +40,27 @@ export class AuthController {
   @Post("verify-otp")
   verifyOtp(@Body() body: VerifyOtpDto) {
     return this.auth.verifyOtp(body);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000, blockDuration: 300000 } })
+  @Post("password-reset/request")
+  requestPasswordReset(@Body() body: RequestPasswordResetDto) {
+    return this.auth.requestPasswordReset(body);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 8, ttl: 60000, blockDuration: 300000 } })
+  @Post("password-reset/verify")
+  verifyPasswordResetCode(@Body() body: VerifyPasswordResetCodeDto) {
+    return this.auth.verifyPasswordResetCode(body);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000, blockDuration: 300000 } })
+  @Post("password-reset/complete")
+  completePasswordReset(@Body() body: CompletePasswordResetDto) {
+    return this.auth.completePasswordReset(body);
   }
 
   @Public()

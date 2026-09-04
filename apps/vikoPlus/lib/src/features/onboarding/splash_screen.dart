@@ -1,28 +1,43 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter/services.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../core/auth/auth_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
-class SplashScreen extends StatefulWidget {
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends ConsumerState<SplashScreen> {
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(seconds: 9), () {
+    _timer = Timer(const Duration(seconds: 9), () async {
       if (!mounted) return;
+      try {
+        final session = await ref.read(authControllerProvider.future);
+        if (!mounted) return;
+        if (session.isAuthenticated) {
+          final route = ref
+              .read(authControllerProvider.notifier)
+              .routeForRole(session.user?.selectedRole);
+          context.go(route);
+          return;
+        }
+      } catch (_) {
+        if (!mounted) return;
+      }
       context.go('/welcome');
     });
   }

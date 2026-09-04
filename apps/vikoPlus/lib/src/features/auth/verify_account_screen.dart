@@ -36,6 +36,8 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
 
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
 
   @override
   void initState() {
@@ -72,7 +74,13 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     context.go(widget.backRoute);
   }
 
+  void _clearError() {
+    if (_errorMessage.isEmpty) return;
+    setState(() => _errorMessage = '');
+  }
+
   void _handleCodeChanged(String value, int index) {
+    _clearError();
     final digits = value.replaceAll(RegExp(r'\D'), '');
 
     if (digits.isEmpty) {
@@ -121,12 +129,18 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   }
 
   Future<void> _verify() async {
+    if (_isSubmitting) return;
+
     if (!_isComplete) {
-      _showMessage('Enter the full verification code.');
+      setState(() => _errorMessage = 'Enter the full verification code.');
       return;
     }
 
     try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
       final route = await ref
           .read(authControllerProvider.notifier)
           .verifyPendingOtp(_code);
@@ -134,14 +148,12 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
       context.go(route);
     } on AuthFailure catch (error) {
       if (!mounted) return;
-      _showMessage(error.message);
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
-  }
-
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 
   KeyEventResult _handleKeyEvent(KeyEvent event, int index) {
@@ -165,7 +177,8 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     final destination =
         widget.destination ?? pending?.destination ?? 'your phone or email';
     final channel = widget.channel ?? pending?.channel ?? 'sms';
-    final isLoading = ref.watch(authControllerProvider).isLoading;
+    final isLoading =
+        ref.watch(authControllerProvider).isLoading || _isSubmitting;
 
     return PopScope(
       canPop: context.canPop(),
@@ -369,8 +382,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                     onPressed: isLoading
                                         ? null
                                         : () {
-                                            _showMessage(
-                                              'Resend code will be enabled after the resend endpoint is added.',
+                                            setState(
+                                              () => _errorMessage =
+                                                  'Resend code will be enabled after the resend endpoint is added.',
                                             );
                                           },
                                     child: Text(
@@ -380,6 +394,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                     ),
                                   ),
                                   const SizedBox(height: AppSpacing.sm),
+                                  AuthErrorMessage(message: _errorMessage),
+                                  if (_errorMessage.isNotEmpty)
+                                    const SizedBox(height: AppSpacing.sm),
                                   FilledButton.icon(
                                     onPressed:
                                         isLoading || !_isComplete ? null : _verify,

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth_repository.dart';
+import 'auth_secure_storage.dart';
 import 'auth_session.dart';
 
 final authControllerProvider =
@@ -10,7 +11,12 @@ final authControllerProvider =
 class AuthController extends AsyncNotifier<AuthSession> {
   @override
   Future<AuthSession> build() async {
-    return ref.watch(authSessionProvider);
+    final storedSession =
+        await ref.read(authSecureStorageProvider).readSession();
+    if (storedSession.isAuthenticated) {
+      ref.read(authSessionProvider.notifier).restore(storedSession);
+    }
+    return ref.read(authSessionProvider);
   }
 
   Future<String> register({
@@ -58,7 +64,9 @@ class AuthController extends AsyncNotifier<AuthSession> {
             refreshToken: tokens.refreshToken,
             user: tokens.user,
           );
-      state = AsyncData(ref.read(authSessionProvider));
+      final session = ref.read(authSessionProvider);
+      await ref.read(authSecureStorageProvider).saveSession(session);
+      state = AsyncData(session);
       return routeForRole(tokens.user.selectedRole, fallback: previewRoute);
     });
   }
@@ -96,20 +104,27 @@ class AuthController extends AsyncNotifier<AuthSession> {
             refreshToken: tokens.refreshToken,
             user: tokens.user,
           );
-      state = AsyncData(ref.read(authSessionProvider));
+      final session = ref.read(authSessionProvider);
+      await ref.read(authSecureStorageProvider).saveSession(session);
+      state = AsyncData(session);
     });
   }
 
   Future<void> logout() async {
     state = const AsyncLoading();
-    await _guard(() async {
-      try {
+    try {
+      final accessToken = ref.read(authSessionProvider).accessToken;
+      if (accessToken != null && accessToken.isNotEmpty) {
         await ref.read(authRepositoryProvider).logout();
-      } finally {
-        ref.read(authSessionProvider.notifier).clear();
-        state = const AsyncData(AuthSession.empty());
       }
-    });
+    } catch (_) {
+      // Local logout should still succeed if the server token is expired,
+      // the API is unreachable, or the remote session was already revoked.
+    } finally {
+      ref.read(authSessionProvider.notifier).clear();
+      await ref.read(authSecureStorageProvider).clearSession();
+      state = const AsyncData(AuthSession.empty());
+    }
   }
 
   String routeForRole(String? role, {String? fallback}) {
@@ -142,23 +157,47 @@ class AuthFailure implements Exception {
 
   factory AuthFailure.from(Object error) {
     if (error is AuthFailure) return error;
+    final errorText = error.toString();
+    if (errorText.contains('API connection is not configured')) {
+      return const AuthFailure(
+        'API connection is not configured.',
+      );
+    }
     if (error is DioException) {
       final data = error.response?.data;
       if (data is Map<String, dynamic>) {
-        final message = data['message'];
-        if (message is String) return AuthFailure(message);
-        if (message is List && message.isNotEmpty) {
-          return AuthFailure(message.join('\n'));
-        }
+        final message = _messageFromMap(data);
+        if (message != null) return AuthFailure(message);
+      }
+      if (data is String && data.trim().isNotEmpty) {
+        return AuthFailure(data.trim());
       }
       return AuthFailure(error.message ?? 'Network request failed.');
     }
     if (error is StateError) return AuthFailure(error.message);
-    return const AuthFailure('Something went wrong. Please try again.');
+    if (error is FormatException) return AuthFailure(error.message);
+    return AuthFailure(errorText);
   }
 
   final String message;
 
   @override
   String toString() => message;
+
+  static String? _messageFromMap(Map<String, dynamic> data) {
+    final message = data['message'] ?? data['error'] ?? data['detail'];
+    if (message is String && message.trim().isNotEmpty) {
+      return message.trim();
+    }
+    if (message is List && message.isNotEmpty) {
+      return message.map((item) => item.toString()).join('\n');
+    }
+
+    final nestedData = data['data'];
+    if (nestedData is Map<String, dynamic>) {
+      return _messageFromMap(nestedData);
+    }
+
+    return null;
+  }
 }

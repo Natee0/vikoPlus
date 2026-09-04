@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsNotEmpty,
@@ -63,4 +64,38 @@ export class RefreshTokenDto {
   @IsString()
   @IsNotEmpty()
   refreshToken!: string;
+}
+
+export class RequestPasswordResetDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(254)
+  identifier!: string;
+}
+
+export class VerifyPasswordResetCodeDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(254)
+  identifier!: string;
+
+  @IsString()
+  @Length(4, 8)
+  code!: string;
+}
+
+export class CompletePasswordResetDto {
+  @IsString()
+  @IsNotEmpty()
+  resetToken!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MinLength(8)
+  @MaxLength(128)
+  password!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  logoutOtherSessions?: boolean;
 }

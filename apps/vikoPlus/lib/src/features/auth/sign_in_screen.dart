@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
-import '../../core/roles/vikoplus_role.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -20,7 +19,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
-  VikoplusRole _selectedRole = VikoplusRole.newUser;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
 
   @override
   void dispose() {
@@ -30,36 +30,45 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _submit() async {
+    if (_isSubmitting) return;
+
     final identifier = _identifierController.text.trim();
     final password = _passwordController.text;
     if (identifier.isEmpty || password.isEmpty) {
-      _showMessage('Enter your phone/email and password.');
+      setState(() => _errorMessage = 'Enter your phone/email and password.');
       return;
     }
 
     try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
       final route = await ref.read(authControllerProvider.notifier).login(
             identifier: identifier,
             password: password,
-            previewRoute: _selectedRole.verifyDestination,
           );
       if (!mounted) return;
       context.go(route);
     } on AuthFailure catch (error) {
       if (!mounted) return;
-      _showMessage(error.message);
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
-  void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  void _clearError() {
+    if (_errorMessage.isEmpty) return;
+    setState(() => _errorMessage = '');
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = ref.watch(authControllerProvider).isLoading;
+    final isLoading =
+        ref.watch(authControllerProvider).isLoading || _isSubmitting;
 
     return AuthScaffold(
       child: Column(
@@ -92,6 +101,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   keyboardType: TextInputType.emailAddress,
                   controller: _identifierController,
                   textInputAction: TextInputAction.next,
+                  onChanged: (_) => _clearError(),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AuthField(
@@ -101,6 +111,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   controller: _passwordController,
                   obscureText: _obscurePassword,
                   textInputAction: TextInputAction.done,
+                  onChanged: (_) => _clearError(),
                   onSubmitted: (_) {
                     if (!isLoading) _submit();
                   },
@@ -119,14 +130,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                _RoleDropdown(
-                  value: _selectedRole,
-                  onChanged: (role) {
-                    if (role == null) return;
-                    setState(() => _selectedRole = role);
-                  },
-                ),
-                const SizedBox(height: AppSpacing.sm),
+                AuthErrorMessage(message: _errorMessage),
+                if (_errorMessage.isNotEmpty)
+                  const SizedBox(height: AppSpacing.sm),
                 Row(
                   children: [
                     SizedBox(
@@ -148,7 +154,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       ),
                     ),
                     TextButton(
-                      onPressed: () {},
+                      onPressed: isLoading
+                          ? null
+                          : () => context.push('/forgot-password'),
                       child: const Text('Forgot password?'),
                     ),
                   ],
@@ -164,14 +172,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         )
                       : const Text('Sign in'),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                OutlinedButton.icon(
-                  onPressed: isLoading
-                      ? null
-                      : () => context.push('/create-account'),
-                  icon: const Icon(Icons.group_add_outlined, size: 18),
-                  label: const Text('Create or join a group'),
-                ),
               ],
             ),
           ),
@@ -183,50 +183,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _RoleDropdown extends StatelessWidget {
-  const _RoleDropdown({required this.value, required this.onChanged});
-
-  final VikoplusRole value;
-  final ValueChanged<VikoplusRole?> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'Continue as',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: AppColors.onSurface,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        DropdownButtonFormField<VikoplusRole>(
-          initialValue: value,
-          icon: const Icon(Icons.expand_more),
-          decoration: InputDecoration(
-            prefixIcon: Icon(value.icon, size: 22),
-            contentPadding: const EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-            ),
-          ),
-          items: VikoplusRole.values.map((role) {
-            return DropdownMenuItem(value: role, child: Text(role.label));
-          }).toList(),
-          onChanged: onChanged,
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          '${value.description} Use this as a static role preview for existing accounts.',
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: AppColors.onSurfaceVariant),
-        ),
-      ],
     );
   }
 }

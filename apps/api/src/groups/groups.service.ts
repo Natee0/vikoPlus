@@ -1,5 +1,7 @@
 import {
+  BadGatewayException,
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -10,11 +12,13 @@ import {
   AuditAction,
   BillingInterval,
   ContributionFrequency,
+  ContributionObligationStatus,
   ContributionPlanType,
   GroupContributionPaymentStatus,
   GroupMemberStatus,
   GroupRole,
   Locale,
+  PaymentAllocationStatus,
   ReceiptStatus,
 } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
@@ -23,6 +27,7 @@ import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
+import { BriqMessagingService } from "../messaging/briq-messaging.service";
 import {
   AddMemberDto,
   AssignRoleDto,
@@ -42,12 +47,39 @@ import {
   UpdateLanguageDto,
 } from "./dto/group.dto";
 
+type ScheduleFinancialYear = {
+  id: string;
+  name: string;
+  startsAt: Date;
+  endsAt: Date;
+};
+
+type ScheduleContributionPlan = {
+  id: string;
+  name: string;
+  type: ContributionPlanType;
+  frequency: ContributionFrequency;
+  dueDayOfWeek: number | null;
+  dueDayOfMonth: number | null;
+  amountMinor: number;
+  currency: string;
+};
+
+type ContributionPeriodSpec = {
+  label: string;
+  startsAt: Date;
+  endsAt: Date;
+  dueAt: Date;
+  sortOrder: number;
+};
+
 @Injectable()
 export class GroupsService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(SUBSCRIPTION_BILLING_PROVIDER)
     private readonly billingProvider: SubscriptionBillingProvider,
+    private readonly briq: BriqMessagingService,
   ) {}
 
   async updateLanguage(user: AuthenticatedUser, input: UpdateLanguageDto) {
@@ -84,6 +116,9 @@ export class GroupsService {
       data: {
         name,
         slug,
+        type: input.type?.trim() || undefined,
+        description: input.description?.trim() || undefined,
+        location: input.location?.trim() || undefined,
         currency: input.currency?.trim().toUpperCase() || "TZS",
         billingOwnerUserId: user.id,
         establishedAt: input.establishedAt
@@ -161,6 +196,16 @@ export class GroupsService {
     ) {
       throw new NotFoundException("Invitation was not found or has expired.");
     }
+    const existingMembership = await this.prisma.groupMember.findFirst({
+      where: {
+        groupId: invitation.groupId,
+        userId: user.id,
+        status: GroupMemberStatus.ACTIVE,
+      },
+    });
+    if (existingMembership) {
+      throw new ConflictException("You are already a member of this group.");
+    }
 
     const membership = await this.prisma.groupMember.create({
       data: {
@@ -176,6 +221,7 @@ export class GroupsService {
       where: { id: invitation.id },
       data: { acceptedAt: new Date() },
     });
+    await this.generateContributionSchedule(invitation.groupId, membership.id);
     return {
       groupId: invitation.groupId,
       membershipId: membership.id,
@@ -216,7 +262,7 @@ export class GroupsService {
       where: { groupId },
       data: { isActive: false },
     });
-    return this.prisma.financialYear.create({
+    const financialYear = await this.prisma.financialYear.create({
       data: {
         groupId,
         name: input.name,
@@ -225,6 +271,24 @@ export class GroupsService {
         isActive: true,
       },
     });
+    await this.generateContributionSchedule(groupId);
+    return financialYear;
+  }
+
+  async financialYears(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId);
+    const financialYears = await this.prisma.financialYear.findMany({
+      where: { groupId },
+      orderBy: { startsAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        startsAt: true,
+        endsAt: true,
+        isActive: true,
+      },
+    });
+    return { groupId, financialYears };
   }
 
   async saveContributionSettings(
@@ -233,23 +297,51 @@ export class GroupsService {
     input: ContributionSettingsDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    const frequency = (input.frequency ??
-      ContributionFrequency.MONTHLY) as ContributionFrequency;
-    this.validateContributionCycle(input);
-    const cycleData = this.contributionCycleData(input, frequency);
+    const membershipFrequency = this.contributionFrequency(
+      input.membershipFeeFrequency,
+      ContributionFrequency.ANNUAL,
+    );
+    const memberContributionFrequency = this.contributionFrequency(
+      input.memberContributionFrequency ?? input.frequency,
+      ContributionFrequency.MONTHLY,
+    );
+    const memberContributionMinor =
+      input.memberContributionMinor ?? input.membershipFeeMinor;
+    this.validateContributionCycle(
+      membershipFrequency,
+      input.membershipDueDayOfWeek ?? input.dueDayOfWeek,
+      input.membershipDueDayOfMonth ?? input.dueDayOfMonth,
+    );
+    this.validateContributionCycle(
+      memberContributionFrequency,
+      input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek,
+      input.memberContributionDueDayOfMonth ?? input.dueDayOfMonth,
+    );
+    const membershipCycleData = this.contributionCycleData(
+      input,
+      membershipFrequency,
+      input.membershipDueDayOfWeek ?? input.dueDayOfWeek,
+      input.membershipDueDayOfMonth ?? input.dueDayOfMonth,
+    );
+    const contributionCycleData = this.contributionCycleData(
+      input,
+      memberContributionFrequency,
+      input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek,
+      input.memberContributionDueDayOfMonth ?? input.dueDayOfMonth,
+    );
     await Promise.all([
       this.prisma.contributionPlan.upsert({
         where: { groupId_name: { groupId, name: "Joining fee" } },
         update: {
           amountMinor: input.joiningFeeMinor,
-          frequency: ContributionFrequency.ONCE,
+          frequency: ContributionFrequency.ANNUAL,
           type: ContributionPlanType.JOINING_FEE,
         },
         create: {
           groupId,
           name: "Joining fee",
           amountMinor: input.joiningFeeMinor,
-          frequency: ContributionFrequency.ONCE,
+          frequency: ContributionFrequency.ANNUAL,
           type: ContributionPlanType.JOINING_FEE,
         },
       }),
@@ -257,21 +349,45 @@ export class GroupsService {
         where: { groupId_name: { groupId, name: "Membership fee" } },
         update: {
           amountMinor: input.membershipFeeMinor,
-          frequency,
-          ...cycleData,
+          frequency: membershipFrequency,
+          ...membershipCycleData,
           type: ContributionPlanType.RECURRING,
         },
         create: {
           groupId,
           name: "Membership fee",
           amountMinor: input.membershipFeeMinor,
-          frequency,
-          ...cycleData,
+          frequency: membershipFrequency,
+          ...membershipCycleData,
+          type: ContributionPlanType.RECURRING,
+        },
+      }),
+      this.prisma.contributionPlan.upsert({
+        where: { groupId_name: { groupId, name: "Member contribution" } },
+        update: {
+          amountMinor: memberContributionMinor,
+          frequency: memberContributionFrequency,
+          ...contributionCycleData,
+          type: ContributionPlanType.RECURRING,
+        },
+        create: {
+          groupId,
+          name: "Member contribution",
+          amountMinor: memberContributionMinor,
+          frequency: memberContributionFrequency,
+          ...contributionCycleData,
           type: ContributionPlanType.RECURRING,
         },
       }),
     ]);
-    return { groupId, ...input, frequency };
+    await this.generateContributionSchedule(groupId);
+    return {
+      groupId,
+      ...input,
+      membershipFeeFrequency: membershipFrequency,
+      memberContributionMinor,
+      memberContributionFrequency,
+    };
   }
 
   async saveReminderSettings(
@@ -340,9 +456,16 @@ export class GroupsService {
     input: AddMemberDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    return this.prisma.groupMember.create({
+    const addMemberInput = input as AddMemberDto & { memberNumber?: string };
+    const rawMemberNumber = addMemberInput.memberNumber;
+    const memberNumber =
+      typeof rawMemberNumber === "string" && rawMemberNumber.trim()
+        ? rawMemberNumber.trim()
+        : null;
+    const member = await this.prisma.groupMember.create({
       data: {
         groupId,
+        memberNumber,
         fullName: input.fullName.trim(),
         phone: input.phone ? this.normalizePhone(input.phone) : null,
         email: input.email?.trim().toLowerCase(),
@@ -351,6 +474,8 @@ export class GroupsService {
         joinedAt: new Date(),
       },
     });
+    await this.generateContributionSchedule(groupId, member.id);
+    return member;
   }
 
   async inviteMembers(
@@ -409,10 +534,23 @@ export class GroupsService {
   }
 
   async contributionRegister(user: AuthenticatedUser, groupId: string) {
-    await this.requireMembership(user, groupId);
+    const membership = await this.requireMembership(user, groupId);
+    const rolesAllowedToSeeAllObligations: GroupRole[] = [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ];
+    const canSeeAllObligations = rolesAllowedToSeeAllObligations.includes(
+      membership.role,
+    );
     const obligations = await this.prisma.memberContributionObligation.findMany(
       {
-        where: { member: { groupId } },
+        where: {
+          member: {
+            groupId,
+            ...(canSeeAllObligations ? {} : { id: membership.id }),
+          },
+        },
         include: { member: true, plan: true, period: true },
         orderBy: [{ dueAt: "asc" }],
       },
@@ -470,7 +608,15 @@ export class GroupsService {
         },
       },
     });
-    return payment;
+    await this.allocatePaymentToObligations(
+      groupId,
+      payment.id,
+      membership.id,
+      input.amountMinor,
+      input.obligationIds,
+      false,
+    );
+    return this.paymentWithReceipt(payment.id);
   }
 
   async recordPayment(
@@ -496,6 +642,13 @@ export class GroupsService {
         reviewedAt: new Date(),
       },
     });
+    await this.allocatePaymentToObligations(
+      groupId,
+      payment.id,
+      input.memberId,
+      input.amountMinor,
+      input.obligationIds,
+    );
     await this.createReceiptForPayment(groupId, payment.id);
     return this.paymentWithReceipt(payment.id);
   }
@@ -598,14 +751,12 @@ export class GroupsService {
   ) {
     await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const payment = await this.findGroupPayment(groupId, paymentId);
-    const approvableStatuses: GroupContributionPaymentStatus[] = [
+    const paymentStatusesAllowedForApproval: GroupContributionPaymentStatus[] = [
       GroupContributionPaymentStatus.SUBMITTED,
       GroupContributionPaymentStatus.PENDING_VERIFICATION,
       GroupContributionPaymentStatus.CORRECTION_REQUESTED,
     ];
-    if (
-      !approvableStatuses.includes(payment.status)
-    ) {
+    if (!paymentStatusesAllowedForApproval.includes(payment.status)) {
       throw new ForbiddenException("Payment cannot be approved from this state.");
     }
 
@@ -618,6 +769,13 @@ export class GroupsService {
         correctionMessage: null,
       },
     });
+    await this.allocatePaymentToObligations(
+      groupId,
+      payment.id,
+      payment.groupMemberId,
+      payment.amountMinor,
+      input.obligationIds,
+    );
     await this.createReceiptForPayment(groupId, payment.id);
     await this.auditPaymentReview(
       user,
@@ -687,7 +845,7 @@ export class GroupsService {
     await this.requireMembership(user, groupId);
     const receipt = await this.prisma.receipt.findFirst({
       where: { id: receiptId, groupId },
-      include: { payment: true },
+      include: { payment: { include: { member: true } } },
     });
     if (!receipt) throw new NotFoundException("Receipt not found.");
     return receipt;
@@ -813,17 +971,122 @@ export class GroupsService {
     };
   }
 
-  sendReminder(
+  async sendReminder(
     user: AuthenticatedUser,
     groupId: string,
     input: SendReminderDto,
-  ): never {
-    void user;
-    void groupId;
-    void input;
-    throw new NotImplementedException(
-      "Production reminder dispatch is not implemented yet.",
+  ) {
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ]);
+
+    const selectedMemberIds =
+      input.memberIds?.map((id) => id.trim()).filter(Boolean) ?? [];
+    const members =
+      selectedMemberIds.length > 0
+        ? await this.prisma.groupMember.findMany({
+            where: {
+              groupId,
+              id: { in: selectedMemberIds },
+              status: GroupMemberStatus.ACTIVE,
+            },
+            select: { id: true, userId: true, fullName: true, phone: true },
+          })
+        : await this.membersWithOutstandingObligations(groupId);
+
+    if (members.length === 0) {
+      throw new BadRequestException("No eligible members were found for this reminder.");
+    }
+
+    const notificationRecipients = members
+      .map((member) => member.userId)
+      .filter((userId): userId is string => Boolean(userId));
+    const shouldSendSms = input.channel === "SMS" || input.channel === "BOTH";
+    const smsRecipients = shouldSendSms
+      ? members
+          .map((member) => member.phone?.trim())
+          .filter((phone): phone is string => Boolean(phone))
+      : [];
+    if (shouldSendSms && smsRecipients.length === 0) {
+      throw new BadRequestException(
+        "No phone numbers were found for the selected SMS reminder recipients.",
+      );
+    }
+    const smsResults = await Promise.allSettled(
+      smsRecipients.map((phone) =>
+        this.briq.sendSms({
+          to: phone,
+          content: `Vikoplus: ${input.message}`,
+        }),
+      ),
     );
+    const smsSent = smsResults.filter((result) => result.status === "fulfilled")
+      .length;
+    const smsFailed = smsResults.length - smsSent;
+    if (shouldSendSms && smsSent === 0) {
+      throw new BadGatewayException("Briq SMS reminder delivery failed.");
+    }
+
+    const campaign = await this.prisma.reminderCampaign.create({
+      data: {
+        groupId,
+        title: "Outstanding dues reminder",
+        channel: input.channel,
+        body: input.message,
+        recipientCount: members.length,
+        createdByUserId: user.id,
+        sentAt: new Date(),
+      },
+    });
+
+    if (notificationRecipients.length > 0) {
+      await this.prisma.notification.createMany({
+        data: notificationRecipients.map((userId) => ({
+          userId,
+          title: "Payment reminder",
+          body: input.message,
+          locale: Locale.en,
+        })),
+      });
+    }
+
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.REMINDER_SENT,
+        entityType: "ReminderCampaign",
+        entityId: campaign.id,
+        newValue: {
+          channel: input.channel,
+          recipientCount: members.length,
+          appNotificationsCreated: notificationRecipients.length,
+          smsRecipients: smsRecipients.length,
+          smsSent,
+          smsFailed,
+          whatsappPending:
+            input.channel === "WHATSAPP" || input.channel === "BOTH"
+              ? members.length
+              : 0,
+        },
+      },
+    });
+
+    return {
+      campaignId: campaign.id,
+      channel: campaign.channel,
+      recipientCount: members.length,
+      appNotificationsCreated: notificationRecipients.length,
+      smsSent,
+      smsFailed,
+      whatsappPending:
+        input.channel === "WHATSAPP" || input.channel === "BOTH"
+          ? members.length
+          : 0,
+      sentAt: campaign.sentAt,
+    };
   }
 
   loans(): never {
@@ -889,9 +1152,41 @@ export class GroupsService {
     return membership;
   }
 
-  private validateContributionCycle(input: ContributionSettingsDto): void {
-    const frequency = input.frequency ?? ContributionFrequency.MONTHLY;
-    if (frequency === ContributionFrequency.WEEKLY && !input.dueDayOfWeek) {
+  private async membersWithOutstandingObligations(groupId: string): Promise<
+    Array<{
+      id: string;
+      userId: string | null;
+      fullName: string;
+      phone: string | null;
+    }>
+  > {
+    return this.prisma.groupMember.findMany({
+      where: {
+        groupId,
+        status: GroupMemberStatus.ACTIVE,
+        obligations: {
+          some: {
+            status: {
+              in: [
+                ContributionObligationStatus.DUE,
+                ContributionObligationStatus.PARTIALLY_PAID,
+                ContributionObligationStatus.OVERDUE,
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true, userId: true, fullName: true, phone: true },
+      orderBy: { fullName: "asc" },
+    });
+  }
+
+  private validateContributionCycle(
+    frequency: ContributionFrequency,
+    dueDayOfWeek?: number,
+    dueDayOfMonth?: number,
+  ): void {
+    if (frequency === ContributionFrequency.WEEKLY && !dueDayOfWeek) {
       throw new BadRequestException(
         "Weekly contributions require a due weekday.",
       );
@@ -903,7 +1198,7 @@ export class GroupsService {
     ];
     if (
       monthlyLikeFrequencies.includes(frequency) &&
-      !input.dueDayOfMonth
+      !dueDayOfMonth
     ) {
       throw new BadRequestException(
         "Monthly, quarterly, and annual contributions require a due day.",
@@ -914,6 +1209,8 @@ export class GroupsService {
   private contributionCycleData(
     input: ContributionSettingsDto,
     frequency: ContributionFrequency,
+    dueDayOfWeek?: number,
+    dueDayOfMonth?: number,
   ): {
     dueDayOfWeek: number | null;
     dueDayOfMonth: number | null;
@@ -927,14 +1224,459 @@ export class GroupsService {
 
     return {
       dueDayOfWeek:
-        frequency === ContributionFrequency.WEEKLY ? input.dueDayOfWeek! : null,
+        frequency === ContributionFrequency.WEEKLY ? dueDayOfWeek! : null,
       dueDayOfMonth: monthlyLikeFrequencies.includes(frequency)
-        ? input.dueDayOfMonth!
+        ? dueDayOfMonth!
         : null,
       cycleAnchorDate: input.cycleAnchorDate
         ? new Date(input.cycleAnchorDate)
         : null,
     };
+  }
+
+  private contributionFrequency(
+    value: string | undefined,
+    fallback: ContributionFrequency,
+  ): ContributionFrequency {
+    const normalized = value?.trim().toUpperCase();
+    if (!normalized) return fallback;
+    if (normalized in ContributionFrequency) {
+      return normalized as ContributionFrequency;
+    }
+    throw new BadRequestException("Contribution frequency is not supported.");
+  }
+
+  private async generateContributionSchedule(
+    groupId: string,
+    memberId?: string,
+  ): Promise<void> {
+    const financialYear = await this.prisma.financialYear.findFirst({
+      where: { groupId, isActive: true },
+      select: { id: true, name: true, startsAt: true, endsAt: true },
+    });
+    if (!financialYear) return;
+
+    const [plans, members] = await Promise.all([
+      this.prisma.contributionPlan.findMany({
+        where: { groupId, isActive: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          frequency: true,
+          dueDayOfWeek: true,
+          dueDayOfMonth: true,
+          amountMinor: true,
+          currency: true,
+        },
+      }),
+      this.prisma.groupMember.findMany({
+        where: {
+          groupId,
+          status: GroupMemberStatus.ACTIVE,
+          ...(memberId ? { id: memberId } : {}),
+        },
+        select: { id: true },
+      }),
+    ]);
+    if (!plans.length || !members.length) return;
+
+    for (const plan of plans) {
+      if (plan.amountMinor <= 0) continue;
+      const periods = await this.ensureContributionPeriods(
+        groupId,
+        financialYear,
+        plan,
+      );
+      for (const member of members) {
+        await Promise.all(
+          periods.map((period) =>
+            this.prisma.memberContributionObligation.upsert({
+              where: {
+                groupMemberId_planId_periodId: {
+                  groupMemberId: member.id,
+                  planId: plan.id,
+                  periodId: period.id,
+                },
+              },
+              update: {
+                amountDueMinor: plan.amountMinor,
+                currency: plan.currency,
+                dueAt: period.dueAt,
+              },
+              create: {
+                groupMemberId: member.id,
+                planId: plan.id,
+                periodId: period.id,
+                amountDueMinor: plan.amountMinor,
+                currency: plan.currency,
+                dueAt: period.dueAt,
+                status: ContributionObligationStatus.DUE,
+              },
+            }),
+          ),
+        );
+      }
+    }
+  }
+
+  private async ensureContributionPeriods(
+    groupId: string,
+    financialYear: ScheduleFinancialYear,
+    plan: ScheduleContributionPlan,
+  ) {
+    const specs = this.contributionPeriodSpecs(financialYear, plan);
+    const periods = [];
+    for (const spec of specs) {
+      periods.push(
+        await this.prisma.contributionPeriod.upsert({
+          where: {
+            groupId_planId_startsAt: {
+              groupId,
+              planId: plan.id,
+              startsAt: spec.startsAt,
+            },
+          },
+          update: {
+            label: spec.label,
+            endsAt: spec.endsAt,
+            dueAt: spec.dueAt,
+            sortOrder: spec.sortOrder,
+          },
+          create: {
+            groupId,
+            financialYearId: financialYear.id,
+            planId: plan.id,
+            label: spec.label,
+            startsAt: spec.startsAt,
+            endsAt: spec.endsAt,
+            dueAt: spec.dueAt,
+            sortOrder: spec.sortOrder,
+          },
+        }),
+      );
+    }
+    return periods;
+  }
+
+  private contributionPeriodSpecs(
+    financialYear: ScheduleFinancialYear,
+    plan: ScheduleContributionPlan,
+  ): ContributionPeriodSpec[] {
+    const startsAt = this.startOfDay(financialYear.startsAt);
+    const endsAt = this.startOfDay(financialYear.endsAt);
+
+    if (
+      plan.type === ContributionPlanType.JOINING_FEE ||
+      plan.frequency === ContributionFrequency.ANNUAL ||
+      plan.frequency === ContributionFrequency.ONCE
+    ) {
+      return [
+        {
+          label: `${financialYear.name} ${plan.name}`,
+          startsAt,
+          endsAt,
+          dueAt: startsAt,
+          sortOrder: 0,
+        },
+      ];
+    }
+
+    const specs: ContributionPeriodSpec[] = [];
+    let cursor = startsAt;
+    let sortOrder = 0;
+    while (cursor <= endsAt && specs.length < 370) {
+      const periodStart = cursor;
+      const nextStart = this.nextPeriodStart(cursor, plan.frequency);
+      const periodEnd = this.minDate(this.addDays(nextStart, -1), endsAt);
+      specs.push({
+        label: this.periodLabel(plan, periodStart, sortOrder + 1),
+        startsAt: periodStart,
+        endsAt: periodEnd,
+        dueAt: this.periodDueDate(plan, periodStart, periodEnd),
+        sortOrder,
+      });
+      cursor = nextStart;
+      sortOrder += 1;
+    }
+    return specs;
+  }
+
+  private async allocatePaymentToObligations(
+    groupId: string,
+    paymentId: string,
+    memberId: string,
+    amountMinor: number,
+    obligationIds?: string[],
+    applyImmediately = true,
+  ): Promise<void> {
+    const existingAllocations = await this.prisma.paymentAllocation.findMany({
+      where: { paymentId },
+      include: { obligation: true },
+    });
+    if (existingAllocations.length > 0) {
+      if (!applyImmediately) return;
+      const pendingAllocations = existingAllocations.filter(
+        (allocation) => allocation.status === PaymentAllocationStatus.PENDING,
+      );
+      if (!pendingAllocations.length) return;
+      await this.applyPendingPaymentAllocations(pendingAllocations);
+      return;
+    }
+
+    const requestedIds = [...new Set(obligationIds ?? [])].filter(Boolean);
+    const obligations = await this.prisma.memberContributionObligation.findMany({
+      where: {
+        ...(requestedIds.length ? { id: { in: requestedIds } } : {}),
+        groupMemberId: memberId,
+        member: { groupId },
+        status: {
+          in: [
+            ContributionObligationStatus.DUE,
+            ContributionObligationStatus.PARTIALLY_PAID,
+            ContributionObligationStatus.OVERDUE,
+          ],
+        },
+      },
+      orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
+    });
+
+    if (requestedIds.length && obligations.length !== requestedIds.length) {
+      throw new BadRequestException("Some selected contributions are not payable.");
+    }
+
+    const payableObligations = obligations.filter(
+      (obligation) =>
+        obligation.amountDueMinor - obligation.amountPaidMinor > 0,
+    );
+    const totalOutstanding = payableObligations.reduce(
+      (total, obligation) =>
+        total + (obligation.amountDueMinor - obligation.amountPaidMinor),
+      0,
+    );
+    if (!payableObligations.length || amountMinor > totalOutstanding) {
+      throw new BadRequestException(
+        "Payment amount must match outstanding contributions.",
+      );
+    }
+
+    let remaining = amountMinor;
+    const operations = [];
+    for (const obligation of payableObligations) {
+      if (remaining <= 0) break;
+      const outstanding =
+        obligation.amountDueMinor - obligation.amountPaidMinor;
+      const allocated = Math.min(outstanding, remaining);
+      const amountPaidMinor = obligation.amountPaidMinor + allocated;
+      operations.push(
+        this.prisma.paymentAllocation.create({
+          data: {
+            paymentId,
+            planId: obligation.planId,
+            periodId: obligation.periodId,
+            obligationId: obligation.id,
+            amountMinor: allocated,
+            status: applyImmediately
+              ? PaymentAllocationStatus.APPLIED
+              : PaymentAllocationStatus.PENDING,
+          },
+        }),
+      );
+      if (applyImmediately) {
+        operations.push(
+          this.prisma.memberContributionObligation.update({
+            where: { id: obligation.id },
+            data: {
+              amountPaidMinor,
+              status: this.obligationStatus(
+                obligation.amountDueMinor,
+                amountPaidMinor,
+              ),
+            },
+          }),
+        );
+      }
+      remaining -= allocated;
+    }
+
+    if (remaining > 0) {
+      throw new BadRequestException(
+        "Payment amount must match outstanding contributions.",
+      );
+    }
+    await this.prisma.$transaction(operations);
+  }
+
+  private async applyPendingPaymentAllocations(
+    allocations: Array<{
+      id: string;
+      amountMinor: number;
+      obligation: {
+        id: string;
+        amountDueMinor: number;
+        amountPaidMinor: number;
+      } | null;
+    }>,
+  ): Promise<void> {
+    const operations = [];
+    for (const allocation of allocations) {
+      const obligation = allocation.obligation;
+      if (!obligation) {
+        throw new BadRequestException("Payment allocation is missing an obligation.");
+      }
+      const amountPaidMinor = obligation.amountPaidMinor + allocation.amountMinor;
+      if (amountPaidMinor > obligation.amountDueMinor) {
+        throw new BadRequestException("Payment exceeds outstanding contribution.");
+      }
+      operations.push(
+        this.prisma.paymentAllocation.update({
+          where: { id: allocation.id },
+          data: { status: PaymentAllocationStatus.APPLIED },
+        }),
+      );
+      operations.push(
+        this.prisma.memberContributionObligation.update({
+          where: { id: obligation.id },
+          data: {
+            amountPaidMinor,
+            status: this.obligationStatus(
+              obligation.amountDueMinor,
+              amountPaidMinor,
+            ),
+          },
+        }),
+      );
+    }
+    await this.prisma.$transaction(operations);
+  }
+
+  private obligationStatus(
+    amountDueMinor: number,
+    amountPaidMinor: number,
+  ): ContributionObligationStatus {
+    if (amountPaidMinor >= amountDueMinor) {
+      return ContributionObligationStatus.PAID;
+    }
+    if (amountPaidMinor > 0) {
+      return ContributionObligationStatus.PARTIALLY_PAID;
+    }
+    return ContributionObligationStatus.DUE;
+  }
+
+  private nextPeriodStart(
+    date: Date,
+    frequency: ContributionFrequency,
+  ): Date {
+    if (frequency === ContributionFrequency.DAILY) {
+      return this.addDays(date, 1);
+    }
+    if (frequency === ContributionFrequency.WEEKLY) {
+      return this.addDays(date, 7);
+    }
+    if (frequency === ContributionFrequency.QUARTERLY) {
+      return this.addMonths(date, 3);
+    }
+    return this.addMonths(date, 1);
+  }
+
+  private periodDueDate(
+    plan: ScheduleContributionPlan,
+    startsAt: Date,
+    endsAt: Date,
+  ): Date {
+    if (plan.frequency === ContributionFrequency.DAILY) return startsAt;
+    if (plan.frequency === ContributionFrequency.WEEKLY) {
+      return this.clampDate(
+        this.weekdayDate(startsAt, plan.dueDayOfWeek ?? 1),
+        startsAt,
+        endsAt,
+      );
+    }
+    const day = plan.dueDayOfMonth ?? startsAt.getUTCDate();
+    return this.clampDate(this.monthDayDate(startsAt, day), startsAt, endsAt);
+  }
+
+  private periodLabel(
+    plan: ScheduleContributionPlan,
+    startsAt: Date,
+    count: number,
+  ): string {
+    if (plan.frequency === ContributionFrequency.DAILY) {
+      return `${plan.name} ${startsAt.toISOString().slice(0, 10)}`;
+    }
+    if (plan.frequency === ContributionFrequency.WEEKLY) {
+      return `${plan.name} Week ${count}`;
+    }
+    if (plan.frequency === ContributionFrequency.QUARTERLY) {
+      return `${plan.name} Quarter ${count}`;
+    }
+    return `${this.monthName(startsAt)} ${startsAt.getUTCFullYear()} ${plan.name}`;
+  }
+
+  private startOfDay(date: Date): Date {
+    return new Date(
+      Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+    );
+  }
+
+  private addDays(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+  }
+
+  private addMonths(date: Date, months: number): Date {
+    const next = new Date(date);
+    next.setUTCMonth(next.getUTCMonth() + months);
+    return next;
+  }
+
+  private minDate(first: Date, second: Date): Date {
+    return first <= second ? first : second;
+  }
+
+  private clampDate(date: Date, startsAt: Date, endsAt: Date): Date {
+    if (date < startsAt) return startsAt;
+    if (date > endsAt) return endsAt;
+    return date;
+  }
+
+  private weekdayDate(startsAt: Date, dueDayOfWeek: number): Date {
+    const target = dueDayOfWeek % 7;
+    const current = startsAt.getUTCDay() === 0 ? 7 : startsAt.getUTCDay();
+    const offset = (target - current + 7) % 7;
+    return this.addDays(startsAt, offset);
+  }
+
+  private monthDayDate(startsAt: Date, dueDayOfMonth: number): Date {
+    const lastDay = new Date(
+      Date.UTC(startsAt.getUTCFullYear(), startsAt.getUTCMonth() + 1, 0),
+    ).getUTCDate();
+    return new Date(
+      Date.UTC(
+        startsAt.getUTCFullYear(),
+        startsAt.getUTCMonth(),
+        Math.min(dueDayOfMonth, lastDay),
+      ),
+    );
+  }
+
+  private monthName(date: Date): string {
+    const months = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+    return months[date.getUTCMonth()] ?? "Month";
   }
 
   private async ensureGroupMember(

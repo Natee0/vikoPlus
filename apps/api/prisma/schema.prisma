@@ -181,6 +181,7 @@ enum AuditAction {
 model User {
   id                 String              @id @default(cuid())
   displayName        String?
+  profilePictureObjectKey String?
   preferredLocale    Locale              @default(en)
   passwordHash       String
   securityPinHash    String?
@@ -261,6 +262,9 @@ model Group {
   id                  String              @id @default(cuid())
   name                String
   slug                String              @unique
+  type                String?
+  description         String?
+  location            String?
   defaultLocale       Locale              @default(en)
   currency            String              @default("TZS")
   logoObjectKey       String?
@@ -654,6 +658,9 @@ model ReminderCampaign {
   groupId     String
   title       String
   channel     String
+  body        String
+  recipientCount Int    @default(0)
+  createdByUserId String?
   scheduledAt DateTime?
   sentAt      DateTime?
   createdAt   DateTime  @default(now())

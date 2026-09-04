@@ -84,12 +84,14 @@ class VikoplusBottomActionBar extends StatelessWidget {
     required this.label,
     required this.onPressed,
     this.icon,
+    this.isLoading = false,
     super.key,
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final Widget? icon;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -106,10 +108,25 @@ class VikoplusBottomActionBar extends StatelessWidget {
       ),
       child: VikoplusConstrainedContent(
         child: icon == null
-            ? FilledButton(onPressed: onPressed, child: Text(label))
+            ? FilledButton(
+                onPressed: isLoading ? null : onPressed,
+                child: isLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(label),
+              )
             : FilledButton.icon(
-                onPressed: onPressed,
-                icon: icon!,
+                onPressed: isLoading ? null : onPressed,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : icon!,
                 iconAlignment: IconAlignment.end,
                 label: Text(label),
               ),

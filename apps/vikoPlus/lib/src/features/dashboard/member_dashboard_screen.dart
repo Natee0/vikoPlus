@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/sample/sofia_sample_data.dart';
+import '../../core/formatters/app_formatters.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
+import '../auth/auth_widgets.dart';
 
-class MemberDashboardScreen extends StatelessWidget {
+class MemberDashboardScreen extends ConsumerWidget {
   const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       appBar: AppBar(
@@ -69,7 +74,7 @@ class MemberDashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            _ContributionSummaryCard(member: sofiaMembers[1]),
+            _ContributionSummaryCard(groupId: activeGroup?.id),
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -164,23 +169,105 @@ class MemberDashboardScreen extends StatelessWidget {
 }
 
 class _ContributionSummaryCard extends StatelessWidget {
-  const _ContributionSummaryCard({required this.member});
+  const _ContributionSummaryCard({required this.groupId});
 
-  final SofiaMember member;
+  final String? groupId;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: AppInsets.card,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.surfaceVariant),
-        boxShadow: AppShadows.level1(),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return _ContributionSummarySurface(
+      child: groupId == null || groupId!.isEmpty
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const AuthErrorMessage(
+                  message: 'Select a group to load your contribution summary.',
+                ),
+                const SizedBox(height: AppSpacing.md),
+                FilledButton.icon(
+                  onPressed: () => context.go('/groups'),
+                  icon: const Icon(Icons.hub_outlined, size: 18),
+                  label: const Text('Choose Group'),
+                ),
+              ],
+            )
+          : _LiveContributionSummary(groupId: groupId!),
+    );
+  }
+}
+
+class _LiveContributionSummary extends ConsumerWidget {
+  const _LiveContributionSummary({required this.groupId});
+
+  final String groupId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+
+    return FutureBuilder<ContributionReportResult>(
+      future: ref.read(groupsRepositoryProvider).contributionReport(groupId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasError || snapshot.data == null) {
+          return const AuthErrorMessage(
+            message: 'Could not load your contribution summary.',
+          );
+        }
+        final report = snapshot.data!;
+        final member = report.memberAnalysis.isEmpty
+            ? null
+            : report.memberAnalysis.first;
+        final paidMinor = member?.totalPaidMinor ?? report.totalPaidMinor;
+        final outstandingMinor =
+            member?.outstandingMinor ?? report.totalOutstandingMinor;
+        final paidPeriods = member?.paidRecurringPeriods ?? 0;
+        final progress =
+            paidMinor + outstandingMinor == 0
+                ? 0.0
+                : paidMinor / (paidMinor + outstandingMinor);
+
+        return _ContributionSummaryContent(
+          paid: formatters.money(paidMinor),
+          outstanding: formatters.money(outstandingMinor),
+          nextDue: outstandingMinor > 0 ? 'Pending' : 'Cleared',
+          progress: progress,
+          progressLabel: '$paidPeriods paid',
+        );
+      },
+    );
+  }
+}
+
+class _ContributionSummaryContent extends StatelessWidget {
+  const _ContributionSummaryContent({
+    required this.paid,
+    required this.outstanding,
+    required this.nextDue,
+    required this.progress,
+    required this.progressLabel,
+  });
+
+  final String paid;
+  final String outstanding;
+  final String nextDue;
+  final double progress;
+  final String progressLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           Row(
             children: [
               Expanded(
@@ -208,7 +295,7 @@ class _ContributionSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'TZS ${member.totalPaid}',
+            paid,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               color: AppColors.primary,
               fontWeight: FontWeight.w700,
@@ -222,13 +309,13 @@ class _ContributionSummaryCard extends StatelessWidget {
               Expanded(
                 child: _MetricBlock(
                   label: 'Outstanding Balance',
-                  value: 'TZS ${member.outstanding}',
+                  value: outstanding,
                 ),
               ),
               Expanded(
                 child: _MetricBlock(
                   label: 'Next Due',
-                  value: 'Aug 5, 2026',
+                  value: nextDue,
                   alignEnd: true,
                 ),
               ),
@@ -245,7 +332,7 @@ class _ContributionSummaryCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${member.paidMonths}/12',
+                progressLabel,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.primary,
                   fontWeight: FontWeight.w700,
@@ -258,7 +345,7 @@ class _ContributionSummaryCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadii.pill),
             child: LinearProgressIndicator(
               minHeight: 8,
-              value: member.paidMonths / 12,
+              value: progress.clamp(0, 1),
               backgroundColor: AppColors.progressTrack,
               color: AppColors.primaryContainer,
             ),
@@ -272,12 +359,31 @@ class _ContributionSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
-            onPressed: () => context.go('/member/dues'),
+            onPressed: () => context.go('/member/contributions'),
             icon: const Icon(Icons.pending_actions_outlined, size: 18),
             label: const Text('View dues'),
           ),
-        ],
+      ],
+    );
+  }
+}
+
+class _ContributionSummarySurface extends StatelessWidget {
+  const _ContributionSummarySurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.card,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.surfaceVariant),
+        boxShadow: AppShadows.level1(),
       ),
+      child: child,
     );
   }
 }

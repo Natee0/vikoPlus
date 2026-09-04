@@ -1,13 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
-class JoinGroupInvitationScreen extends StatelessWidget {
+class JoinGroupInvitationScreen extends ConsumerStatefulWidget {
   const JoinGroupInvitationScreen({super.key});
+
+  @override
+  ConsumerState<JoinGroupInvitationScreen> createState() =>
+      _JoinGroupInvitationScreenState();
+}
+
+class _JoinGroupInvitationScreenState
+    extends ConsumerState<JoinGroupInvitationScreen> {
+  final _codeController = TextEditingController();
+  JoinGroupPreview? _preview;
+  String _errorMessage = '';
+  bool _isPreviewing = false;
+  bool _isJoining = false;
+
+  @override
+  void dispose() {
+    _codeController.dispose();
+    super.dispose();
+  }
 
   void _goBack(BuildContext context) {
     if (context.canPop()) {
@@ -16,6 +39,65 @@ class JoinGroupInvitationScreen extends StatelessWidget {
     }
 
     context.go('/create-or-join-group');
+  }
+
+  void _clearError() {
+    if (_errorMessage.isEmpty) return;
+    setState(() => _errorMessage = '');
+  }
+
+  Future<void> _previewCode(String code) async {
+    final trimmed = code.trim();
+    if (trimmed.length < 4) {
+      setState(() => _errorMessage = 'Enter a valid invitation code.');
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isPreviewing = true;
+      });
+      final preview =
+          await ref.read(groupsRepositoryProvider).previewJoinCode(trimmed);
+      if (!mounted) return;
+      _codeController.text = trimmed;
+      setState(() => _preview = preview);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isPreviewing = false);
+      }
+    }
+  }
+
+  Future<void> _joinGroup() async {
+    if (_isJoining || _isPreviewing) return;
+
+    final code = (_preview?.invitationCode ?? _codeController.text).trim();
+    if (code.length < 4) {
+      _showCodeSheet(context);
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isJoining = true;
+      });
+      await ref.read(groupsRepositoryProvider).joinGroup(code);
+      if (!mounted) return;
+      context.go('/groups');
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isJoining = false);
+      }
+    }
   }
 
   void _showCodeSheet(BuildContext context) {
@@ -66,8 +148,14 @@ class JoinGroupInvitationScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               TextField(
+                controller: _codeController,
                 autofocus: true,
                 textCapitalization: TextCapitalization.characters,
+                onChanged: (_) => _clearError(),
+                onSubmitted: (value) {
+                  Navigator.of(sheetContext).pop();
+                  _previewCode(value);
+                },
                 decoration: const InputDecoration(
                   hintText: 'Invitation code',
                   prefixIcon: Icon(Icons.key_outlined),
@@ -77,7 +165,7 @@ class JoinGroupInvitationScreen extends StatelessWidget {
               FilledButton(
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
-                  context.go('/groups/verify');
+                  _previewCode(_codeController.text);
                 },
                 child: const Text('Verify group details'),
               ),
@@ -90,6 +178,9 @@ class JoinGroupInvitationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final preview = _preview;
+    final isBusy = _isPreviewing || _isJoining;
+
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
@@ -143,7 +234,7 @@ class JoinGroupInvitationScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         Text(
-                          'Sofia Wajukuu Group',
+                          preview?.group.name ?? 'Join an existing group',
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
@@ -152,15 +243,45 @@ class JoinGroupInvitationScreen extends StatelessWidget {
                               ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        const Center(child: _MemberCountChip()),
+                        Center(
+                          child: _MemberCountChip(
+                            label: preview == null
+                                ? 'Invitation required'
+                                : '${preview.group.membersCount} Members',
+                          ),
+                        ),
+                        if (preview != null) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            'You will join as ${_roleLabel(preview.roleOnJoin)}.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: AppColors.onSurfaceVariant,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                          ),
+                        ],
                         const SizedBox(height: AppSpacing.xl),
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.sm,
                           ),
                           child: FilledButton(
-                            onPressed: () => context.go('/groups/verify'),
-                            child: const Text('Join Group'),
+                            onPressed: isBusy ? null : _joinGroup,
+                            child: _isJoining
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : Text(
+                                    preview == null
+                                        ? 'Enter Code to Join'
+                                        : 'Join Group',
+                                  ),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -169,7 +290,9 @@ class JoinGroupInvitationScreen extends StatelessWidget {
                             horizontal: AppSpacing.sm,
                           ),
                           child: OutlinedButton(
-                            onPressed: () => _showCodeSheet(context),
+                            onPressed: isBusy
+                                ? null
+                                : () => _showCodeSheet(context),
                             style: OutlinedButton.styleFrom(
                               minimumSize: const Size.fromHeight(
                                 AppSizes.buttonHeight,
@@ -179,9 +302,15 @@ class JoinGroupInvitationScreen extends StatelessWidget {
                                 width: 2,
                               ),
                             ),
-                            child: const Text('Enter Group Code'),
+                            child: Text(
+                              _isPreviewing
+                                  ? 'Checking code'
+                                  : 'Enter Group Code',
+                            ),
                           ),
                         ),
+                        const SizedBox(height: AppSpacing.sm),
+                        AuthErrorMessage(message: _errorMessage),
                       ],
                     ),
                   ),
@@ -192,6 +321,16 @@ class JoinGroupInvitationScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String _roleLabel(String role) {
+    return role
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 }
 
@@ -219,7 +358,9 @@ class _ProfileButton extends StatelessWidget {
 }
 
 class _MemberCountChip extends StatelessWidget {
-  const _MemberCountChip();
+  const _MemberCountChip({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +383,7 @@ class _MemberCountChip extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.xs),
           Text(
-            '23 Members',
+            label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: AppColors.onSurfaceVariant,
               fontWeight: FontWeight.w700,

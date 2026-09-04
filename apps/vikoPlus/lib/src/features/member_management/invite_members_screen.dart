@@ -1,21 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
-class InviteMembersScreen extends StatefulWidget {
+class InviteMembersScreen extends ConsumerStatefulWidget {
   const InviteMembersScreen({super.key});
 
   @override
-  State<InviteMembersScreen> createState() => _InviteMembersScreenState();
+  ConsumerState<InviteMembersScreen> createState() =>
+      _InviteMembersScreenState();
 }
 
-class _InviteMembersScreenState extends State<InviteMembersScreen> {
+class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
+  final _recipientController = TextEditingController();
   VikoplusRole _defaultRole = VikoplusRole.member;
+  MemberInvitation? _latestInvitation;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _recipientController.dispose();
+    super.dispose();
+  }
 
   void _goBack() {
     if (context.canPop()) {
@@ -24,6 +39,61 @@ class _InviteMembersScreenState extends State<InviteMembersScreen> {
     }
 
     context.go('/members');
+  }
+
+  String _apiRole(VikoplusRole role) {
+    return switch (role) {
+      VikoplusRole.chairperson => 'GROUP_ADMIN',
+      VikoplusRole.treasurer => 'TREASURER',
+      VikoplusRole.secretary => 'SECRETARY',
+      VikoplusRole.member => 'MEMBER',
+      VikoplusRole.newUser => 'MEMBER',
+    };
+  }
+
+  Future<void> _generateInvite() async {
+    if (_isSubmitting) return;
+
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) {
+      setState(() => _errorMessage = 'Open a group before inviting members.');
+      return;
+    }
+
+    final recipient = _recipientController.text.trim();
+    if (recipient.length < 4) {
+      setState(() => _errorMessage = 'Enter a phone number or email.');
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
+      final result = await ref.read(groupsRepositoryProvider).inviteMembers(
+            activeGroup.id,
+            InviteMembersInput(recipients: [recipient], role: _apiRole(_defaultRole)),
+          );
+      if (!mounted) return;
+      setState(
+        () => _latestInvitation =
+            result.invitations.isEmpty ? null : result.invitations.first,
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  Future<void> _copyInviteCode() async {
+    final code = _latestInvitation?.invitationCode;
+    if (code == null || code.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: code));
   }
 
   @override
@@ -67,6 +137,21 @@ class _InviteMembersScreenState extends State<InviteMembersScreen> {
                               ?.copyWith(color: AppColors.onSurfaceVariant),
                         ),
                         const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          controller: _recipientController,
+                          keyboardType: TextInputType.emailAddress,
+                          onChanged: (_) {
+                            if (_errorMessage.isNotEmpty) {
+                              setState(() => _errorMessage = '');
+                            }
+                          },
+                          decoration: const InputDecoration(
+                            labelText: 'Phone number or email',
+                            hintText: '+255 7XX XXX XXX',
+                            prefixIcon: Icon(Icons.alternate_email_outlined),
+                          ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
                         _AssignedRoleCard(
                           value: _defaultRole,
                           onChanged: (role) {
@@ -75,22 +160,37 @@ class _InviteMembersScreenState extends State<InviteMembersScreen> {
                           },
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        const _InviteCodeCard(),
+                        _InviteCodeCard(
+                          code: _latestInvitation?.invitationCode,
+                          onCopy: _copyInviteCode,
+                        ),
                         const SizedBox(height: AppSpacing.sm),
-                        const _InviteLinkCard(),
+                        _InviteLinkCard(code: _latestInvitation?.invitationCode),
                         const SizedBox(height: AppSpacing.sm),
                         const _QrCodeCard(),
                         const SizedBox(height: AppSpacing.md),
+                        AuthErrorMessage(message: _errorMessage),
+                        const SizedBox(height: AppSpacing.sm),
                         FilledButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.chat_outlined, size: 18),
-                          label: const Text('Invite via WhatsApp'),
+                          onPressed: _isSubmitting ? null : _generateInvite,
+                          icon: _isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.person_add_alt_outlined, size: 18),
+                          label: Text(
+                            _isSubmitting ? 'Generating' : 'Generate Invitation',
+                          ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         OutlinedButton.icon(
-                          onPressed: () {},
+                          onPressed: _latestInvitation == null
+                              ? null
+                              : _copyInviteCode,
                           icon: const Icon(Icons.sms_outlined, size: 18),
-                          label: const Text('Invite via SMS'),
+                          label: const Text('Copy Code'),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         TextButton.icon(
@@ -197,7 +297,10 @@ class _AssignedRoleCard extends StatelessWidget {
 }
 
 class _InviteCodeCard extends StatelessWidget {
-  const _InviteCodeCard();
+  const _InviteCodeCard({required this.code, required this.onCopy});
+
+  final String? code;
+  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -222,7 +325,7 @@ class _InviteCodeCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'SW-9982',
+                  code ?? 'No code yet',
                   style: Theme.of(context).textTheme.displayLarge?.copyWith(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w700,
@@ -233,7 +336,7 @@ class _InviteCodeCard extends StatelessWidget {
           ),
           IconButton(
             tooltip: 'Copy code',
-            onPressed: () {},
+            onPressed: code == null ? null : onCopy,
             icon: const Icon(Icons.content_copy),
           ),
         ],
@@ -243,7 +346,9 @@ class _InviteCodeCard extends StatelessWidget {
 }
 
 class _InviteLinkCard extends StatelessWidget {
-  const _InviteLinkCard();
+  const _InviteLinkCard({required this.code});
+
+  final String? code;
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +365,9 @@ class _InviteLinkCard extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'https://vikoplus.app/join/sw-9982',
+              code == null
+                  ? 'Generate a code to create an invite link'
+                  : 'https://vikoplus.app/join/$code',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: Theme.of(context).textTheme.bodyMedium
@@ -268,7 +375,14 @@ class _InviteLinkCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.xs),
-          TextButton(onPressed: () {}, child: const Text('Copy')),
+          TextButton(
+            onPressed: code == null
+                ? null
+                : () => Clipboard.setData(
+                      ClipboardData(text: 'https://vikoplus.app/join/$code'),
+                    ),
+            child: const Text('Copy'),
+          ),
         ],
       ),
     );

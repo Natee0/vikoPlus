@@ -1,23 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_design_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
-class SendNewReminderScreen extends StatefulWidget {
-  const SendNewReminderScreen({super.key});
+class SendNewReminderScreen extends ConsumerStatefulWidget {
+  const SendNewReminderScreen({this.memberId, super.key});
 
   @override
-  State<SendNewReminderScreen> createState() => _SendNewReminderScreenState();
+  ConsumerState<SendNewReminderScreen> createState() =>
+      _SendNewReminderScreenState();
+
+  final String? memberId;
 }
 
-class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
+class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
   static const _limit = 160;
   late final TextEditingController _messageController;
   bool _useSms = true;
+  String _errorMessage = '';
+  String _successMessage = '';
+  bool _isSending = false;
 
   @override
   void initState() {
@@ -31,6 +41,50 @@ class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
   void dispose() {
     _messageController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendReminder() async {
+    if (_isSending) return;
+
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) {
+      setState(() => _errorMessage = 'Open a group before sending reminders.');
+      return;
+    }
+
+    final message = _messageController.text.trim();
+    if (message.isEmpty) {
+      setState(() => _errorMessage = 'Write a reminder message.');
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _successMessage = '';
+        _isSending = true;
+      });
+      final result = await ref.read(groupsRepositoryProvider).sendReminder(
+            activeGroup.id,
+            SendReminderInput(
+              channel: _useSms ? 'SMS' : 'WHATSAPP',
+              message: message,
+              memberIds: widget.memberId == null ? const [] : [widget.memberId!],
+            ),
+          );
+      if (!mounted) return;
+      setState(
+        () => _successMessage =
+            'SMS delivered to ${result.smsSent} member${result.smsSent == 1 ? '' : 's'}.',
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
   }
 
   @override
@@ -100,7 +154,7 @@ class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
                     AppSpacing.lg,
                   ),
                   children: [
-                    const _AudienceCard(),
+                    _AudienceCard(isSingleMember: widget.memberId != null),
                     const SizedBox(height: AppSpacing.md),
                     Text(
                       'Channel',
@@ -126,7 +180,7 @@ class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
                             label: 'WhatsApp',
                             icon: Icons.chat_outlined,
                             selected: !_useSms,
-                            onPressed: () => setState(() => _useSms = false),
+                            onPressed: null,
                           ),
                         ),
                       ],
@@ -155,7 +209,12 @@ class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
                       controller: _messageController,
                       maxLines: 6,
                       maxLength: _limit,
-                      onChanged: (_) => setState(() {}),
+                      onChanged: (_) {
+                        setState(() {
+                          _errorMessage = '';
+                          _successMessage = '';
+                        });
+                      },
                       decoration: const InputDecoration(
                         counterText: '',
                         hintText: 'Write reminder message',
@@ -189,12 +248,28 @@ class _SendNewReminderScreenState extends State<SendNewReminderScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _MessagePreview(message: _messageController.text),
+                    const SizedBox(height: AppSpacing.md),
+                    AuthErrorMessage(message: _errorMessage),
+                    if (_successMessage.isNotEmpty)
+                      Text(
+                        _successMessage,
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                      ),
                     const SizedBox(height: AppSpacing.lg),
                     FilledButton.icon(
-                      onPressed: () =>
-                          context.go('/reminders/campaigns/july-dues'),
-                      icon: const Icon(Icons.send_outlined),
-                      label: const Text('Send Reminder'),
+                      onPressed: _isSending ? null : _sendReminder,
+                      icon: _isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text(_isSending ? 'Sending' : 'Send Reminder'),
                     ),
                   ],
                 ),
@@ -257,7 +332,9 @@ class _ReminderTopBar extends StatelessWidget {
 }
 
 class _AudienceCard extends StatelessWidget {
-  const _AudienceCard();
+  const _AudienceCard({required this.isSingleMember});
+
+  final bool isSingleMember;
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +366,9 @@ class _AudienceCard extends StatelessWidget {
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
                 Text(
-                  '14 Members with Outstanding\nDues',
+                  isSingleMember
+                      ? 'Selected Member'
+                      : 'Members with Outstanding\nDues',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w800,
@@ -316,7 +395,7 @@ class _ChannelButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {

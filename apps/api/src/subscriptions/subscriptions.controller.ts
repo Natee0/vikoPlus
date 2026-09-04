@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
 import { ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "../common/auth/auth-user.decorator";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { BillingPortalQueryDto } from "./dto/billing-portal-query.dto";
@@ -15,12 +16,22 @@ export class SubscriptionsController {
   @Get()
   @ApiOkResponse({ type: SubscriptionDto })
   getGroupSubscription(
+    @CurrentUser() user: AuthenticatedUser,
     @Param("groupId") groupId: string,
   ): Promise<SubscriptionDto> {
-    return this.subscriptions.getGroupSubscription(groupId);
+    return this.subscriptions.getGroupSubscription(user, groupId);
+  }
+
+  @Get("plans")
+  plans(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.subscriptions.listAvailablePlans(user, groupId);
   }
 
   @Post("checkout")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
   createCheckout(
     @CurrentUser() user: AuthenticatedUser,
     @Param("groupId") groupId: string,
@@ -30,6 +41,7 @@ export class SubscriptionsController {
   }
 
   @Get("billing-portal")
+  @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
   createBillingPortal(
     @CurrentUser() user: AuthenticatedUser,
     @Param("groupId") groupId: string,
@@ -39,6 +51,7 @@ export class SubscriptionsController {
   }
 
   @Post("cancel")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
   @ApiOkResponse({ type: SubscriptionDto })
   cancel(
     @CurrentUser() user: AuthenticatedUser,
@@ -48,6 +61,7 @@ export class SubscriptionsController {
   }
 
   @Post("resume")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
   @ApiOkResponse({ type: SubscriptionDto })
   resume(
     @CurrentUser() user: AuthenticatedUser,

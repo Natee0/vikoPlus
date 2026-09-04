@@ -27,7 +27,11 @@ export class SubscriptionsService {
     private readonly billingProvider: SubscriptionBillingProvider,
   ) {}
 
-  async getGroupSubscription(groupId: string): Promise<SubscriptionDto> {
+  async getGroupSubscription(
+    user: AuthenticatedUser,
+    groupId: string,
+  ): Promise<SubscriptionDto> {
+    await this.requireBillingAuthority(user, groupId);
     const subscription = await this.prisma.subscription.findFirst({
       where: { groupId },
       include: { plan: true },
@@ -55,6 +59,31 @@ export class SubscriptionsService {
     };
   }
 
+  async listAvailablePlans(user: AuthenticatedUser, groupId: string) {
+    await this.requireBillingAuthority(user, groupId);
+    const plans = await this.prisma.subscriptionPlan.findMany({
+      where: { status: SubscriptionPlanStatus.ACTIVE },
+      orderBy: [
+        { interval: "asc" },
+        { intervalCount: "asc" },
+        { priceMinor: "asc" },
+      ],
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        description: true,
+        priceMinor: true,
+        currency: true,
+        interval: true,
+        intervalCount: true,
+        trialDays: true,
+        featureEntitlements: true,
+      },
+    });
+    return { groupId, plans };
+  }
+
   async createCheckout(
     user: AuthenticatedUser,
     groupId: string,
@@ -62,11 +91,12 @@ export class SubscriptionsService {
   ): Promise<{ checkoutUrl: string; expiresAt: Date }> {
     await this.requireBillingAuthority(user, groupId);
 
-    const [group, plan] = await Promise.all([
+    const [group, plan, identity] = await Promise.all([
       this.prisma.group.findUnique({ where: { id: groupId } }),
       this.prisma.subscriptionPlan.findUnique({
         where: { code: input.planCode },
       }),
+      this.primaryIdentity(user.id),
     ]);
 
     if (!group || !plan) {
@@ -85,8 +115,8 @@ export class SubscriptionsService {
     const providerCustomer = await this.billingProvider.createCustomer({
       groupId,
       name: group.name,
-      email: input.buyerEmail,
-      phone: input.buyerPhone,
+      email: input.buyerEmail ?? identity.email,
+      phone: input.buyerPhone ?? identity.phone,
     });
     const billingProvider = this.billingProvider.provider;
 
@@ -101,8 +131,8 @@ export class SubscriptionsService {
         groupId,
         provider: billingProvider,
         providerCustomerId: providerCustomer.providerCustomerId,
-        email: input.buyerEmail,
-        phone: input.buyerPhone,
+        email: input.buyerEmail ?? identity.email,
+        phone: input.buyerPhone ?? identity.phone,
       },
       update: {},
     });
@@ -138,9 +168,9 @@ export class SubscriptionsService {
       trialDays: plan.trialDays,
       successUrl: input.successUrl,
       cancelUrl: input.cancelUrl,
-      buyerEmail: input.buyerEmail,
+      buyerEmail: input.buyerEmail ?? identity.email,
       buyerName: input.buyerName ?? group.name,
-      buyerPhone: input.buyerPhone,
+      buyerPhone: input.buyerPhone ?? identity.phone,
     });
 
     return {
@@ -270,6 +300,19 @@ export class SubscriptionsService {
     ) {
       throw new ForbiddenException("Group billing access denied.");
     }
+  }
+
+  private async primaryIdentity(
+    userId: string,
+  ): Promise<{ email?: string; phone?: string }> {
+    const identities = await this.prisma.userIdentity.findMany({
+      where: { userId, isVerified: true },
+      orderBy: { createdAt: "asc" },
+    });
+    return {
+      email: identities.find((identity) => identity.type === "EMAIL")?.value,
+      phone: identities.find((identity) => identity.type === "PHONE")?.value,
+    };
   }
 }
 

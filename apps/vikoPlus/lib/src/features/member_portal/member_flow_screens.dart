@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -195,17 +198,58 @@ class MyProfileScreen extends StatelessWidget {
   }
 }
 
-class SelectContributionScreen extends StatelessWidget {
+class SelectContributionScreen extends ConsumerStatefulWidget {
   const SelectContributionScreen({this.showBackButton = true, super.key});
 
   final bool showBackButton;
 
   @override
+  ConsumerState<SelectContributionScreen> createState() =>
+      _SelectContributionScreenState();
+}
+
+class _SelectContributionScreenState
+    extends ConsumerState<SelectContributionScreen> {
+  final Set<String> _selectedIds = {};
+  bool _initializedSelection = false;
+  String _errorMessage = '';
+
+  void _initializeSelection(List<ContributionObligationSummary> obligations) {
+    if (_initializedSelection) return;
+    _initializedSelection = true;
+    _selectedIds.addAll(
+      obligations
+          .where((obligation) => obligation.outstandingMinor > 0)
+          .take(2)
+          .map((obligation) => obligation.id),
+    );
+  }
+
+  void _continue(List<ContributionObligationSummary> obligations) {
+    final selected = obligations
+        .where((obligation) => _selectedIds.contains(obligation.id))
+        .toList();
+    if (selected.isEmpty) {
+      setState(() => _errorMessage = 'Select at least one contribution.');
+      return;
+    }
+    ref.read(selectedContributionPaymentProvider.notifier).set(
+          SelectedContributionPayment(obligations: selected),
+        );
+    context.go('/member/payments/method');
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+
     return VikoplusScreen(
       title: 'Select Contribution',
       backRoute: '/member/dashboard',
-      showBackButton: showBackButton,
+      showBackButton: widget.showBackButton,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -215,77 +259,170 @@ class SelectContributionScreen extends StatelessWidget {
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.md),
-          const _SelectableObligation(
-            title: 'Joining fee',
-            subtitle: 'One-time membership fee',
-            amount: 'TZS 10,000',
-            selected: true,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const _SelectableObligation(
-            title: 'July monthly contribution',
-            subtitle: 'Monthly contribution for July 2026',
-            amount: 'TZS 5,000',
-            selected: true,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const _SelectableObligation(
-            title: 'August monthly contribution',
-            subtitle: 'Optional early payment',
-            amount: 'TZS 5,000',
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _ReceiptSummary(
-            lines: const [
-              ('Selected items', '2'),
-              ('Payment window', 'July 2026'),
-            ],
-            total: 'TZS 15,000',
-          ),
-          const SizedBox(height: AppSpacing.md),
-          FilledButton.icon(
-            onPressed: () => context.go('/member/payments/method'),
-            icon: const Icon(Icons.arrow_forward, size: 18),
-            label: const Text('Continue'),
-          ),
+          if (activeGroup == null) ...[
+            const AuthErrorMessage(
+              message: 'Select a group before making a contribution.',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: () => context.go('/groups/my'),
+              child: const Text('Choose Group'),
+            ),
+          ] else
+            FutureBuilder<ContributionRegisterResult>(
+              future: ref
+                  .read(groupsRepositoryProvider)
+                  .contributionRegister(activeGroup.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (snapshot.hasError) {
+                  return const AuthErrorMessage(
+                    message: 'Could not load your contributions.',
+                  );
+                }
+
+                final obligations = (snapshot.data?.obligations ?? const [])
+                    .where((obligation) => obligation.outstandingMinor > 0)
+                    .toList();
+                _initializeSelection(obligations);
+                if (obligations.isEmpty) {
+                  return const _InfoNotice(
+                    title: 'Nothing Due',
+                    message:
+                        'Your current contribution obligations are fully paid.',
+                  );
+                }
+
+                final selected = obligations
+                    .where((obligation) => _selectedIds.contains(obligation.id))
+                    .toList();
+                final amountMinor = selected.fold<int>(
+                  0,
+                  (total, obligation) => total + obligation.outstandingMinor,
+                );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final obligation in obligations) ...[
+                      _SelectableObligation(
+                        title: obligation.planName,
+                        subtitle: obligation.periodLabel,
+                        amount: formatters.money(
+                          obligation.outstandingMinor,
+                          currency: obligation.currency,
+                        ),
+                        selected: _selectedIds.contains(obligation.id),
+                        onChanged: (selected) {
+                          setState(() {
+                            _errorMessage = '';
+                            if (selected) {
+                              _selectedIds.add(obligation.id);
+                            } else {
+                              _selectedIds.remove(obligation.id);
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                    const SizedBox(height: AppSpacing.xs),
+                    _ReceiptSummary(
+                      lines: [
+                        ('Selected items', '${selected.length}'),
+                        (
+                          'Payment purpose',
+                          selected
+                              .map((obligation) => obligation.planName)
+                              .toSet()
+                              .join(', '),
+                        ),
+                      ],
+                      total: formatters.money(amountMinor),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    AuthErrorMessage(message: _errorMessage),
+                    if (_errorMessage.isNotEmpty)
+                      const SizedBox(height: AppSpacing.sm),
+                    FilledButton.icon(
+                      onPressed: () => _continue(obligations),
+                      icon: const Icon(Icons.arrow_forward, size: 18),
+                      label: const Text('Continue'),
+                    ),
+                  ],
+                );
+              },
+            ),
         ],
       ),
     );
   }
 }
 
-class PaymentMethodScreen extends StatelessWidget {
+class PaymentMethodScreen extends ConsumerStatefulWidget {
   const PaymentMethodScreen({super.key});
 
   @override
+  ConsumerState<PaymentMethodScreen> createState() =>
+      _PaymentMethodScreenState();
+}
+
+class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
+  String _method = 'Mobile money';
+
+  @override
   Widget build(BuildContext context) {
+    final payment = ref.watch(selectedContributionPaymentProvider);
+
     return VikoplusScreen(
       title: 'Payment Method',
       backRoute: '/member/payments/select',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _PaymentMethodTile(
+          _PaymentMethodTile(
             title: 'Mobile money',
             subtitle: 'M-Pesa, Tigo Pesa, Airtel Money',
             icon: Icons.phone_android_outlined,
-            selected: true,
+            selected: _method == 'Mobile money',
+            onTap: () => setState(() => _method = 'Mobile money'),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const _PaymentMethodTile(
+          _PaymentMethodTile(
             title: 'Bank transfer',
             subtitle: 'Pay from a bank account',
             icon: Icons.account_balance_outlined,
+            selected: _method == 'Bank transfer',
+            onTap: () => setState(() => _method = 'Bank transfer'),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const _PaymentMethodTile(
+          _PaymentMethodTile(
             title: 'Cash to treasurer',
             subtitle: 'Treasurer records and verifies manually',
             icon: Icons.payments_outlined,
+            selected: _method == 'Cash to treasurer',
+            onTap: () => setState(() => _method = 'Cash to treasurer'),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton(
-            onPressed: () => context.go('/member/payments/review/mobile-money'),
+            onPressed: payment == null
+                ? () => context.go('/member/payments/select')
+                : () {
+                    ref
+                        .read(selectedContributionPaymentProvider.notifier)
+                        .set(payment.copyWith(method: _method));
+                    final route = _method.toLowerCase().contains('cash')
+                        ? '/member/payments/review/cash'
+                        : '/member/payments/review/mobile-money';
+                    context.go(route);
+                  },
             child: const Text('Review Payment'),
           ),
         ],
@@ -294,14 +431,79 @@ class PaymentMethodScreen extends StatelessWidget {
   }
 }
 
-class ReviewPaymentScreen extends StatelessWidget {
+class ReviewPaymentScreen extends ConsumerStatefulWidget {
   const ReviewPaymentScreen({this.method = 'Mobile money', super.key});
 
   final String method;
 
   @override
+  ConsumerState<ReviewPaymentScreen> createState() =>
+      _ReviewPaymentScreenState();
+}
+
+class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
+  String _errorMessage = '';
+  bool _isSubmitting = false;
+
+  Future<void> _submit() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) {
+      setState(() => _errorMessage = 'Select a group before submitting payment.');
+      return;
+    }
+    final selectedPayment = ref.read(selectedContributionPaymentProvider);
+    if (selectedPayment == null || selectedPayment.amountMinor <= 0) {
+      setState(
+        () => _errorMessage = 'Select contribution items before submitting.',
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final payment = await ref.read(groupsRepositoryProvider).submitPaymentRequest(
+            activeGroup.id,
+            SubmitPaymentRequestInput(
+              amountMinor: selectedPayment.amountMinor,
+              method: _apiMethod(selectedPayment.method),
+              obligationIds: selectedPayment.obligationIds,
+              reference: 'Member submitted',
+              paidAt: DateTime.now(),
+            ),
+          );
+      if (!mounted) return;
+      final successRoute = selectedPayment.method.toLowerCase().contains('cash')
+          ? '/member/payments/success/cash'
+          : '/member/payments/success/mobile-money';
+      context.go(
+        '$successRoute?paymentId=${Uri.encodeComponent(payment.id)}',
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage =
+            'Payment request was not submitted. Please try again.',
+      );
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+    final activeGroup = ref.watch(activeGroupProvider);
+    final selectedPayment = ref.watch(selectedContributionPaymentProvider);
+    final method = selectedPayment?.method ?? widget.method;
     final isCash = method.toLowerCase().contains('cash');
+    final amountMinor = selectedPayment?.amountMinor ?? 0;
+    final obligations = selectedPayment?.obligations ?? const [];
 
     return VikoplusScreen(
       title: 'Review Payment',
@@ -313,31 +515,39 @@ class ReviewPaymentScreen extends StatelessWidget {
             icon: isCash
                 ? Icons.payments_outlined
                 : Icons.phone_android_outlined,
-            title: isCash ? 'Cash payment' : 'Mobile money',
-            subtitle: isCash
-                ? 'This payment will be pending treasurer verification.'
-                : 'Confirm your selected contribution before submitting.',
+            title: isCash ? 'Cash payment' : method,
+            subtitle:
+                'Submit this contribution for treasurer verification.',
             compact: true,
           ),
           const SizedBox(height: AppSpacing.md),
           _ReceiptSummary(
             lines: [
-              const ('Member', 'Amina Issa'),
-              const ('Group', 'Sofia Wajukuu'),
+              (
+                'Member',
+                obligations.isEmpty ? 'Member' : obligations.first.memberName,
+              ),
+              ('Group', activeGroup?.name ?? 'Selected group'),
               ('Payment method', method),
-              const ('Reference', 'TRX-89234-77'),
+              const ('Status', 'Pending treasurer review'),
             ],
-            total: 'TZS 15,000',
+            total: formatters.money(amountMinor),
           ),
           const SizedBox(height: AppSpacing.md),
+          AuthErrorMessage(message: _errorMessage),
+          if (_errorMessage.isNotEmpty) const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
-            onPressed: () => context.go(
-              isCash
-                  ? '/member/payments/success/cash'
-                  : '/member/payments/success/mobile-money',
+            onPressed: _isSubmitting ? null : _submit,
+            icon: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.fact_check_outlined),
+            label: Text(
+              _isSubmitting ? 'Submitting' : 'Submit for verification',
             ),
-            icon: Icon(isCash ? Icons.fact_check_outlined : Icons.lock_outline),
-            label: Text(isCash ? 'Submit for verification' : 'Confirm Payment'),
           ),
         ],
       ),
@@ -345,24 +555,35 @@ class ReviewPaymentScreen extends StatelessWidget {
   }
 }
 
-class PaymentSuccessfulScreen extends StatelessWidget {
-  const PaymentSuccessfulScreen({this.method = 'Mobile money', super.key});
+class PaymentSuccessfulScreen extends ConsumerWidget {
+  const PaymentSuccessfulScreen({
+    this.method = 'Mobile money',
+    this.paymentId,
+    super.key,
+  });
 
   final String method;
+  final String? paymentId;
 
   @override
-  Widget build(BuildContext context) {
-    final isCash = method.toLowerCase().contains('cash');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+    final selectedPayment = ref.watch(selectedContributionPaymentProvider);
+    final selectedObligations = selectedPayment?.obligations ?? const [];
+    final paymentMethod = selectedPayment?.method ?? method;
+    final amountMinor = selectedPayment?.amountMinor ?? 0;
 
     return VikoplusScreen(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: AppSpacing.lg),
-          _SuccessMark(pending: isCash),
+          const _SuccessMark(pending: true),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Payment Successful!',
+            'Payment Submitted',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: AppColors.primary,
@@ -371,9 +592,7 @@ class PaymentSuccessfulScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            isCash
-                ? 'Your contribution has been received and is pending verification by the group admin.'
-                : 'Your transaction has been processed securely.',
+            'Your contribution request is waiting for treasurer verification. A receipt will be created after approval.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -381,19 +600,24 @@ class PaymentSuccessfulScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           _ReceiptSummary(
             lines: [
-              const ('Member', 'Amina Issa'),
-              const ('Date', 'Sep 2, 2026, 10:42 AM'),
-              const ('Receipt No.', 'SW-2026-042'),
-              ('Payment Method', method),
+              (
+                'Member',
+                selectedObligations.isEmpty
+                    ? 'Member'
+                    : selectedObligations.first.memberName,
+              ),
+              ('Request ID', paymentId ?? 'Pending'),
+              const ('Status', 'Pending verification'),
+              ('Payment Method', paymentMethod),
             ],
-            total: isCash ? 'TZS 10,000' : 'TZS 15,000',
+            total: formatters.money(amountMinor),
             label: 'Total Amount',
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
-            onPressed: () => context.go('/member/receipts/latest'),
-            icon: const Icon(Icons.receipt_long_outlined),
-            label: const Text('View Receipt'),
+            onPressed: () => context.go('/member/contributions'),
+            icon: const Icon(Icons.savings_outlined),
+            label: const Text('View Contributions'),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -425,6 +649,16 @@ class PaymentSuccessfulScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String _apiMethod(String method) {
+  final normalized = method.toLowerCase();
+  if (normalized.contains('cash')) return 'CASH';
+  if (normalized.contains('bank')) return 'BANK_TRANSFER';
+  if (normalized.contains('mobile') || normalized.contains('money')) {
+    return 'MOBILE_MONEY';
+  }
+  return 'OTHER';
 }
 
 class _AmountDueCard extends StatelessWidget {
@@ -698,19 +932,24 @@ class _SelectableObligation extends StatelessWidget {
     required this.subtitle,
     required this.amount,
     this.selected = false,
+    this.onChanged,
   });
 
   final String title;
   final String subtitle;
   final String amount;
   final bool selected;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return _SimpleMemberTile(
       title: title,
       subtitle: subtitle,
-      leading: Checkbox(value: selected, onChanged: (_) {}),
+      leading: Checkbox(
+        value: selected,
+        onChanged: (value) => onChanged?.call(value ?? false),
+      ),
       trailing: Text(
         amount,
         style: const TextStyle(fontWeight: FontWeight.w700),
@@ -726,27 +965,33 @@ class _PaymentMethodTile extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     this.selected = false,
+    this.onTap,
   });
 
   final String title;
   final String subtitle;
   final IconData icon;
   final bool selected;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return _SimpleMemberTile(
-      title: title,
-      subtitle: subtitle,
-      leading: CircleAvatar(
-        backgroundColor: AppColors.surfaceContainer,
-        child: Icon(icon, color: AppColors.primary),
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppRadii.lg),
+      onTap: onTap,
+      child: _SimpleMemberTile(
+        title: title,
+        subtitle: subtitle,
+        leading: CircleAvatar(
+          backgroundColor: AppColors.surfaceContainer,
+          child: Icon(icon, color: AppColors.primary),
+        ),
+        trailing: Icon(
+          selected ? Icons.radio_button_checked : Icons.radio_button_off,
+          color: selected ? AppColors.primary : AppColors.outline,
+        ),
+        highlighted: selected,
       ),
-      trailing: Icon(
-        selected ? Icons.radio_button_checked : Icons.radio_button_off,
-        color: selected ? AppColors.primary : AppColors.outline,
-      ),
-      highlighted: selected,
     );
   }
 }

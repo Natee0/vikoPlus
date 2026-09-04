@@ -1,23 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/sample/sofia_sample_data.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/group_setup_draft.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
-class ConfigureFinancialYearScreen extends StatefulWidget {
-  const ConfigureFinancialYearScreen({super.key});
+class ConfigureFinancialYearScreen extends ConsumerStatefulWidget {
+  const ConfigureFinancialYearScreen({this.groupId, super.key});
+
+  final String? groupId;
 
   @override
-  State<ConfigureFinancialYearScreen> createState() =>
+  ConsumerState<ConfigureFinancialYearScreen> createState() =>
       _ConfigureFinancialYearScreenState();
 }
 
 class _ConfigureFinancialYearScreenState
-    extends State<ConfigureFinancialYearScreen> {
-  static const _startYear = 2026;
+    extends ConsumerState<ConfigureFinancialYearScreen> {
   static const _months = [
     'January',
     'February',
@@ -50,10 +55,27 @@ class _ConfigureFinancialYearScreenState
 
   int _startMonth = 7;
   bool _automaticRollover = true;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(groupSetupDraftProvider).financialYear;
+    _startMonth = draft.startMonth;
+    _automaticRollover = draft.automaticRollover;
+  }
 
   int get _startIndex => _startMonth - 1;
   int get _endIndex => (_startIndex + 11) % 12;
-  int get _endYear => _startIndex > _endIndex ? _startYear + 1 : _startYear;
+  int get _startYear {
+    final today = DateTime.now();
+    return today.month >= _startMonth ? today.year : today.year - 1;
+  }
+
+  int get _endYear => _endsAt.year;
+  DateTime get _startsAt => DateTime(_startYear, _startMonth);
+  DateTime get _endsAt => DateTime(_startYear + 1, _startMonth, 0, 23, 59, 59);
 
   String get _endMonth => _months[_endIndex];
   String get _periodPreview {
@@ -61,7 +83,16 @@ class _ConfigureFinancialYearScreenState
         '${_shortMonths[_endIndex]} $_endYear';
   }
 
+  String? get _groupId {
+    final widgetGroupId = widget.groupId;
+    if (widgetGroupId != null && widgetGroupId.isNotEmpty) {
+      return widgetGroupId;
+    }
+    return ref.read(groupSetupDraftProvider).createdGroupId;
+  }
+
   void _goBack() {
+    _persistFinancialYear();
     if (context.canPop()) {
       context.pop();
       return;
@@ -70,12 +101,58 @@ class _ConfigureFinancialYearScreenState
     context.go('/groups/create');
   }
 
+  void _persistFinancialYear() {
+    ref.read(groupSetupDraftProvider.notifier).updateFinancialYear(
+          FinancialYearDraft(
+            startMonth: _startMonth,
+            automaticRollover: _automaticRollover,
+          ),
+        );
+  }
+
+  Future<void> _submit() async {
+    final groupId = _groupId;
+    if (_isSubmitting) return;
+    if (groupId == null || groupId.isEmpty) {
+      setState(
+        () => _errorMessage = 'Create a group before setting its financial year.',
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
+      _persistFinancialYear();
+      await ref.read(groupsRepositoryProvider).saveFinancialYear(
+            groupId,
+            FinancialYearInput(
+              name: _periodPreview,
+              startsAt: _startsAt,
+              endsAt: _endsAt,
+            ),
+          );
+      if (!mounted) return;
+      context.push('/groups/contributions?groupId=${Uri.encodeComponent(groupId)}');
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
+          _persistFinancialYear();
           context.go('/groups/create');
         }
       },
@@ -117,7 +194,7 @@ class _ConfigureFinancialYearScreenState
                               ?.copyWith(color: AppColors.onSurfaceVariant),
                         ),
                         const SizedBox(height: AppSpacing.md),
-                        _RecommendationCard(period: sofiaFinancialYear),
+                        _RecommendationCard(period: _periodPreview),
                         const SizedBox(height: AppSpacing.md),
                         _ConfigurationCard(
                           startMonth: _startMonth,
@@ -126,6 +203,7 @@ class _ConfigureFinancialYearScreenState
                           onStartMonthChanged: (value) {
                             if (value == null) return;
                             setState(() => _startMonth = value);
+                            _persistFinancialYear();
                           },
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -133,18 +211,22 @@ class _ConfigureFinancialYearScreenState
                           value: _automaticRollover,
                           onChanged: (value) {
                             setState(() => _automaticRollover = value);
+                            _persistFinancialYear();
                           },
                         ),
                         const SizedBox(height: AppSpacing.md),
                         const _WhyItMattersCard(),
+                        const SizedBox(height: AppSpacing.sm),
+                        AuthErrorMessage(message: _errorMessage),
                       ],
                     ),
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: 'Continue',
+                  label: _isSubmitting ? 'Saving' : 'Continue',
                   icon: const Icon(Icons.arrow_forward, size: 18),
-                  onPressed: () => context.push('/groups/contributions'),
+                  isLoading: _isSubmitting,
+                  onPressed: _submit,
                 ),
               ],
             ),
@@ -191,7 +273,7 @@ class _RecommendationCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Recommended from source report',
+                  'Recommended current year',
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
@@ -408,6 +490,13 @@ class _PeriodPreview extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  'Calculated from today and your selected start month.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
                   ),
                 ),
               ],

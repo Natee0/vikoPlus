@@ -28,11 +28,11 @@ import '../features/groups/historical_records_screen.dart';
 import '../features/groups/join_group_invitation_screen.dart';
 import '../features/groups/my_groups_screen.dart';
 import '../features/groups/onboarding_success_screen.dart';
-import '../features/member/member_flow_screens.dart';
-import '../features/members/add_member_screen.dart';
-import '../features/members/invite_members_screen.dart';
-import '../features/members/member_list_screen.dart';
-import '../features/members/member_profile_screen.dart';
+import '../features/member_portal/member_flow_screens.dart';
+import '../features/member_management/add_member_screen.dart';
+import '../features/member_management/invite_members_screen.dart';
+import '../features/member_management/member_list_screen.dart';
+import '../features/member_management/member_profile_screen.dart';
 import '../features/loans/loan_screens.dart';
 import '../features/more/more_menu_screen.dart';
 import '../features/more/stitch_screen_catalog_screen.dart';
@@ -123,27 +123,39 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/groups/financial-year',
-      builder: (context, state) => const ConfigureFinancialYearScreen(),
+      builder: (context, state) => ConfigureFinancialYearScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/financial-year/start',
-      builder: (context, state) => const ConfigureFinancialYearScreen(),
+      builder: (context, state) => ConfigureFinancialYearScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/financial-year/review',
-      builder: (context, state) => const ConfigureFinancialYearScreen(),
+      builder: (context, state) => ConfigureFinancialYearScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/contributions',
-      builder: (context, state) => const ConfigureContributionsScreen(),
+      builder: (context, state) => ConfigureContributionsScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/history',
-      builder: (context, state) => const HistoricalRecordsScreen(),
+      builder: (context, state) => HistoricalRecordsScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/reminders',
-      builder: (context, state) => const ConfigureRemindersScreen(),
+      builder: (context, state) => ConfigureRemindersScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/groups/onboarding-success',
@@ -304,21 +316,30 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/member/payments/success',
-      builder: (context, state) => const PaymentSuccessfulScreen(),
+      builder: (context, state) => PaymentSuccessfulScreen(
+        paymentId: state.uri.queryParameters['paymentId'],
+      ),
     ),
     GoRoute(
       path: '/member/payments/success/mobile-money',
-      builder: (context, state) =>
-          const PaymentSuccessfulScreen(method: 'Mobile money'),
+      builder: (context, state) => PaymentSuccessfulScreen(
+        method: 'Mobile money',
+        paymentId: state.uri.queryParameters['paymentId'],
+      ),
     ),
     GoRoute(
       path: '/member/payments/success/cash',
-      builder: (context, state) =>
-          const PaymentSuccessfulScreen(method: 'Cash to treasurer'),
+      builder: (context, state) => PaymentSuccessfulScreen(
+        method: 'Cash to treasurer',
+        paymentId: state.uri.queryParameters['paymentId'],
+      ),
     ),
     GoRoute(
       path: '/member/receipts/:id',
-      builder: (context, state) => const DigitalReceiptScreen(),
+      builder: (context, state) => DigitalReceiptScreen(
+        receiptId: state.pathParameters['id'],
+        backRoute: '/member/payments/success',
+      ),
     ),
     GoRoute(
       path: '/members/invite',
@@ -356,15 +377,22 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/contributions/record/details',
-      builder: (context, state) => const RecordPaymentScreen(),
+      builder: (context, state) => RecordPaymentScreen(
+        memberId: state.uri.queryParameters['memberId'],
+      ),
     ),
     GoRoute(
       path: '/contributions/receipt',
-      builder: (context, state) => const DigitalReceiptScreen(),
+      builder: (context, state) => const DigitalReceiptScreen(
+        backRoute: '/contributions',
+      ),
     ),
     GoRoute(
       path: '/contributions/receipt/:id',
-      builder: (context, state) => const DigitalReceiptScreen(),
+      builder: (context, state) => DigitalReceiptScreen(
+        receiptId: state.pathParameters['id'],
+        backRoute: '/contributions',
+      ),
     ),
     GoRoute(
       path: '/reports/outstanding',
@@ -384,7 +412,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/reminders/new',
-      builder: (context, state) => const SendNewReminderScreen(),
+      builder: (context, state) => SendNewReminderScreen(
+        memberId: state.uri.queryParameters['memberId'],
+      ),
     ),
     GoRoute(
       path: '/reminders/templates',

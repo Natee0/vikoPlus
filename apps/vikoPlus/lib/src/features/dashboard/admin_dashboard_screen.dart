@@ -1,26 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../core/formatters/app_formatters.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
+import '../auth/auth_widgets.dart';
 import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class AdminDashboardScreen extends StatelessWidget {
+class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
+    final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
       title: loc.adminDashboardTitle,
@@ -52,43 +56,16 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Current period: $sofiaFinancialYear',
+            'Current group: ${activeGroup?.name ?? sofiaFinancialYear}',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.secondaryText),
           ),
           const SizedBox(height: 16),
-          InfoCard(
-            title: loc.totalContributions,
-            value: formatters.money(sofiaTotalContributions),
-            icon: Icons.savings_outlined,
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: InfoCard(
-                  title: loc.joiningFees,
-                  value: formatters.money(sofiaJoiningFees),
-                  icon: Icons.person_add_alt_1_outlined,
-                  accentColor: AppColors.secondaryGreen,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: InfoCard(
-                  title: loc.monthlyFees,
-                  value: formatters.money(sofiaMonthlyFees),
-                  icon: Icons.calendar_today_outlined,
-                  accentColor: AppColors.gold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          InfoCard(
-            title: loc.members,
-            value: '${sofiaMembers.length}',
-            icon: Icons.groups_2_outlined,
+          _AdminMetricsBlock(
+            groupId: activeGroup?.id,
+            formatters: formatters,
+            totalTitle: loc.totalContributions,
+            membersTitle: loc.members,
           ),
           const SizedBox(height: 12),
           ProgressBlock(
@@ -180,6 +157,89 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AdminMetricsBlock extends ConsumerWidget {
+  const _AdminMetricsBlock({
+    required this.groupId,
+    required this.formatters,
+    required this.totalTitle,
+    required this.membersTitle,
+  });
+
+  final String? groupId;
+  final AppFormatters formatters;
+  final String totalTitle;
+  final String membersTitle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = groupId;
+    if (id == null || id.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AuthErrorMessage(message: 'Select a group to load live metrics.'),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: () => context.go('/groups'),
+            child: const Text('Choose Group'),
+          ),
+        ],
+      );
+    }
+
+    return FutureBuilder<GroupDashboardResult>(
+      future: ref.read(groupsRepositoryProvider).dashboard(id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+        if (snapshot.hasError || snapshot.data == null) {
+          return const AuthErrorMessage(
+            message: 'Could not load dashboard metrics.',
+          );
+        }
+        final metrics = snapshot.data!.metrics;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            InfoCard(
+              title: totalTitle,
+              value: formatters.money(metrics.collectedMinor),
+              icon: Icons.savings_outlined,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InfoCard(
+                    title: 'Outstanding',
+                    value: formatters.money(metrics.outstandingMinor),
+                    icon: Icons.pending_actions_outlined,
+                    accentColor: AppColors.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InfoCard(
+                    title: membersTitle,
+                    value: '${metrics.membersCount}',
+                    icon: Icons.groups_2_outlined,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

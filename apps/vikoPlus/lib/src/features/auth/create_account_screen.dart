@@ -178,7 +178,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                 textInputAction: TextInputAction.next,
                 onChanged: (_) => _clearError(),
                 decoration: InputDecoration(
-                  hintText: _useEmail ? 'you@example.com' : '+1 234 567 8900',
+                  hintText: _useEmail ? 'you@example.com' : '+255 785 546 336',
                   prefixIcon: Icon(
                     _useEmail ? Icons.email_outlined : Icons.phone_outlined,
                     size: 22,

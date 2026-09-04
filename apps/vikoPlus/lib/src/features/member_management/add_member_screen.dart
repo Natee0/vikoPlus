@@ -1,23 +1,41 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
-class AddMemberScreen extends StatefulWidget {
+class AddMemberScreen extends ConsumerStatefulWidget {
   const AddMemberScreen({super.key});
 
   @override
-  State<AddMemberScreen> createState() => _AddMemberScreenState();
+  ConsumerState<AddMemberScreen> createState() => _AddMemberScreenState();
 }
 
-class _AddMemberScreenState extends State<AddMemberScreen> {
+class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
+  final _fullNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _memberNumberController = TextEditingController();
   VikoplusRole _role = VikoplusRole.member;
   bool _requireJoiningFee = true;
-  bool _sendInvitationLink = true;
+  String _errorMessage = '';
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _fullNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _memberNumberController.dispose();
+    super.dispose();
+  }
 
   void _goBack() {
     if (context.canPop()) {
@@ -26,6 +44,74 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
     }
 
     context.go('/members');
+  }
+
+  String _apiRole(VikoplusRole role) {
+    return switch (role) {
+      VikoplusRole.chairperson => 'GROUP_ADMIN',
+      VikoplusRole.treasurer => 'TREASURER',
+      VikoplusRole.secretary => 'SECRETARY',
+      VikoplusRole.member => 'MEMBER',
+      VikoplusRole.newUser => 'MEMBER',
+    };
+  }
+
+  void _clearError() {
+    if (_errorMessage.isEmpty) return;
+    setState(() => _errorMessage = '');
+  }
+
+  Future<void> _submit() async {
+    if (_isSubmitting) return;
+
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) {
+      setState(() => _errorMessage = 'Open a group before adding members.');
+      return;
+    }
+
+    final fullName = _fullNameController.text.trim();
+    final phone = _phoneController.text.trim();
+    final email = _emailController.text.trim();
+    if (fullName.length < 2) {
+      setState(() => _errorMessage = 'Enter the member full name.');
+      return;
+    }
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
+      final role = _apiRole(_role);
+      await ref.read(groupsRepositoryProvider).addMember(
+            activeGroup.id,
+            AddMemberInput(
+              fullName: fullName,
+              memberNumber: _memberNumberController.text,
+              phone: phone,
+              email: email,
+              role: role,
+            ),
+          );
+      if (!mounted) return;
+      ref.read(activeGroupProvider.notifier).setGroup(
+            GroupAccessSummary(
+              id: activeGroup.id,
+              name: activeGroup.name,
+              role: activeGroup.role,
+              status: activeGroup.status,
+              membersCount: activeGroup.membersCount + 1,
+            ),
+      );
+      context.go('/members');
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -64,26 +150,32 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                         const SizedBox(height: AppSpacing.md),
                         _FormCard(
                           title: 'Personal Information',
-                          children: const [
+                          children: [
                             _MemberTextField(
                               label: 'Full Name',
                               requiredField: true,
                               hint: 'Enter full name',
+                              controller: _fullNameController,
+                              onChanged: (_) => _clearError(),
                               keyboardType: TextInputType.name,
                               textCapitalization: TextCapitalization.words,
                             ),
-                            SizedBox(height: AppSpacing.sm),
+                            const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
                               label: 'Phone Number',
                               requiredField: true,
                               hint: '+255 7XX XXX XXX',
+                              controller: _phoneController,
+                              onChanged: (_) => _clearError(),
                               keyboardType: TextInputType.phone,
                             ),
-                            SizedBox(height: AppSpacing.sm),
+                            const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
                               label: 'Email Address',
                               optionalLabel: '(Optional)',
                               hint: 'member@example.com',
+                              controller: _emailController,
+                              onChanged: (_) => _clearError(),
                               keyboardType: TextInputType.emailAddress,
                             ),
                           ],
@@ -98,9 +190,11 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                                   ?.copyWith(color: AppColors.onSurfaceVariant),
                             ),
                             const SizedBox(height: AppSpacing.sm),
-                            const _MemberTextField(
+                            _MemberTextField(
                               label: 'Member Number',
                               hint: 'Auto-generated if empty',
+                              controller: _memberNumberController,
+                              onChanged: (_) => _clearError(),
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             _RoleAssignmentField(
@@ -131,30 +225,27 @@ class _AddMemberScreenState extends State<AddMemberScreen> {
                               ),
                             ),
                             const Divider(color: AppColors.outlineVariant),
-                            Material(
-                              color: Colors.transparent,
-                              child: SwitchListTile(
-                                value: _sendInvitationLink,
-                                contentPadding: EdgeInsets.zero,
-                                onChanged: (value) {
-                                  setState(() => _sendInvitationLink = value);
-                                },
-                                title: const Text('Send Invitation Link'),
-                                subtitle: const Text(
-                                  'Notify the member with their assigned role.',
-                                ),
-                              ),
+                            Text(
+                              'Use Invite Members when this person needs their own app login and a role-based join code.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                    height: 1.35,
+                                  ),
                             ),
                           ],
                         ),
+                        const SizedBox(height: AppSpacing.sm),
+                        AuthErrorMessage(message: _errorMessage),
                       ],
                     ),
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: 'Save and Invite',
+                  label: _isSubmitting ? 'Saving' : 'Save Member',
                   icon: const Icon(Icons.person_add_alt_outlined, size: 18),
-                  onPressed: () => context.go('/members'),
+                  isLoading: _isSubmitting,
+                  onPressed: _submit,
                 ),
               ],
             ),
@@ -237,6 +328,8 @@ class _MemberTextField extends StatelessWidget {
     required this.hint,
     this.requiredField = false,
     this.optionalLabel,
+    this.controller,
+    this.onChanged,
     this.keyboardType,
     this.textCapitalization = TextCapitalization.none,
   });
@@ -245,6 +338,8 @@ class _MemberTextField extends StatelessWidget {
   final String hint;
   final bool requiredField;
   final String? optionalLabel;
+  final TextEditingController? controller;
+  final ValueChanged<String>? onChanged;
   final TextInputType? keyboardType;
   final TextCapitalization textCapitalization;
 
@@ -260,6 +355,8 @@ class _MemberTextField extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.xs),
         TextField(
+          controller: controller,
+          onChanged: onChanged,
           keyboardType: keyboardType,
           textCapitalization: textCapitalization,
           decoration: InputDecoration(hintText: hint),

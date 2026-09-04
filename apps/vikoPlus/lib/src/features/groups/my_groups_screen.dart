@@ -1,14 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class MyGroupsScreen extends StatelessWidget {
+class MyGroupsScreen extends ConsumerStatefulWidget {
   const MyGroupsScreen({super.key});
+
+  @override
+  ConsumerState<MyGroupsScreen> createState() => _MyGroupsScreenState();
+}
+
+class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
+  late Future<MyGroupsResult> _groupsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _groupsFuture = ref.read(groupsRepositoryProvider).myGroups();
+  }
+
+  void _reload() {
+    setState(() {
+      _groupsFuture = ref.read(groupsRepositoryProvider).myGroups();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -51,45 +74,55 @@ class MyGroupsScreen extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           const SectionHeader(title: 'Groups you can access'),
           const SizedBox(height: AppSpacing.sm),
-          const _GroupAccessCard(
-            name: 'Sofia Wajukuu',
-            subtitle: 'Owner and chairperson',
-            role: 'Admin',
-            status: 'Active',
-            members: '23 members',
-            route: '/dashboard',
-            icon: Icons.admin_panel_settings_outlined,
-            highlighted: true,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          const _GroupAccessCard(
-            name: 'Upendo Savings',
-            subtitle: 'Loan approvals and contribution register',
-            role: 'Treasurer',
-            status: 'Active',
-            members: '41 members',
-            route: '/loans/applications',
-            icon: Icons.account_balance_wallet_outlined,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          const _GroupAccessCard(
-            name: 'Familia Mshikamano',
-            subtitle: 'Member contribution portal',
-            role: 'Member',
-            status: 'Active',
-            members: '18 members',
-            route: '/member/dashboard',
-            icon: Icons.person_outline,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          const _GroupAccessCard(
-            name: 'Bima ya Jamii',
-            subtitle: 'Invitation waiting for confirmation',
-            role: 'Invited',
-            status: 'Pending',
-            members: '12 members',
-            route: '/groups/verify',
-            icon: Icons.mark_email_unread_outlined,
+          FutureBuilder<MyGroupsResult>(
+            future: _groupsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(AppSpacing.md),
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+              }
+
+              if (snapshot.hasError) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    AuthErrorMessage(
+                      message: AuthFailure.from(snapshot.error!).message,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _reload,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try again'),
+                    ),
+                  ],
+                );
+              }
+
+              final groups = snapshot.data?.groups ?? const [];
+              if (groups.isEmpty) {
+                return const _EmptyGroupsCard();
+              }
+
+              return Column(
+                children: [
+                  for (final group in groups) ...[
+                    _GroupAccessCard(
+                      group: group,
+                      onOpen: () {
+                        ref.read(activeGroupProvider.notifier).setGroup(group);
+                        context.go(_routeForRole(group.role));
+                      },
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -128,46 +161,75 @@ class _GroupActionButton extends StatelessWidget {
   }
 }
 
-class _GroupAccessCard extends StatelessWidget {
-  const _GroupAccessCard({
-    required this.name,
-    required this.subtitle,
-    required this.role,
-    required this.status,
-    required this.members,
-    required this.route,
-    required this.icon,
-    this.highlighted = false,
-  });
-
-  final String name;
-  final String subtitle;
-  final String role;
-  final String status;
-  final String members;
-  final String route;
-  final IconData icon;
-  final bool highlighted;
+class _EmptyGroupsCard extends StatelessWidget {
+  const _EmptyGroupsCard();
 
   @override
   Widget build(BuildContext context) {
-    final accent = highlighted ? AppColors.primaryContainer : AppColors.primary;
-
     return Container(
+      padding: AppInsets.card,
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(
+        border: Border.all(color: AppColors.outlineVariant),
+        boxShadow: AppShadows.level1(),
+      ),
+      child: Column(
+        children: [
+          const CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.surfaceContainer,
+            child: Icon(Icons.groups_2_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'No groups yet',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Create a group or join one with an invitation code.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  height: 1.35,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupAccessCard extends StatelessWidget {
+  const _GroupAccessCard({required this.group, required this.onOpen});
+
+  final GroupAccessSummary group;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final highlighted = group.role == 'GROUP_ADMIN';
+    final accent = highlighted ? AppColors.primaryContainer : AppColors.primary;
+    final role = _roleLabel(group.role);
+
+    return Material(
+      color: AppColors.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(
           color: highlighted
               ? AppColors.primaryContainer
               : AppColors.outlineVariant,
           width: highlighted ? 1.6 : 1,
         ),
-        boxShadow: AppShadows.level1(),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.lg),
-        onTap: () => context.go(route),
+        onTap: onOpen,
         child: Padding(
           padding: AppInsets.compactCard,
           child: Row(
@@ -191,7 +253,7 @@ class _GroupAccessCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            name,
+                            group.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.titleSmall
@@ -203,8 +265,8 @@ class _GroupAccessCard extends StatelessWidget {
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         StatusPill(
-                          label: status,
-                          color: status == 'Pending'
+                          label: _statusLabel(group.status),
+                          color: group.status == 'INVITED'
                               ? AppColors.warning
                               : AppColors.primaryGreen,
                         ),
@@ -212,7 +274,7 @@ class _GroupAccessCard extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      subtitle,
+                      _subtitleForRole(group.role),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall
@@ -225,7 +287,7 @@ class _GroupAccessCard extends StatelessWidget {
                       children: [
                         _MiniChip(label: role, icon: Icons.badge_outlined),
                         _MiniChip(
-                          label: members,
+                          label: '${group.membersCount} members',
                           icon: Icons.groups_2_outlined,
                         ),
                       ],
@@ -244,6 +306,57 @@ class _GroupAccessCard extends StatelessWidget {
       ),
     );
   }
+
+  IconData get icon {
+    switch (group.role) {
+      case 'GROUP_ADMIN':
+        return Icons.admin_panel_settings_outlined;
+      case 'TREASURER':
+        return Icons.account_balance_wallet_outlined;
+      case 'SECRETARY':
+        return Icons.edit_note_outlined;
+      default:
+        return Icons.person_outline;
+    }
+  }
+
+  String _subtitleForRole(String role) {
+    switch (role) {
+      case 'GROUP_ADMIN':
+        return 'Owner and chairperson controls';
+      case 'TREASURER':
+        return 'Contribution and payment controls';
+      case 'SECRETARY':
+        return 'Member records and reports';
+      default:
+        return 'Member contribution portal';
+    }
+  }
+
+  String _roleLabel(String role) {
+    return role
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
+
+  String _statusLabel(String status) {
+    return status
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .split(' ')
+        .where((part) => part.isNotEmpty)
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
+}
+
+String _routeForRole(String role) {
+  if (role == 'MEMBER') return '/member/dashboard';
+  return '/dashboard';
 }
 
 class _MiniChip extends StatelessWidget {

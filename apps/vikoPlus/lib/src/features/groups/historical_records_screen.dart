@@ -1,33 +1,53 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class HistoricalRecordsScreen extends StatefulWidget {
-  const HistoricalRecordsScreen({super.key});
+class HistoricalRecordsScreen extends ConsumerStatefulWidget {
+  const HistoricalRecordsScreen({this.groupId, super.key});
+
+  final String? groupId;
 
   @override
-  State<HistoricalRecordsScreen> createState() =>
+  ConsumerState<HistoricalRecordsScreen> createState() =>
       _HistoricalRecordsScreenState();
 }
 
-class _HistoricalRecordsScreenState extends State<HistoricalRecordsScreen> {
+class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScreen> {
+  final _amountController = TextEditingController(text: '5000');
+  final _referenceController = TextEditingController();
+  late Future<GroupMembersResult>? _membersFuture;
   bool _bulkMode = false;
   String _method = 'Cash';
-  String _selectedMember = 'Amina Mwangi';
+  String? _selectedMemberId;
   DateTime _paidAt = DateTime(2020, 7, 5);
-
-  static const _members = [
-    'Amina Mwangi',
-    'John Ochieng',
-    'Sarah Koech',
-    'Emmanuel Malekela',
-  ];
+  String _errorMessage = '';
+  bool _isSubmitting = false;
 
   static const _methods = ['Cash', 'Mobile money', 'Bank transfer', 'Other'];
+
+  @override
+  void initState() {
+    super.initState();
+    final groupId = widget.groupId;
+    _membersFuture = groupId == null || groupId.isEmpty
+        ? null
+        : ref.read(groupsRepositoryProvider).listMembers(groupId);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _referenceController.dispose();
+    super.dispose();
+  }
 
   String get _dateLabel {
     const months = [
@@ -47,6 +67,75 @@ class _HistoricalRecordsScreenState extends State<HistoricalRecordsScreen> {
     return '${_paidAt.day} ${months[_paidAt.month - 1]} ${_paidAt.year}';
   }
 
+  int? _amountMinor() {
+    final digits = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return null;
+    return int.tryParse(digits);
+  }
+
+  String _apiMethod() {
+    return switch (_method) {
+      'Mobile money' => 'MOBILE_MONEY',
+      'Bank transfer' => 'BANK_TRANSFER',
+      'Other' => 'OTHER',
+      _ => 'CASH',
+    };
+  }
+
+  Future<void> _saveSinglePayment() async {
+    final groupId = widget.groupId;
+    if (_isSubmitting) return;
+    if (groupId == null || groupId.isEmpty) {
+      setState(() => _errorMessage = 'Create a group before importing records.');
+      return;
+    }
+    final memberId = _selectedMemberId;
+    final amount = _amountMinor();
+    if (memberId == null || memberId.isEmpty) {
+      setState(() => _errorMessage = 'Select a member for this payment.');
+      return;
+    }
+    if (amount == null || amount <= 0) {
+      setState(() => _errorMessage = 'Enter a valid payment amount.');
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isSubmitting = true;
+      });
+      await ref.read(groupsRepositoryProvider).importHistoricalPayment(
+            groupId,
+            HistoricalPaymentInput(
+              memberId: memberId,
+              amountMinor: amount,
+              method: _apiMethod(),
+              paidAt: _paidAt,
+              reference: _referenceController.text,
+            ),
+          );
+      if (!mounted) return;
+      context.go('/groups/reminders?groupId=${Uri.encodeComponent(groupId)}');
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
+  }
+
+  void _continueToReminders() {
+    final groupId = widget.groupId;
+    context.go(
+      groupId == null
+          ? '/groups/reminders'
+          : '/groups/reminders?groupId=${Uri.encodeComponent(groupId)}',
+    );
+  }
+
   Future<void> _pickPaidAt() async {
     final picked = await showDatePicker(
       context: context,
@@ -62,7 +151,9 @@ class _HistoricalRecordsScreenState extends State<HistoricalRecordsScreen> {
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'Historical Records',
-      backRoute: '/groups/contributions',
+      backRoute: widget.groupId == null
+          ? '/groups/contributions'
+          : '/groups/contributions?groupId=${Uri.encodeComponent(widget.groupId!)}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -90,31 +181,62 @@ class _HistoricalRecordsScreenState extends State<HistoricalRecordsScreen> {
           if (_bulkMode)
             const _BulkImportCard()
           else
-            _SinglePaymentCard(
-              selectedMember: _selectedMember,
-              members: _members,
+            _MembersLoader(
+              membersFuture: _membersFuture,
+              selectedMemberId: _selectedMemberId,
               method: _method,
               methods: _methods,
               paidAtLabel: _dateLabel,
+              amountController: _amountController,
+              referenceController: _referenceController,
               onMemberChanged: (value) {
-                if (value == null) return;
-                setState(() => _selectedMember = value);
+                setState(() {
+                  _selectedMemberId = value;
+                  _errorMessage = '';
+                });
               },
               onMethodChanged: (value) {
                 if (value == null) return;
                 setState(() => _method = value);
               },
               onPickPaidAt: _pickPaidAt,
+              onError: (message) => AuthErrorMessage(message: message),
             ),
           const SizedBox(height: AppSpacing.md),
           const _ImportRulesCard(),
           const SizedBox(height: AppSpacing.md),
+          AuthErrorMessage(message: _errorMessage),
+          const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
-            onPressed: () => context.go('/groups/reminders'),
-            icon: Icon(_bulkMode ? Icons.cloud_upload_outlined : Icons.save),
+            onPressed: _isSubmitting
+                ? null
+                : _bulkMode
+                ? () {
+                    setState(() {
+                      _errorMessage =
+                          'Bulk upload will be wired after file selection is enabled.';
+                    });
+                  }
+                : _saveSinglePayment,
+            icon: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(_bulkMode ? Icons.cloud_upload_outlined : Icons.save),
             label: Text(
-              _bulkMode ? 'Import Records' : 'Save Historical Payment',
+              _isSubmitting
+                  ? 'Saving'
+                  : _bulkMode
+                  ? 'Import Records'
+                  : 'Save Historical Payment',
             ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextButton(
+            onPressed: _isSubmitting ? null : _continueToReminders,
+            child: const Text('Skip Historical Records'),
           ),
         ],
       ),
@@ -178,23 +300,109 @@ class _HistoryHero extends StatelessWidget {
   }
 }
 
+class _MembersLoader extends StatelessWidget {
+  const _MembersLoader({
+    required this.membersFuture,
+    required this.selectedMemberId,
+    required this.method,
+    required this.methods,
+    required this.paidAtLabel,
+    required this.amountController,
+    required this.referenceController,
+    required this.onMemberChanged,
+    required this.onMethodChanged,
+    required this.onPickPaidAt,
+    required this.onError,
+  });
+
+  final Future<GroupMembersResult>? membersFuture;
+  final String? selectedMemberId;
+  final String method;
+  final List<String> methods;
+  final String paidAtLabel;
+  final TextEditingController amountController;
+  final TextEditingController referenceController;
+  final ValueChanged<String?> onMemberChanged;
+  final ValueChanged<String?> onMethodChanged;
+  final VoidCallback onPickPaidAt;
+  final Widget Function(String message) onError;
+
+  @override
+  Widget build(BuildContext context) {
+    final future = membersFuture;
+    if (future == null) {
+      return onError('Create a group before importing historical records.');
+    }
+
+    return FutureBuilder<GroupMembersResult>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return onError(AuthFailure.from(snapshot.error!).message);
+        }
+
+        final members = snapshot.data?.members ?? const [];
+        if (members.isEmpty) {
+          return onError('Add at least one group member before importing records.');
+        }
+
+        final activeSelectedMemberId =
+            members.any((member) => member.id == selectedMemberId)
+            ? selectedMemberId
+            : members.first.id;
+        if (activeSelectedMemberId != selectedMemberId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            onMemberChanged(activeSelectedMemberId);
+          });
+        }
+
+        return _SinglePaymentCard(
+          selectedMemberId: activeSelectedMemberId,
+          members: members,
+          method: method,
+          methods: methods,
+          paidAtLabel: paidAtLabel,
+          amountController: amountController,
+          referenceController: referenceController,
+          onMemberChanged: onMemberChanged,
+          onMethodChanged: onMethodChanged,
+          onPickPaidAt: onPickPaidAt,
+        );
+      },
+    );
+  }
+}
+
 class _SinglePaymentCard extends StatelessWidget {
   const _SinglePaymentCard({
-    required this.selectedMember,
+    required this.selectedMemberId,
     required this.members,
     required this.method,
     required this.methods,
     required this.paidAtLabel,
+    required this.amountController,
+    required this.referenceController,
     required this.onMemberChanged,
     required this.onMethodChanged,
     required this.onPickPaidAt,
   });
 
-  final String selectedMember;
-  final List<String> members;
+  final String? selectedMemberId;
+  final List<GroupMemberSummary> members;
   final String method;
   final List<String> methods;
   final String paidAtLabel;
+  final TextEditingController amountController;
+  final TextEditingController referenceController;
   final ValueChanged<String?> onMemberChanged;
   final ValueChanged<String?> onMethodChanged;
   final VoidCallback onPickPaidAt;
@@ -208,23 +416,26 @@ class _SinglePaymentCard extends StatelessWidget {
           const SectionHeader(title: 'Single Payment'),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String>(
-            initialValue: selectedMember,
+            initialValue: selectedMemberId,
             decoration: const InputDecoration(
               labelText: 'Member',
               prefixIcon: Icon(Icons.person_outline),
             ),
             items: members
                 .map(
-                  (member) =>
-                      DropdownMenuItem(value: member, child: Text(member)),
+                  (member) => DropdownMenuItem(
+                    value: member.id,
+                    child: Text(member.fullName),
+                  ),
                 )
                 .toList(),
             onChanged: onMemberChanged,
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
+          TextField(
+            controller: amountController,
             keyboardType: TextInputType.number,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               labelText: 'Amount Paid',
               hintText: '5000',
               prefixIcon: Icon(Icons.payments_outlined),
@@ -254,8 +465,9 @@ class _SinglePaymentCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
-            decoration: InputDecoration(
+          TextField(
+            controller: referenceController,
+            decoration: const InputDecoration(
               labelText: 'Reference',
               hintText: 'Receipt, book page, or old ledger note',
               prefixIcon: Icon(Icons.tag_outlined),

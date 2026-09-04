@@ -86,6 +86,14 @@ export class GroupsController {
     return this.groups.onboarding(user, groupId);
   }
 
+  @Get("groups/:groupId/financial-years")
+  financialYears(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.financialYears(user, groupId);
+  }
+
   @Put("groups/:groupId/financial-year")
   @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
   saveFinancialYear(

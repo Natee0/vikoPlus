@@ -17,6 +17,7 @@ import { SubscriptionPlansModule } from "./subscription-plans/subscription-plans
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module";
 import { ThrottlerGuard } from "@nestjs/throttler";
 import { AdminModule } from "./admin/admin.module";
+import { UploadsModule } from "./uploads/uploads.module";
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { AdminModule } from "./admin/admin.module";
     SubscriptionPlansModule,
     SubscriptionsModule,
     ReportsModule,
+    UploadsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

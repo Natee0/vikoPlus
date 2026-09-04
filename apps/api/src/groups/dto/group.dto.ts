@@ -95,6 +95,24 @@ export class ContributionSettingsDto {
   membershipFeeMinor!: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  memberContributionMinor?: number;
+
+  @IsOptional()
+  @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
+  membershipFeeFrequency?: "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
+
+  @IsOptional()
+  @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
+  memberContributionFrequency?:
+    | "DAILY"
+    | "WEEKLY"
+    | "MONTHLY"
+    | "QUARTERLY"
+    | "ANNUAL";
+
+  @IsOptional()
   @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
   frequency?: "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
 
@@ -107,8 +125,32 @@ export class ContributionSettingsDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(7)
+  membershipDueDayOfWeek?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  memberContributionDueDayOfWeek?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
   @Max(31)
   dueDayOfMonth?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  membershipDueDayOfMonth?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  memberContributionDueDayOfMonth?: number;
 
   @IsOptional()
   @IsDateString()
@@ -131,6 +173,11 @@ export class AddMemberDto {
   @IsOptional()
   @IsString()
   @MaxLength(30)
+  memberNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
   phone?: string;
 
   @IsOptional()
@@ -144,7 +191,10 @@ export class AddMemberDto {
 
 export class InviteMembersDto {
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
   @IsString({ each: true })
+  @MaxLength(100, { each: true })
   recipients!: string[];
 
   @IsOptional()
@@ -180,6 +230,12 @@ export class RecordContributionPaymentDto {
   @IsOptional()
   @IsDateString()
   paidAt?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  obligationIds?: string[];
 }
 
 export class SubmitContributionPaymentRequestDto {
@@ -201,6 +257,12 @@ export class SubmitContributionPaymentRequestDto {
   @IsOptional()
   @IsDateString()
   paidAt?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  obligationIds?: string[];
 }
 
 export class HistoricalContributionPaymentDto {
@@ -241,6 +303,12 @@ export class ReviewContributionPaymentDto {
   @IsString()
   @MaxLength(300)
   reason?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(50)
+  @IsString({ each: true })
+  obligationIds?: string[];
 }
 
 export class SendReminderDto {
@@ -254,6 +322,7 @@ export class SendReminderDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(200)
   @IsString({ each: true })
   memberIds?: string[];
 }

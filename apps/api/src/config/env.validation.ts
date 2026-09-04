@@ -56,6 +56,23 @@ export const envValidationSchema = Joi.object({
   SMTP_USER: Joi.string().required(),
   SMTP_PASSWORD: Joi.string().required(),
   EMAIL_FROM: Joi.string().default("vikoPlus <no-reply@vikoplus.co.tz>"),
-  OBJECT_STORAGE_DRIVER: Joi.string().valid("local").default("local"),
+  OBJECT_STORAGE_DRIVER: Joi.string()
+    .valid("cloudinary", "local")
+    .default("cloudinary"),
+  CLOUDINARY_CLOUD_NAME: Joi.string().when("OBJECT_STORAGE_DRIVER", {
+    is: "cloudinary",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  CLOUDINARY_API_KEY: Joi.string().when("OBJECT_STORAGE_DRIVER", {
+    is: "cloudinary",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  CLOUDINARY_API_SECRET: Joi.string().when("OBJECT_STORAGE_DRIVER", {
+    is: "cloudinary",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
   DEFAULT_LOCALE: Joi.string().valid("en", "sw").default("en"),
 });

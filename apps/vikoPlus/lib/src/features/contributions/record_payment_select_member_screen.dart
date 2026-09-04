@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
-import '../../core/sample/sofia_sample_data.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class RecordPaymentSelectMemberScreen extends StatelessWidget {
+class RecordPaymentSelectMemberScreen extends ConsumerWidget {
   const RecordPaymentSelectMemberScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final formatter = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
-    final recentMembers = sofiaMembers.take(2).toList();
-    final allMembers = sofiaMembers.skip(2).take(5).toList();
+    final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
       title: 'Record Payment',
@@ -25,20 +26,60 @@ class RecordPaymentSelectMemberScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const TextField(
-            decoration: InputDecoration(
-              hintText: 'Search members...',
-              prefixIcon: Icon(Icons.search),
+          if (activeGroup == null) ...[
+            const AuthErrorMessage(
+              message: 'Select a group before recording a payment.',
             ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const SectionHeader(title: 'Recent'),
-          const SizedBox(height: AppSpacing.sm),
-          _MemberSelectionList(members: recentMembers, formatter: formatter),
-          const SizedBox(height: AppSpacing.md),
-          const SectionHeader(title: 'All Members'),
-          const SizedBox(height: AppSpacing.sm),
-          _MemberSelectionList(members: allMembers, formatter: formatter),
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: () => context.go('/groups/my'),
+              child: const Text('Choose Group'),
+            ),
+          ] else ...[
+            TextField(
+              enabled: false,
+              decoration: InputDecoration(
+                hintText: activeGroup.name,
+                prefixIcon: const Icon(Icons.groups_2_outlined),
+              ),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            const SectionHeader(title: 'All Members'),
+            const SizedBox(height: AppSpacing.sm),
+            FutureBuilder<GroupMembersResult>(
+              future: ref
+                  .read(groupsRepositoryProvider)
+                  .listMembers(activeGroup.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return const AuthErrorMessage(
+                    message: 'Could not load group members. Please try again.',
+                  );
+                }
+
+                final members = snapshot.data?.members ?? const [];
+                if (members.isEmpty) {
+                  return const AuthErrorMessage(
+                    message: 'Add members before recording contributions.',
+                  );
+                }
+
+                return _MemberSelectionList(
+                  members: members,
+                  formatter: formatter,
+                );
+              },
+            ),
+          ],
         ],
       ),
     );
@@ -48,7 +89,7 @@ class RecordPaymentSelectMemberScreen extends StatelessWidget {
 class _MemberSelectionList extends StatelessWidget {
   const _MemberSelectionList({required this.members, required this.formatter});
 
-  final List<SofiaMember> members;
+  final List<GroupMemberSummary> members;
   final AppFormatters formatter;
 
   @override
@@ -77,27 +118,24 @@ class _MemberSelectionList extends StatelessWidget {
 class _SelectableMemberRow extends StatelessWidget {
   const _SelectableMemberRow({required this.member, required this.formatter});
 
-  final SofiaMember member;
+  final GroupMemberSummary member;
   final AppFormatters formatter;
 
   @override
   Widget build(BuildContext context) {
-    final outstanding = member.outstanding > 0;
-
     return Material(
       color: AppColors.surfaceContainerLowest,
       child: InkWell(
-        onTap: () => context.go('/contributions/record/details'),
+        onTap: () => context.go(
+          '/contributions/record/details?memberId=${Uri.encodeComponent(member.id)}',
+        ),
         child: SizedBox(
           height: 76,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: Row(
               children: [
-                InitialsAvatar(
-                  initials: member.initials,
-                  color: outstanding ? AppColors.primary : AppColors.outline,
-                ),
+                InitialsAvatar(initials: _initials(member.fullName)),
                 const SizedBox(width: AppSpacing.sm),
                 Expanded(
                   child: Column(
@@ -105,14 +143,18 @@ class _SelectableMemberRow extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        member.name,
+                        member.fullName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
                       Text(
-                        'ID: ${member.number} | Regular Member',
+                        [
+                          if (member.memberNumber != null)
+                            'ID: ${member.memberNumber}',
+                          _roleLabel(member.role),
+                        ].join(' | '),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall
@@ -127,20 +169,16 @@ class _SelectableMemberRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      formatter.money(member.outstanding.clamp(0, 9999999)),
+                      formatter.money(0),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: outstanding
-                            ? AppColors.primary
-                            : AppColors.onSurfaceVariant,
+                        color: AppColors.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     Text(
-                      outstanding ? 'Outstanding' : 'Cleared',
+                      member.status,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: outstanding
-                            ? AppColors.error
-                            : AppColors.onSurfaceVariant,
+                        color: AppColors.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -152,4 +190,23 @@ class _SelectableMemberRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _initials(String value) {
+  final words = value
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((word) => word.isNotEmpty)
+      .toList();
+  if (words.isEmpty) return 'M';
+  return words.take(2).map((word) => word[0].toUpperCase()).join();
+}
+
+String _roleLabel(String role) {
+  return role
+      .split('_')
+      .map((part) => part.isEmpty
+          ? part
+          : '${part[0]}${part.substring(1).toLowerCase()}')
+      .join(' ');
 }

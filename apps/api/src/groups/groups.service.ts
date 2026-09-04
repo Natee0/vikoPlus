@@ -307,6 +307,12 @@ export class GroupsService {
     );
     const memberContributionMinor =
       input.memberContributionMinor ?? input.membershipFeeMinor;
+    const memberContributionWeekDays =
+      this.memberContributionWeeklyDays(input);
+    const memberContributionDueDayOfWeek =
+      memberContributionFrequency === ContributionFrequency.WEEKLY
+        ? memberContributionWeekDays[0]
+        : input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek;
     this.validateContributionCycle(
       membershipFrequency,
       input.membershipDueDayOfWeek ?? input.dueDayOfWeek,
@@ -314,7 +320,7 @@ export class GroupsService {
     );
     this.validateContributionCycle(
       memberContributionFrequency,
-      input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek,
+      memberContributionDueDayOfWeek,
       input.memberContributionDueDayOfMonth ?? input.dueDayOfMonth,
     );
     const membershipCycleData = this.contributionCycleData(
@@ -323,13 +329,19 @@ export class GroupsService {
       input.membershipDueDayOfWeek ?? input.dueDayOfWeek,
       input.membershipDueDayOfMonth ?? input.dueDayOfMonth,
     );
-    const contributionCycleData = this.contributionCycleData(
-      input,
-      memberContributionFrequency,
-      input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek,
-      input.memberContributionDueDayOfMonth ?? input.dueDayOfMonth,
-    );
-    await Promise.all([
+    const contributionPlanDays =
+      memberContributionFrequency === ContributionFrequency.WEEKLY
+        ? memberContributionWeekDays
+        : [memberContributionDueDayOfWeek];
+    await this.prisma.$transaction([
+      this.prisma.contributionPlan.updateMany({
+        where: {
+          groupId,
+          type: ContributionPlanType.RECURRING,
+          name: { startsWith: "Member contribution" },
+        },
+        data: { isActive: false },
+      }),
       this.prisma.contributionPlan.upsert({
         where: { groupId_name: { groupId, name: "Joining fee" } },
         update: {
@@ -362,22 +374,38 @@ export class GroupsService {
           type: ContributionPlanType.RECURRING,
         },
       }),
-      this.prisma.contributionPlan.upsert({
-        where: { groupId_name: { groupId, name: "Member contribution" } },
-        update: {
-          amountMinor: memberContributionMinor,
-          frequency: memberContributionFrequency,
-          ...contributionCycleData,
-          type: ContributionPlanType.RECURRING,
-        },
-        create: {
-          groupId,
-          name: "Member contribution",
-          amountMinor: memberContributionMinor,
-          frequency: memberContributionFrequency,
-          ...contributionCycleData,
-          type: ContributionPlanType.RECURRING,
-        },
+      ...contributionPlanDays.map((dueDayOfWeek, index) => {
+        const planName = this.memberContributionPlanName(
+          memberContributionFrequency,
+          memberContributionWeekDays,
+          dueDayOfWeek,
+          index,
+        );
+        const contributionCycleData = this.contributionCycleData(
+          input,
+          memberContributionFrequency,
+          dueDayOfWeek,
+          input.memberContributionDueDayOfMonth ?? input.dueDayOfMonth,
+        );
+
+        return this.prisma.contributionPlan.upsert({
+          where: { groupId_name: { groupId, name: planName } },
+          update: {
+            amountMinor: memberContributionMinor,
+            frequency: memberContributionFrequency,
+            ...contributionCycleData,
+            type: ContributionPlanType.RECURRING,
+            isActive: true,
+          },
+          create: {
+            groupId,
+            name: planName,
+            amountMinor: memberContributionMinor,
+            frequency: memberContributionFrequency,
+            ...contributionCycleData,
+            type: ContributionPlanType.RECURRING,
+          },
+        });
       }),
     ]);
     await this.generateContributionSchedule(groupId);
@@ -387,6 +415,10 @@ export class GroupsService {
       membershipFeeFrequency: membershipFrequency,
       memberContributionMinor,
       memberContributionFrequency,
+      memberContributionDueDaysOfWeek:
+        memberContributionFrequency === ContributionFrequency.WEEKLY
+          ? memberContributionWeekDays
+          : undefined,
     };
   }
 
@@ -1179,6 +1211,48 @@ export class GroupsService {
       select: { id: true, userId: true, fullName: true, phone: true },
       orderBy: { fullName: "asc" },
     });
+  }
+
+  private memberContributionWeeklyDays(
+    input: ContributionSettingsDto,
+  ): number[] {
+    const configuredDays = input.memberContributionDueDaysOfWeek;
+    const fallbackDay =
+      input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek;
+    const days =
+      configuredDays && configuredDays.length > 0
+        ? configuredDays
+        : fallbackDay
+          ? [fallbackDay]
+          : [];
+
+    return [...new Set(days)].sort((a, b) => a - b);
+  }
+
+  private memberContributionPlanName(
+    frequency: ContributionFrequency,
+    weeklyDays: number[],
+    dueDayOfWeek: number | undefined,
+    index: number,
+  ): string {
+    if (frequency !== ContributionFrequency.WEEKLY || weeklyDays.length <= 1) {
+      return "Member contribution";
+    }
+
+    return `Member contribution - ${this.weekdayName(dueDayOfWeek ?? index + 1)}`;
+  }
+
+  private weekdayName(day: number): string {
+    const names = [
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      "Sunday",
+    ];
+    return names[day - 1] ?? `Day ${day}`;
   }
 
   private validateContributionCycle(

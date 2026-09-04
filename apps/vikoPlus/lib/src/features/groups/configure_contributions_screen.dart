@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -29,7 +30,7 @@ class _ConfigureContributionsScreenState
   String _membershipFeeFrequency = 'Yearly';
   String _memberContributionFrequency = 'Monthly';
   int _membershipDueDay = 1;
-  int _weeklyDay = 6;
+  List<int> _weeklyDays = const [6];
   int _monthlyDay = 5;
   bool _joiningFeeEnabled = true;
   bool _allowPartialPayments = true;
@@ -47,7 +48,8 @@ class _ConfigureContributionsScreenState
     _membershipFeeFrequency = draft.membershipFeeFrequency;
     _memberContributionFrequency = draft.memberContributionFrequency;
     _membershipDueDay = draft.membershipDueDay;
-    _weeklyDay = draft.weeklyDay;
+    final draftWeeklyDays = List<int>.from(draft.weeklyDays);
+    _weeklyDays = draftWeeklyDays.isEmpty ? const [6] : draftWeeklyDays;
     _monthlyDay = draft.monthlyDay;
     _joiningFeeEnabled = draft.joiningFeeEnabled;
     _allowPartialPayments = draft.allowPartialPayments;
@@ -65,7 +67,7 @@ class _ConfigureContributionsScreenState
   String get _dueLabel {
     if (_memberContributionFrequency == 'Daily') return 'Every day';
     if (_memberContributionFrequency == 'Weekly') {
-      return _weekDays[_weeklyDay - 1];
+      return _weeklyDays.map((day) => _weekDays[day - 1]).join(', ');
     }
     return '${_ordinal(_monthlyDay)} of each cycle';
   }
@@ -126,13 +128,22 @@ class _ConfigureContributionsScreenState
             membershipFeeFrequency: _membershipFeeFrequency,
             memberContributionFrequency: _memberContributionFrequency,
             membershipDueDay: _membershipDueDay,
-            weeklyDay: _weeklyDay,
+            weeklyDays: _weeklyDays,
             monthlyDay: _monthlyDay,
             joiningFeeEnabled: _joiningFeeEnabled,
             allowPartialPayments: _allowPartialPayments,
             autoAllocatePayments: _autoAllocatePayments,
           ),
         );
+  }
+
+  void _handleAmountChanged(String _) {
+    setState(() {
+      if (_errorMessage.isNotEmpty) {
+        _errorMessage = '';
+      }
+    });
+    _persistContributions();
   }
 
   Future<void> _submit() async {
@@ -175,7 +186,13 @@ class _ConfigureContributionsScreenState
                   _apiFrequency(_memberContributionFrequency),
               membershipDueDayOfMonth: _membershipDueDay,
               memberContributionDueDayOfWeek:
-                  _memberContributionFrequency == 'Weekly' ? _weeklyDay : null,
+                  _memberContributionFrequency == 'Weekly'
+                  ? _weeklyDays.first
+                  : null,
+              memberContributionDueDaysOfWeek:
+                  _memberContributionFrequency == 'Weekly'
+                  ? _weeklyDays
+                  : null,
               memberContributionDueDayOfMonth:
                   _memberContributionFrequency == 'Daily' ||
                       _memberContributionFrequency == 'Weekly'
@@ -240,12 +257,7 @@ class _ConfigureContributionsScreenState
                 hint: '10000',
                 controller: _joiningFeeController,
                 enabled: _joiningFeeEnabled,
-                onChanged: (_) {
-                  if (_errorMessage.isNotEmpty) {
-                    setState(() => _errorMessage = '');
-                  }
-                  _persistContributions();
-                },
+                onChanged: _handleAmountChanged,
               ),
             ],
           ),
@@ -258,12 +270,7 @@ class _ConfigureContributionsScreenState
                 label: 'Membership Fee Amount',
                 hint: '5000',
                 controller: _membershipFeeController,
-                onChanged: (_) {
-                  if (_errorMessage.isNotEmpty) {
-                    setState(() => _errorMessage = '');
-                  }
-                  _persistContributions();
-                },
+                onChanged: _handleAmountChanged,
               ),
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
@@ -303,12 +310,7 @@ class _ConfigureContributionsScreenState
                 label: 'Contribution Amount',
                 hint: '20000',
                 controller: _memberContributionController,
-                onChanged: (_) {
-                  if (_errorMessage.isNotEmpty) {
-                    setState(() => _errorMessage = '');
-                  }
-                  _persistContributions();
-                },
+                onChanged: _handleAmountChanged,
               ),
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
@@ -323,19 +325,22 @@ class _ConfigureContributionsScreenState
                 ],
                 onChanged: (value) {
                   if (value == null) return;
-                  setState(() => _memberContributionFrequency = value);
+                  setState(() {
+                    _memberContributionFrequency = value;
+                    if (value == 'Weekly' && _weeklyDays.isEmpty) {
+                      _weeklyDays = const [6];
+                    }
+                  });
                   _persistContributions();
                 },
               ),
               const SizedBox(height: AppSpacing.sm),
               if (_memberContributionFrequency == 'Weekly')
-                _SelectField(
-                  label: 'Weekly Due Day',
-                  value: _weekDays[_weeklyDay - 1],
-                  values: _weekDays,
-                  onChanged: (value) {
-                    if (value == null) return;
-                    setState(() => _weeklyDay = _weekDays.indexOf(value) + 1);
+                _WeeklyDaysField(
+                  selectedDays: _weeklyDays,
+                  weekDays: _weekDays,
+                  onChanged: (days) {
+                    setState(() => _weeklyDays = days);
                     _persistContributions();
                   },
                 )
@@ -518,14 +523,30 @@ class _MoneyField extends StatelessWidget {
       enabled: enabled,
       onChanged: onChanged,
       keyboardType: TextInputType.number,
+      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+            color: AppColors.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
-        prefixIcon: const Padding(
-          padding: EdgeInsets.only(left: AppSpacing.sm, right: AppSpacing.xs),
-          child: Center(child: Text('TZS')),
+        prefixIcon: SizedBox(
+          width: 56,
+          child: Align(
+            alignment: Alignment.center,
+            child: Text(
+              'TZS',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: enabled
+                        ? AppColors.onSurfaceVariant
+                        : AppColors.onSurfaceVariant.withValues(alpha: 0.56),
+                    fontWeight: FontWeight.w700,
+                  ),
+            ),
+          ),
         ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 0),
+        prefixIconConstraints: const BoxConstraints.tightFor(width: 56),
       ),
     );
   }
@@ -554,6 +575,53 @@ class _SelectField extends StatelessWidget {
           .map((item) => DropdownMenuItem(value: item, child: Text(item)))
           .toList(),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _WeeklyDaysField extends StatelessWidget {
+  const _WeeklyDaysField({
+    required this.selectedDays,
+    required this.weekDays,
+    required this.onChanged,
+  });
+
+  final List<int> selectedDays;
+  final List<String> weekDays;
+  final ValueChanged<List<int>> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Weekly Due Days',
+        prefixIcon: Icon(Icons.event_repeat_outlined),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.only(top: AppSpacing.xxs),
+        child: Wrap(
+          spacing: AppSpacing.xs,
+          runSpacing: AppSpacing.xs,
+          children: [
+            for (var index = 0; index < weekDays.length; index++)
+              FilterChip(
+                label: Text(weekDays[index].substring(0, 3)),
+                selected: selectedDays.contains(index + 1),
+                onSelected: (selected) {
+                  final day = index + 1;
+                  final next = List<int>.from(selectedDays);
+                  if (selected) {
+                    next.add(day);
+                  } else if (next.length > 1) {
+                    next.remove(day);
+                  }
+                  next.sort();
+                  onChanged(next);
+                },
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

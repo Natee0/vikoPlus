@@ -33,6 +33,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   String? _logoUrl;
   String? _localLogoPath;
   String _errorMessage = '';
+  bool _nameHasError = false;
   bool _isSubmitting = false;
   bool _isUploadingLogo = false;
 
@@ -88,11 +89,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _pickEstablishedDate() async {
+    final today = DateUtils.dateOnly(DateTime.now());
     final picked = await showDatePicker(
       context: context,
-      initialDate: _establishedAt ?? DateTime(2015),
+      initialDate: _establishedAt ?? today,
       firstDate: DateTime(1970),
-      lastDate: DateTime.now(),
+      lastDate: today,
     );
     if (picked == null) return;
     setState(() {
@@ -107,11 +109,12 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
   Future<void> _pickHistoricalStartDate() async {
     final firstDate = _establishedAt ?? DateTime(1970);
+    final today = DateUtils.dateOnly(DateTime.now());
     final picked = await showDatePicker(
       context: context,
-      initialDate: _historicalDataStartsAt ?? _establishedAt ?? DateTime(2015),
+      initialDate: _historicalDataStartsAt ?? _establishedAt ?? today,
       firstDate: firstDate,
-      lastDate: DateTime.now(),
+      lastDate: today,
     );
     if (picked == null) return;
     setState(() => _historicalDataStartsAt = picked);
@@ -119,8 +122,11 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty) return;
-    setState(() => _errorMessage = '');
+    if (_errorMessage.isEmpty && !_nameHasError) return;
+    setState(() {
+      _errorMessage = '';
+      _nameHasError = false;
+    });
   }
 
   void _persistProfile() {
@@ -194,13 +200,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
 
     final name = _nameController.text.trim();
     if (name.length < 2) {
-      setState(() => _errorMessage = 'Enter a valid group name.');
+      setState(() {
+        _errorMessage = 'Enter a valid group name.';
+        _nameHasError = true;
+      });
       return;
     }
 
     try {
       setState(() {
         _errorMessage = '';
+        _nameHasError = false;
         _isSubmitting = true;
       });
       _persistProfile();
@@ -294,6 +304,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                           hint: 'Enter group name',
                           controller: _nameController,
                           textInputAction: TextInputAction.next,
+                          hasError: _nameHasError,
                           onChanged: (_) {
                             _clearError();
                             _persistProfile();
@@ -577,6 +588,7 @@ class _GroupTextField extends StatelessWidget {
     this.minLines = 1,
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
+    this.hasError = false,
   });
 
   final String label;
@@ -589,6 +601,7 @@ class _GroupTextField extends StatelessWidget {
   final int minLines;
   final int maxLines;
   final TextCapitalization textCapitalization;
+  final bool hasError;
 
   @override
   Widget build(BuildContext context) {
@@ -607,6 +620,24 @@ class _GroupTextField extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             prefixIcon: prefixIcon == null ? null : Icon(prefixIcon, size: 22),
+            enabledBorder: hasError
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    borderSide: const BorderSide(
+                      color: AppColors.error,
+                      width: 1.6,
+                    ),
+                  )
+                : null,
+            focusedBorder: hasError
+                ? OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    borderSide: const BorderSide(
+                      color: AppColors.error,
+                      width: 2,
+                    ),
+                  )
+                : null,
             contentPadding: EdgeInsets.symmetric(
               horizontal: AppSpacing.sm,
               vertical: maxLines > 1 ? AppSpacing.sm : 0,

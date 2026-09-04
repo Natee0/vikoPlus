@@ -85,18 +85,22 @@ class GroupProfileDraft {
 class FinancialYearDraft {
   const FinancialYearDraft({
     this.startMonth = 7,
+    this.startDate,
     this.automaticRollover = true,
   });
 
   final int startMonth;
+  final DateTime? startDate;
   final bool automaticRollover;
 
   FinancialYearDraft copyWith({
     int? startMonth,
+    DateTime? startDate,
     bool? automaticRollover,
   }) {
     return FinancialYearDraft(
       startMonth: startMonth ?? this.startMonth,
+      startDate: startDate ?? this.startDate,
       automaticRollover: automaticRollover ?? this.automaticRollover,
     );
   }
@@ -110,7 +114,7 @@ class ContributionSettingsDraft {
     this.membershipFeeFrequency = 'Yearly',
     this.memberContributionFrequency = 'Monthly',
     this.membershipDueDay = 1,
-    this.weeklyDay = 6,
+    this.weeklyDays = const [6],
     this.monthlyDay = 5,
     this.joiningFeeEnabled = true,
     this.allowPartialPayments = true,
@@ -123,7 +127,7 @@ class ContributionSettingsDraft {
   final String membershipFeeFrequency;
   final String memberContributionFrequency;
   final int membershipDueDay;
-  final int weeklyDay;
+  final List<int> weeklyDays;
   final int monthlyDay;
   final bool joiningFeeEnabled;
   final bool allowPartialPayments;
@@ -136,7 +140,7 @@ class ContributionSettingsDraft {
     String? membershipFeeFrequency,
     String? memberContributionFrequency,
     int? membershipDueDay,
-    int? weeklyDay,
+    List<int>? weeklyDays,
     int? monthlyDay,
     bool? joiningFeeEnabled,
     bool? allowPartialPayments,
@@ -151,7 +155,7 @@ class ContributionSettingsDraft {
       memberContributionFrequency:
           memberContributionFrequency ?? this.memberContributionFrequency,
       membershipDueDay: membershipDueDay ?? this.membershipDueDay,
-      weeklyDay: weeklyDay ?? this.weeklyDay,
+      weeklyDays: weeklyDays ?? this.weeklyDays,
       monthlyDay: monthlyDay ?? this.monthlyDay,
       joiningFeeEnabled: joiningFeeEnabled ?? this.joiningFeeEnabled,
       allowPartialPayments: allowPartialPayments ?? this.allowPartialPayments,

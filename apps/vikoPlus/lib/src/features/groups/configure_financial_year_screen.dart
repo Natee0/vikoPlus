@@ -23,21 +23,6 @@ class ConfigureFinancialYearScreen extends ConsumerStatefulWidget {
 
 class _ConfigureFinancialYearScreenState
     extends ConsumerState<ConfigureFinancialYearScreen> {
-  static const _months = [
-    'January',
-    'February',
-    'March',
-    'April',
-    'May',
-    'June',
-    'July',
-    'August',
-    'September',
-    'October',
-    'November',
-    'December',
-  ];
-
   static const _shortMonths = [
     'Jan',
     'Feb',
@@ -53,7 +38,7 @@ class _ConfigureFinancialYearScreenState
     'Dec',
   ];
 
-  int _startMonth = 7;
+  late DateTime _startDate;
   bool _automaticRollover = true;
   String _errorMessage = '';
   bool _isSubmitting = false;
@@ -62,25 +47,28 @@ class _ConfigureFinancialYearScreenState
   void initState() {
     super.initState();
     final draft = ref.read(groupSetupDraftProvider).financialYear;
-    _startMonth = draft.startMonth;
+    _startDate = draft.startDate ?? _defaultStartDate();
     _automaticRollover = draft.automaticRollover;
   }
 
-  int get _startIndex => _startMonth - 1;
-  int get _endIndex => (_startIndex + 11) % 12;
-  int get _startYear {
-    final today = DateTime.now();
-    return today.month >= _startMonth ? today.year : today.year - 1;
+  static DateTime _defaultStartDate() => DateUtils.dateOnly(DateTime.now());
+
+  DateTime get _startsAt =>
+      DateTime(_startDate.year, _startDate.month, _startDate.day);
+  DateTime get _endsAt {
+    final targetYear = _startDate.year + 1;
+    final lastDay = DateUtils.getDaysInMonth(targetYear, _startDate.month);
+    final day = _startDate.day > lastDay ? lastDay : _startDate.day;
+    return DateTime(targetYear, _startDate.month, day, 23, 59, 59);
   }
 
-  int get _endYear => _endsAt.year;
-  DateTime get _startsAt => DateTime(_startYear, _startMonth);
-  DateTime get _endsAt => DateTime(_startYear + 1, _startMonth, 0, 23, 59, 59);
+  String _dateLabel(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    return '$day ${_shortMonths[date.month - 1]} ${date.year}';
+  }
 
-  String get _endMonth => _months[_endIndex];
   String get _periodPreview {
-    return '${_shortMonths[_startIndex]} $_startYear - '
-        '${_shortMonths[_endIndex]} $_endYear';
+    return '${_dateLabel(_startsAt)} - ${_dateLabel(_endsAt)}';
   }
 
   String? get _groupId {
@@ -104,10 +92,23 @@ class _ConfigureFinancialYearScreenState
   void _persistFinancialYear() {
     ref.read(groupSetupDraftProvider.notifier).updateFinancialYear(
           FinancialYearDraft(
-            startMonth: _startMonth,
+            startMonth: _startDate.month,
+            startDate: _startsAt,
             automaticRollover: _automaticRollover,
           ),
         );
+  }
+
+  Future<void> _pickStartDate() async {
+    final selected = await showDatePicker(
+      context: context,
+      initialDate: _startsAt,
+      firstDate: DateTime(1990),
+      lastDate: DateTime(DateTime.now().year + 10, 12, 31),
+    );
+    if (selected == null) return;
+    setState(() => _startDate = selected);
+    _persistFinancialYear();
   }
 
   Future<void> _submit() async {
@@ -197,14 +198,11 @@ class _ConfigureFinancialYearScreenState
                         _RecommendationCard(period: _periodPreview),
                         const SizedBox(height: AppSpacing.md),
                         _ConfigurationCard(
-                          startMonth: _startMonth,
-                          endMonth: _endMonth,
+                          startDate: _startsAt,
+                          endDate: _endsAt,
                           periodPreview: _periodPreview,
-                          onStartMonthChanged: (value) {
-                            if (value == null) return;
-                            setState(() => _startMonth = value);
-                            _persistFinancialYear();
-                          },
+                          dateLabel: _dateLabel,
+                          onStartDatePressed: _pickStartDate,
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _RolloverTile(
@@ -296,16 +294,18 @@ class _RecommendationCard extends StatelessWidget {
 
 class _ConfigurationCard extends StatelessWidget {
   const _ConfigurationCard({
-    required this.startMonth,
-    required this.endMonth,
+    required this.startDate,
+    required this.endDate,
     required this.periodPreview,
-    required this.onStartMonthChanged,
+    required this.dateLabel,
+    required this.onStartDatePressed,
   });
 
-  final int startMonth;
-  final String endMonth;
+  final DateTime startDate;
+  final DateTime endDate;
   final String periodPreview;
-  final ValueChanged<int?> onStartMonthChanged;
+  final String Function(DateTime date) dateLabel;
+  final VoidCallback onStartDatePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -340,9 +340,13 @@ class _ConfigurationCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          _MonthDropdown(value: startMonth, onChanged: onStartMonthChanged),
+          _DateSelectField(
+            label: 'Start Date',
+            value: dateLabel(startDate),
+            onTap: onStartDatePressed,
+          ),
           const SizedBox(height: AppSpacing.sm),
-          _LockedMonthField(value: endMonth),
+          _LockedDateField(value: dateLabel(endDate)),
           const SizedBox(height: AppSpacing.md),
           _PeriodPreview(periodPreview: periodPreview),
         ],
@@ -351,11 +355,16 @@ class _ConfigurationCard extends StatelessWidget {
   }
 }
 
-class _MonthDropdown extends StatelessWidget {
-  const _MonthDropdown({required this.value, required this.onChanged});
+class _DateSelectField extends StatelessWidget {
+  const _DateSelectField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
 
-  final int value;
-  final ValueChanged<int?> onChanged;
+  final String label;
+  final String value;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -363,35 +372,37 @@ class _MonthDropdown extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Start Month',
+          label,
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: AppColors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        DropdownButtonFormField<int>(
-          initialValue: value,
-          icon: const Icon(Icons.expand_more),
-          decoration: const InputDecoration(
-            contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          child: InputDecorator(
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.calendar_today_outlined),
+              suffixIcon: Icon(Icons.expand_more),
+            ),
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
-          items: List.generate(12, (index) {
-            final monthNumber = index + 1;
-            return DropdownMenuItem(
-              value: monthNumber,
-              child: Text(_ConfigureFinancialYearScreenState._months[index]),
-            );
-          }),
-          onChanged: onChanged,
         ),
       ],
     );
   }
 }
 
-class _LockedMonthField extends StatelessWidget {
-  const _LockedMonthField({required this.value});
+class _LockedDateField extends StatelessWidget {
+  const _LockedDateField({required this.value});
 
   final String value;
 
@@ -401,7 +412,7 @@ class _LockedMonthField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'End Month (Calculated)',
+          'End Date (Calculated)',
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: AppColors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
@@ -494,7 +505,7 @@ class _PeriodPreview extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  'Calculated from today and your selected start month.',
+                  'Calculated as one full year from your selected start date.',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),

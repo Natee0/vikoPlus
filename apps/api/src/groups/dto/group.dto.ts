@@ -135,6 +135,16 @@ export class ContributionSettingsDto {
   memberContributionDueDayOfWeek?: number;
 
   @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(7)
+  @Type(() => Number)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(7, { each: true })
+  memberContributionDueDaysOfWeek?: number[];
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(31)

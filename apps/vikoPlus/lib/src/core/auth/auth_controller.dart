@@ -165,13 +165,12 @@ class AuthFailure implements Exception {
     }
     if (error is DioException) {
       final data = error.response?.data;
-      if (data is Map<String, dynamic>) {
-        final message = _messageFromMap(data);
-        if (message != null) return AuthFailure(message);
-      }
-      if (data is String && data.trim().isNotEmpty) {
-        return AuthFailure(data.trim());
-      }
+      final message = _messageFromData(data);
+      if (message != null) return AuthFailure(message);
+
+      final statusMessage = _messageForStatus(error.response?.statusCode);
+      if (statusMessage != null) return AuthFailure(statusMessage);
+
       return AuthFailure(error.message ?? 'Network request failed.');
     }
     if (error is StateError) return AuthFailure(error.message);
@@ -183,6 +182,22 @@ class AuthFailure implements Exception {
 
   @override
   String toString() => message;
+
+  static String? _messageFromData(Object? data) {
+    if (data is Map<String, dynamic>) {
+      return _messageFromMap(data);
+    }
+    if (data is Map) {
+      return _messageFromMap(Map<String, dynamic>.from(data));
+    }
+    if (data is String) {
+      final trimmed = data.trim();
+      if (trimmed.isEmpty || _looksLikeHtml(trimmed)) return null;
+      return trimmed.length > 160 ? '${trimmed.substring(0, 157)}...' : trimmed;
+    }
+
+    return null;
+  }
 
   static String? _messageFromMap(Map<String, dynamic> data) {
     final message = data['message'] ?? data['error'] ?? data['detail'];
@@ -199,5 +214,35 @@ class AuthFailure implements Exception {
     }
 
     return null;
+  }
+
+  static bool _looksLikeHtml(String value) {
+    final lower = value.trimLeft().toLowerCase();
+    return lower.startsWith('<!doctype html') ||
+        lower.startsWith('<html') ||
+        lower.contains('<head') ||
+        lower.contains('<body');
+  }
+
+  static String? _messageForStatus(int? statusCode) {
+    if (statusCode == null) return null;
+    if (statusCode >= 500) {
+      return switch (statusCode) {
+        502 => 'Bad gateway. Please try again.',
+        503 => 'Service unavailable. Please try again.',
+        504 => 'Gateway timeout. Please try again.',
+        _ => 'Server error. Please try again.',
+      };
+    }
+    return switch (statusCode) {
+      400 => 'Check the details and try again.',
+      401 => 'Session expired. Please sign in again.',
+      403 => 'You are not allowed to perform this action.',
+      404 => 'The requested record was not found.',
+      409 => 'This record already exists.',
+      422 => 'Some details are invalid. Please check and try again.',
+      429 => 'Too many requests. Please wait and try again.',
+      _ => null,
+    };
   }
 }

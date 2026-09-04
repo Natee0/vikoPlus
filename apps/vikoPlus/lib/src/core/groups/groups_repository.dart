@@ -606,6 +606,7 @@ class ContributionSettingsInput {
     required this.memberContributionFrequency,
     this.membershipDueDayOfMonth,
     this.memberContributionDueDayOfWeek,
+    this.memberContributionDueDaysOfWeek,
     this.memberContributionDueDayOfMonth,
     this.cycleAnchorDate,
   });
@@ -617,6 +618,7 @@ class ContributionSettingsInput {
   final String memberContributionFrequency;
   final int? membershipDueDayOfMonth;
   final int? memberContributionDueDayOfWeek;
+  final List<int>? memberContributionDueDaysOfWeek;
   final int? memberContributionDueDayOfMonth;
   final DateTime? cycleAnchorDate;
 
@@ -632,6 +634,7 @@ class ContributionSettingsInput {
       'dueDayOfMonth': memberContributionDueDayOfMonth,
       'membershipDueDayOfMonth': membershipDueDayOfMonth,
       'memberContributionDueDayOfWeek': memberContributionDueDayOfWeek,
+      'memberContributionDueDaysOfWeek': memberContributionDueDaysOfWeek,
       'memberContributionDueDayOfMonth': memberContributionDueDayOfMonth,
       'cycleAnchorDate': cycleAnchorDate?.toIso8601String(),
     };

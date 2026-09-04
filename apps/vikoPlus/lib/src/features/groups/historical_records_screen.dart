@@ -27,7 +27,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   bool _bulkMode = false;
   String _method = 'Cash';
   String? _selectedMemberId;
-  DateTime _paidAt = DateTime(2020, 7, 5);
+  DateTime _paidAt = DateUtils.dateOnly(DateTime.now());
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -137,11 +137,12 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   }
 
   Future<void> _pickPaidAt() async {
+    final today = DateUtils.dateOnly(DateTime.now());
     final picked = await showDatePicker(
       context: context,
       initialDate: _paidAt,
-      firstDate: DateTime(2015),
-      lastDate: DateTime.now(),
+      firstDate: DateTime(1970),
+      lastDate: today,
     );
     if (picked == null) return;
     setState(() => _paidAt = picked);

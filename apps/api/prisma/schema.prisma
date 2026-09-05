@@ -36,6 +36,7 @@ enum GroupMemberStatus {
 }
 
 enum ContributionPlanType {
+  PENALTY
   JOINING_FEE
   RECURRING
 }
@@ -208,6 +209,7 @@ enum AuditAction {
   LOAN_APPLICATION_REJECTED
   LOAN_REPAYMENT_SUBMITTED
   LOAN_REPAYMENT_APPROVED
+  LOAN_REPAYMENT_REJECTED
 }
 
 model User {
@@ -295,6 +297,8 @@ model PasswordResetToken {
 }
 
 model Group {
+  paymentRule GroupPaymentRule?
+  reminderRule        GroupReminderRule?
   id                  String              @id @default(cuid())
   name                String
   slug                String              @unique
@@ -472,6 +476,7 @@ model GroupInvitation {
 }
 
 model FinancialYear {
+  automaticRollover Boolean @default(true)
   id        String    @id @default(cuid())
   groupId   String
   name      String
@@ -533,6 +538,7 @@ model ContributionPeriod {
 }
 
 model MemberContributionObligation {
+  penaltySourceId String? @unique
   id              String                       @id @default(cuid())
   groupMemberId   String
   planId          String
@@ -652,6 +658,7 @@ model PlatformPrice {
 }
 
 model ReminderPackagePurchase {
+  usedQuantity        Int @default(0)
   id                  String                        @id @default(cuid())
   groupId             String
   platformPriceId     String
@@ -785,6 +792,34 @@ model BillingEvent {
   createdAt       DateTime           @default(now())
 
   @@unique([provider, providerEventId])
+}
+
+model GroupPaymentRule {
+  groupId String @id
+  allowsPartial Boolean @default(true)
+  penaltiesEnabled Boolean @default(false)
+  penaltyAmountMinor Int @default(0)
+  graceDays Int @default(0)
+  effectiveAt DateTime @default(now())
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+}
+
+model GroupReminderRule {
+  groupId String @id
+  enabled Boolean @default(false)
+  offsets Int[] @default([-3, 0])
+  locale Locale @default(en)
+  body String
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
+}
+
+model ReminderDelivery {
+  key String @id
+  groupId String
+  state String @default("RESERVED")
+  createdAt DateTime @default(now())
+  @@index([groupId])
 }
 
 model ReminderTemplate {

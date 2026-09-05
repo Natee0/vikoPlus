@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_repository.dart';
 import 'auth_secure_storage.dart';
 import 'auth_session.dart';
+import '../locale/locale_controller.dart';
 
 final authControllerProvider =
     AsyncNotifierProvider<AuthController, AuthSession>(AuthController.new);
@@ -30,6 +31,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
       final identifier = email ?? phone ?? '';
       final result = await ref.read(authRepositoryProvider).register(
             fullName: fullName,
+            preferredLocale: ref.read(localeControllerProvider).value?.languageCode ?? 'en',
             phone: phone,
             email: email,
             password: password,

@@ -22,7 +22,8 @@ class HistoricalRecordsScreen extends ConsumerStatefulWidget {
       _HistoricalRecordsScreenState();
 }
 
-class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScreen> {
+class _HistoricalRecordsScreenState
+    extends ConsumerState<HistoricalRecordsScreen> {
   final _amountController = TextEditingController(text: '5000');
   final _referenceController = TextEditingController();
   late Future<GroupMembersResult>? _membersFuture;
@@ -104,6 +105,9 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   }
 
   String _remindersRoute(String? groupId) {
+    if (ref.read(activeGroupProvider)?.role == 'SECRETARY') {
+      return '/secretary/dashboard';
+    }
     final route = groupId == null || groupId.isEmpty
         ? '/groups/reminders'
         : '/groups/reminders?groupId=${Uri.encodeComponent(groupId)}';
@@ -135,7 +139,9 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
     final groupId = _groupId;
     if (_isSubmitting) return;
     if (groupId == null || groupId.isEmpty) {
-      setState(() => _errorMessage = 'Create a group before importing records.');
+      setState(
+        () => _errorMessage = 'Create a group before importing records.',
+      );
       return;
     }
     final memberId = _selectedMemberId;
@@ -154,7 +160,9 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
         _errorMessage = '';
         _isSubmitting = true;
       });
-      await ref.read(groupsRepositoryProvider).importHistoricalPayment(
+      await ref
+          .read(groupsRepositoryProvider)
+          .importHistoricalPayment(
             groupId,
             HistoricalPaymentInput(
               memberId: memberId,
@@ -258,8 +266,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
                 : _bulkMode
                 ? () {
                     setState(() {
-                      _errorMessage =
-                          'Bulk upload will be wired after file selection is enabled.';
+                      _errorMessage = 'Bulk upload will be wired after file selection is enabled.';
                     });
                   }
                 : _saveSinglePayment,
@@ -397,7 +404,9 @@ class _MembersLoader extends StatelessWidget {
 
         final members = snapshot.data?.members ?? const [];
         if (members.isEmpty) {
-          return onError('Add at least one group member before importing records.');
+          return onError(
+            'Add at least one group member before importing records.',
+          );
         }
 
         final activeSelectedMemberId =

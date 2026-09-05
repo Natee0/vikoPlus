@@ -37,6 +37,33 @@ class _ConfigureRemindersScreenState
   int _packageQuantity = 100;
   bool _isSubmitting = false;
   bool _isStartingCheckout = false;
+  bool _enabled = false;
+  bool _loadingSettings = true;
+  bool _settingsLoaded = false;
+  final Set<int> _offsets = {-3, 0};
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_loadSettings);
+  }
+
+  Future<void> _loadSettings() async {
+    final id = _groupId;
+    try {
+      if (id != null) {
+        final settings = await ref.read(groupsRepositoryProvider).reminderSettings(id);
+        if (!mounted) return;
+        setState(() {
+          _enabled = settings['enabled'] == true;
+          _settingsLoaded = true;
+          _offsets..clear()..addAll((settings['offsets'] as List? ?? [-3, 0]).cast<int>());
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally { if (mounted) setState(() => _loadingSettings = false); }
+  }
 
   String? get _groupId {
     final widgetGroupId = widget.groupId;
@@ -141,11 +168,16 @@ class _ConfigureRemindersScreenState
     final future = ref.read(groupsRepositoryProvider).reminderPackages(groupId);
     setState(() => _setPackagesFuture(groupId, future));
     await future;
+    await _loadSettings();
   }
 
   Future<void> _save({required bool configureLater}) async {
     final groupId = _groupId;
-    if (_isSubmitting) return;
+    if (_isSubmitting || _loadingSettings) return;
+    if (!_settingsLoaded) {
+      setState(() => _errorMessage = 'Refresh to load the current reminder settings before saving.');
+      return;
+    }
     if (groupId == null || groupId.isEmpty) {
       setState(() => _errorMessage = 'Create a group before setting reminders.');
       return;
@@ -159,7 +191,10 @@ class _ConfigureRemindersScreenState
       await ref.read(groupsRepositoryProvider).saveReminderSettings(
             groupId,
             ReminderSettingsInput(
-              dueReminderTemplate: configureLater ? null : _template,
+              dueReminderTemplate: configureLater ? null : Localizations.localeOf(context).languageCode == 'sw' ? 'Habari {member_name}, malipo yako ya {amount} yanatakiwa tarehe {due_date}.' : _template,
+              enabled: !configureLater && _enabled,
+              offsets: _offsets.toList()..sort(),
+              locale: Localizations.localeOf(context).languageCode,
             ),
           );
       if (!mounted) return;
@@ -199,7 +234,7 @@ class _ConfigureRemindersScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _ToggleCard(),
+          _ToggleCard(value: _enabled, onChanged: _loadingSettings ? null : (value) => setState(() => _enabled = value)),
           const SizedBox(height: AppSpacing.md),
           const _SectionLabel('Reminder Package'),
           const SizedBox(height: AppSpacing.sm),
@@ -235,11 +270,8 @@ class _ConfigureRemindersScreenState
           const SizedBox(height: AppSpacing.md),
           const _SectionLabel('Schedule'),
           const SizedBox(height: AppSpacing.sm),
-          const _ScheduleTile(label: '3 days before due date', selected: true),
-          const SizedBox(height: AppSpacing.xs),
-          const _ScheduleTile(label: 'On due date', selected: true),
-          const SizedBox(height: AppSpacing.xs),
-          const _ScheduleTile(label: '3 days overdue'),
+          for (final entry in const {-3: '3 days before due date', 0: 'On due date', 3: '3 days overdue'}.entries)
+            _ScheduleTile(label: entry.value, selected: _offsets.contains(entry.key), onChanged: _loadingSettings ? null : (selected) => setState(() { if (selected == true) { _offsets.add(entry.key); } else { _offsets.remove(entry.key); } })),
           const SizedBox(height: AppSpacing.md),
           const _SectionLabel('Message Preview'),
           const SizedBox(height: AppSpacing.sm),
@@ -271,7 +303,9 @@ class _ConfigureRemindersScreenState
 }
 
 class _ToggleCard extends StatelessWidget {
-  const _ToggleCard();
+  const _ToggleCard({required this.value, required this.onChanged});
+  final bool value;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -285,9 +319,9 @@ class _ToggleCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: SwitchListTile(
-          value: true,
+          value: value,
           contentPadding: EdgeInsets.zero,
-          onChanged: (_) {},
+          onChanged: onChanged,
           title: Text(
             'Enable Automatic Reminders',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -653,7 +687,8 @@ class _CheckoutTotalCard extends StatelessWidget {
 }
 
 class _ScheduleTile extends StatelessWidget {
-  const _ScheduleTile({required this.label, this.selected = false});
+  const _ScheduleTile({required this.label, required this.onChanged, this.selected = false});
+  final ValueChanged<bool?>? onChanged;
 
   final String label;
   final bool selected;
@@ -676,7 +711,7 @@ class _ScheduleTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Checkbox(value: selected, onChanged: (_) {}),
+          Checkbox(value: selected, onChanged: onChanged),
           const SizedBox(width: AppSpacing.xs),
           Expanded(child: Text(label)),
         ],

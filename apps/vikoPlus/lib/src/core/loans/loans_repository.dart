@@ -12,6 +12,22 @@ class LoansRepository {
 
   final Dio _dio;
 
+  Future<List<LoanTask>> tasks(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/groups/$groupId/loans/tasks');
+    final data = _responseBody(response.data);
+    return [
+      for (final item in (data['guarantees'] as List? ?? const []))
+        LoanTask.fromJson(Map<String, dynamic>.from(item as Map), true),
+      for (final item in (data['repayments'] as List? ?? const []))
+        LoanTask.fromJson(Map<String, dynamic>.from(item as Map), false),
+    ];
+  }
+
+  Future<void> decideTask(String groupId, LoanTask task, bool approve) async {
+    final path = task.isGuarantee ? 'guarantees/${task.id}/respond' : 'repayments/${task.id}/review';
+    await _dio.post<void>('/groups/$groupId/loans/$path', data: {'approve': approve});
+  }
+
   Future<LoanOverviewResult> overview(String groupId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/groups/$groupId/loans/overview',
@@ -114,6 +130,20 @@ class LoansRepository {
     if (data is Map<String, dynamic>) return data;
     return json;
   }
+}
+
+class LoanTask {
+  const LoanTask({required this.id, required this.isGuarantee, required this.memberName, required this.amountMinor, required this.currency});
+  factory LoanTask.fromJson(Map<String, dynamic> json, bool isGuarantee) {
+    final source = isGuarantee ? Map<String, dynamic>.from(json['application'] as Map) : json;
+    final member = source['member'] as Map;
+    return LoanTask(id: json['id'] as String, isGuarantee: isGuarantee, memberName: member['fullName'] as String, amountMinor: source['amountMinor'] as int, currency: source['currency'] as String);
+  }
+  final String id;
+  final bool isGuarantee;
+  final String memberName;
+  final int amountMinor;
+  final String currency;
 }
 
 class LoanOverviewResult {
@@ -277,6 +307,7 @@ class LoanApplicationSummary {
     this.reviewNotes,
     this.rejectionReason,
     this.createdAt,
+    this.canReview = false,
   });
 
   factory LoanApplicationSummary.fromJson(Map<String, dynamic> json) {
@@ -295,6 +326,7 @@ class LoanApplicationSummary {
       estimatedTotalPayableMinor:
           json['estimatedTotalPayableMinor'] as int? ?? 0,
       status: json['status'] as String? ?? 'SUBMITTED',
+      canReview: json['canReview'] == true,
       reviewNotes: json['reviewNotes'] as String?,
       rejectionReason: json['rejectionReason'] as String?,
       createdAt: _parseDate(json['createdAt']),
@@ -331,6 +363,7 @@ class LoanApplicationSummary {
   final String? rejectionReason;
   final DateTime? createdAt;
   final LoanMemberSummary applicant;
+  final bool canReview;
   final List<LoanGuarantorSummary> guarantors;
   final GuarantorSummary guarantorSummary;
 }

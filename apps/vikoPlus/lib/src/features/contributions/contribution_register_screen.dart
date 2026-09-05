@@ -35,7 +35,10 @@ class _ContributionRegisterScreenState
     return ref.read(groupsRepositoryProvider).contributionPayments(groupId);
   }
 
-  void _setPaymentsFuture(String groupId, [Future<ContributionPaymentsResult>? future]) {
+  void _setPaymentsFuture(
+    String groupId, [
+    Future<ContributionPaymentsResult>? future,
+  ]) {
     _loadedPaymentsGroupId = groupId;
     _paymentsFuture = future ?? _loadPayments(groupId);
   }
@@ -67,10 +70,16 @@ class _ContributionRegisterScreenState
     });
     try {
       await (approve
-          ? ref.read(groupsRepositoryProvider).approvePayment(group.id, payment.id)
+          ? ref
+                .read(groupsRepositoryProvider)
+                .approvePayment(group.id, payment.id)
           : ref
-              .read(groupsRepositoryProvider)
-              .rejectPayment(group.id, payment.id, reason: 'Rejected by treasurer'));
+                .read(groupsRepositoryProvider)
+                .rejectPayment(
+                  group.id,
+                  payment.id,
+                  reason: 'Rejected by treasurer',
+                ));
       if (mounted) {
         setState(() => _setPaymentsFuture(group.id));
       }
@@ -113,12 +122,13 @@ class _ContributionRegisterScreenState
         children: [
           StatusPill(label: activeGroup?.name ?? 'No group selected'),
           const SizedBox(height: 16),
-          const ActionTile(
-            title: 'Loan applications',
-            subtitle: 'Review guarantors, approve loans, and disburse funds',
-            icon: Icons.fact_check_outlined,
-            route: '/loans/applications',
-          ),
+          if (canReviewPayments)
+            const ActionTile(
+              title: 'Loan applications',
+              subtitle: 'Review guarantors, approve loans, and disburse funds',
+              icon: Icons.fact_check_outlined,
+              route: '/loans/applications',
+            ),
           const SizedBox(height: 16),
           if (activeGroup == null) ...[
             const AuthErrorMessage(
@@ -220,7 +230,8 @@ class _ContributionRegisterScreenState
                     const SizedBox(height: AppSpacing.sm),
                     if (payments.isEmpty)
                       const _EmptyPaymentsNotice(
-                        message: 'No contribution payments have been recorded yet.',
+                        message:
+                            'No contribution payments have been recorded yet.',
                       )
                     else
                       for (final payment in payments.take(20)) ...[
@@ -311,8 +322,8 @@ class _ContributionPaymentRow extends StatelessWidget {
         onTap: payment.receipt == null
             ? null
             : () => context.go(
-                  '/contributions/receipt/${Uri.encodeComponent(payment.receipt!.id)}',
-                ),
+                '/contributions/receipt/${Uri.encodeComponent(payment.receipt!.id)}',
+              ),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: _PaymentHeader(payment: payment, formatters: formatters),
@@ -417,18 +428,22 @@ String _initials(String value) {
 String _methodLabel(String method) {
   return method
       .split('_')
-      .map((part) => part.isEmpty
-          ? part
-          : '${part[0]}${part.substring(1).toLowerCase()}')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0]}${part.substring(1).toLowerCase()}',
+      )
       .join(' ');
 }
 
 String _statusLabel(String status) {
   return status
       .split('_')
-      .map((part) => part.isEmpty
-          ? part
-          : '${part[0]}${part.substring(1).toLowerCase()}')
+      .map(
+        (part) => part.isEmpty
+            ? part
+            : '${part[0]}${part.substring(1).toLowerCase()}',
+      )
       .join(' ');
 }
 

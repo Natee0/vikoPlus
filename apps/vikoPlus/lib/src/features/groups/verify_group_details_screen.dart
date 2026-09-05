@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -56,6 +57,7 @@ class _VerifyGroupDetailsScreenState
       final result = await ref
           .read(groupsRepositoryProvider)
           .joinGroup(preview.invitationCode);
+      if (!mounted) return;
       ref.read(activeGroupProvider.notifier).setGroup(
             GroupAccessSummary(
               id: result.groupId,
@@ -64,9 +66,9 @@ class _VerifyGroupDetailsScreenState
               status: result.status,
               membersCount: preview.group.membersCount,
             ),
-          );
+      );
       if (!mounted) return;
-      context.go('/groups');
+      context.go(routeForGroupRole(result.role));
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);

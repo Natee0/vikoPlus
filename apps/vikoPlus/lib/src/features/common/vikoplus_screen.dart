@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'vikoplus_design_widgets.dart';
 
-class VikoplusScreen extends StatelessWidget {
+class VikoplusScreen extends ConsumerWidget {
   const VikoplusScreen({
     required this.child,
     this.title,
@@ -29,8 +32,11 @@ class VikoplusScreen extends StatelessWidget {
   final RefreshCallback? onRefresh;
   final bool preferBackRoute;
 
-  void _goBack(BuildContext context, {bool preferRoute = false}) {
-    final route = backRoute;
+  void _goBack(
+    BuildContext context, {
+    required String? route,
+    bool preferRoute = false,
+  }) {
     if (preferRoute && route != null) {
       context.go(route);
       return;
@@ -47,9 +53,16 @@ class VikoplusScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final effectiveBackRoute = backRoute == '/dashboard'
+        ? portalHomeRoute(activeGroup)
+        : backRoute == '/more'
+        ? portalMoreRoute(activeGroup)
+        : backRoute;
     final shouldShowBack =
-        showBackButton ?? (bottomNavigationIndex == null && backRoute != null);
+        showBackButton ??
+        (bottomNavigationIndex == null && effectiveBackRoute != null);
     final topActions = actions;
 
     final scaffold = Scaffold(
@@ -62,9 +75,10 @@ class VikoplusScreen extends StatelessWidget {
                 title: title!,
                 onBack: shouldShowBack
                     ? () => _goBack(
-                          context,
-                          preferRoute: preferBackRoute,
-                        )
+                        context,
+                        route: effectiveBackRoute,
+                        preferRoute: preferBackRoute,
+                      )
                     : null,
                 trailing: topActions == null || topActions.isEmpty
                     ? null
@@ -107,19 +121,19 @@ class VikoplusScreen extends StatelessWidget {
 
                 switch (index) {
                   case 0:
-                    context.go('/dashboard');
+                    context.go(portalHomeRoute(activeGroup));
                     break;
                   case 1:
-                    context.go('/members');
+                    context.go(portalMembersRoute(activeGroup));
                     break;
                   case 2:
-                    context.go('/contributions');
+                    context.go(portalContributionsRoute(activeGroup));
                     break;
                   case 3:
-                    context.go('/reports');
+                    context.go(portalReportsRoute(activeGroup));
                     break;
                   case 4:
-                    context.go('/more');
+                    context.go(portalMoreRoute(activeGroup));
                     break;
                 }
               },
@@ -153,7 +167,7 @@ class VikoplusScreen extends StatelessWidget {
             ),
     );
 
-    if (!preferBackRoute || backRoute == null) {
+    if (!preferBackRoute || effectiveBackRoute == null) {
       return scaffold;
     }
 
@@ -161,7 +175,7 @@ class VikoplusScreen extends StatelessWidget {
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          _goBack(context, preferRoute: true);
+          _goBack(context, route: effectiveBackRoute, preferRoute: true);
         }
       },
       child: scaffold,
@@ -170,10 +184,7 @@ class VikoplusScreen extends StatelessWidget {
 }
 
 class _ScreenList extends StatelessWidget {
-  const _ScreenList({
-    required this.child,
-    required this.bottomNavigationIndex,
-  });
+  const _ScreenList({required this.child, required this.bottomNavigationIndex});
 
   final Widget child;
   final int? bottomNavigationIndex;
@@ -186,7 +197,9 @@ class _ScreenList extends StatelessWidget {
         AppSpacing.screenMobile,
         AppSpacing.md,
         AppSpacing.screenMobile,
-        bottomNavigationIndex == null ? AppSpacing.lg : AppSpacing.xl + AppSpacing.lg,
+        bottomNavigationIndex == null
+            ? AppSpacing.lg
+            : AppSpacing.xl + AppSpacing.lg,
       ),
       children: [child],
     );

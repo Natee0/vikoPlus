@@ -156,6 +156,7 @@ class _ConfigureFinancialYearScreenState
               name: _periodPreview,
               startsAt: _startsAt,
               endsAt: _endsAt,
+              automaticRollover: _automaticRollover,
             ),
           );
       if (!mounted) return;

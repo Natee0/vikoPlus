@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/groups/groups_repository.dart';
-import '../../theme/app_colors.dart';
+import '../../routing/portal_route_guard.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
@@ -12,17 +12,66 @@ class MoreMenuScreen extends ConsumerWidget {
 
   final bool showBottomNavigation;
 
-  String _setupRoute(String path, GroupAccessSummary? group) {
-    final route = group == null
-        ? path
-        : '$path?groupId=${Uri.encodeComponent(group.id)}';
-    final separator = route.contains('?') ? '&' : '?';
-    return '$route${separator}returnTo=${Uri.encodeComponent('/more')}';
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final activeGroup = ref.watch(activeGroupProvider);
+    final group = ref.watch(activeGroupProvider);
+    final role = group?.role;
+    final entries = <(IconData, String, String, String)>[
+      (
+        Icons.hub_outlined,
+        'My groups',
+        'Switch, create or join a group',
+        '/groups',
+      ),
+      if (role == 'GROUP_ADMIN') ...[
+        (
+          Icons.tune_outlined,
+          'Admin settings',
+          'Group rules, member roles, historical records and audit logs',
+          '/settings/admin',
+        ),
+        (
+          Icons.credit_card_outlined,
+          'Billing overview',
+          'Group access subscription and payments',
+          '/billing',
+        ),
+      ],
+      if (isStaffPortalRole(role))
+        (
+          Icons.notifications_active_outlined,
+          'Reminder Centre',
+          'SMS reminders and delivery history',
+          '/reminders',
+        ),
+      if (role == 'MEMBER' || isStaffPortalRole(role))
+        (
+          Icons.account_balance_wallet_outlined,
+          'My loans',
+          'Applications, guarantees and repayments',
+          '/loans',
+        ),
+      if (role == 'SECRETARY')
+        (
+          Icons.history_edu_outlined,
+          'Historical records',
+          'Import previous group records',
+          '/groups/history?groupId=${Uri.encodeComponent(group!.id)}&returnTo=${Uri.encodeComponent(portalMoreRoute(group))}',
+        ),
+      (
+        Icons.account_circle_outlined,
+        'My profile',
+        'Photo and account details',
+        '/profile/complete',
+      ),
+      (
+        Icons.notifications_outlined,
+        'Notifications',
+        'Personal alert preferences',
+        '/settings/notifications',
+      ),
+      (Icons.language_outlined, 'Language', 'English or Swahili', '/language'),
+    ];
 
     return VikoplusScreen(
       title: 'More',
@@ -31,116 +80,16 @@ class MoreMenuScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const ActionTile(
-            title: 'My groups',
-            subtitle: 'Switch, create, or join groups you can access',
-            icon: Icons.hub_outlined,
-            route: '/groups',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Billing overview',
-            subtitle: 'Plan, automatic renewal and payment method',
-            icon: Icons.credit_card_outlined,
-            route: '/billing',
-            color: AppColors.gold,
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Reminder Centre',
-            subtitle: 'SMS and WhatsApp campaigns',
-            icon: Icons.notifications_active_outlined,
-            route: '/reminders',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Loans',
-            subtitle: 'Borrowing power, applications and repayments',
-            icon: Icons.account_balance_wallet_outlined,
-            route: '/loans',
-            color: AppColors.secondaryGreen,
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Member roles',
-            subtitle: 'Administrators, treasurers and member permissions',
-            icon: Icons.admin_panel_settings_outlined,
-            route: '/settings/roles',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Audit logs',
-            subtitle: 'Payment, role and subscription history',
-            icon: Icons.manage_search_outlined,
-            route: '/settings/audit',
-            color: AppColors.secondaryGreen,
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Admin settings',
-            subtitle: 'Currency, penalties and group controls',
-            icon: Icons.tune_outlined,
-            route: '/settings/admin',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Contribution setup',
-            subtitle: 'Joining fee, membership fee and payment rules',
-            icon: Icons.price_change_outlined,
-            route: _setupRoute('/groups/contributions', activeGroup),
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Historical records',
-            subtitle: 'Add old records manually or import a CSV',
-            icon: Icons.history_edu_outlined,
-            route: _setupRoute('/groups/history', activeGroup),
-            color: AppColors.gold,
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Create or join group',
-            subtitle: 'Open first-time group setup choices',
-            icon: Icons.group_add_outlined,
-            route: '/create-or-join-group',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Security',
-            subtitle: 'Security PIN and approval protection',
-            icon: Icons.shield_outlined,
-            route: '/settings/security',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Notifications',
-            subtitle: 'Alerts and delivery preferences',
-            icon: Icons.notifications_outlined,
-            route: '/settings/notifications',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'App settings',
-            subtitle: 'Display preferences and local app setup',
-            icon: Icons.settings_outlined,
-            route: '/settings/app',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Complete profile',
-            subtitle: 'Photo, phone and account identity',
-            icon: Icons.account_circle_outlined,
-            route: '/profile/complete',
-          ),
-          SizedBox(height: 12),
-          ActionTile(
-            title: 'Language',
-            subtitle: 'English and Swahili-ready settings',
-            icon: Icons.language_outlined,
-            route: '/language',
-          ),
-          SizedBox(height: 12),
-          AuthLogoutTile(),
+          for (final entry in entries) ...[
+            ActionTile(
+              icon: entry.$1,
+              title: entry.$2,
+              subtitle: entry.$3,
+              route: entry.$4,
+            ),
+            const SizedBox(height: 12),
+          ],
+          const AuthLogoutTile(),
         ],
       ),
     );

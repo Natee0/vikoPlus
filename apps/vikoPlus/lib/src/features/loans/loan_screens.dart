@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_session.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -29,6 +31,11 @@ class LoansOverviewScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _BorrowingPowerCard(overview: overview),
+            TextButton.icon(
+              onPressed: () => context.go('/loans/tasks'),
+              icon: const Icon(Icons.fact_check_outlined),
+              label: const Text('Guarantees and repayment requests'),
+            ),
             const SizedBox(height: AppSpacing.md),
             SectionHeader(
               title: 'Active Loans',
@@ -68,7 +75,9 @@ class ApplyForLoanScreen extends ConsumerStatefulWidget {
 }
 
 class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
-  final _amountController = TextEditingController(text: '50000');
+  final _amountController = TextEditingController();
+  Future<GroupMembersResult>? _membersFuture;
+  String? _membersGroupId;
   final Set<String> _selectedGuarantors = {};
   int _term = 6;
   String _purpose = 'School fees';
@@ -88,7 +97,8 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
   }
 
   int get _processingFeeMinor => ((_amountMinor ?? 0) * 0.02).ceil();
-  int get _interestMinor => (((_amountMinor ?? 0) * 150 * _term) / 10000).ceil();
+  int get _interestMinor =>
+      (((_amountMinor ?? 0) * 150 * _term) / 10000).ceil();
   int get _totalPayableMinor =>
       (_amountMinor ?? 0) + _processingFeeMinor + _interestMinor;
 
@@ -113,7 +123,9 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
         _errorMessage = '';
         _isSubmitting = true;
       });
-      await ref.read(loansRepositoryProvider).createApplication(
+      await ref
+          .read(loansRepositoryProvider)
+          .createApplication(
             groupId,
             CreateLoanApplicationInput(
               amountMinor: amount,
@@ -136,15 +148,26 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
   Widget build(BuildContext context) {
     final group = ref.watch(activeGroupProvider);
     if (group == null) return const _MissingGroupLoansState();
-    final membersFuture = ref.watch(groupsRepositoryProvider).listMembers(group.id);
+    if (_membersGroupId != group.id) {
+      _membersGroupId = group.id;
+      _membersFuture = ref.read(groupsRepositoryProvider).listMembers(group.id);
+      _selectedGuarantors.clear();
+    }
+    final userId = ref.watch(authSessionProvider).user?.id;
 
     return _LoanScaffold(
       title: 'Loans',
       selectedIndex: 2,
       child: FutureBuilder<GroupMembersResult>(
-        future: membersFuture,
+        future: _membersFuture,
         builder: (context, snapshot) {
-          final members = snapshot.data?.members ?? const <GroupMemberSummary>[];
+          final members =
+              (snapshot.data?.members ?? const <GroupMemberSummary>[])
+                  .where(
+                    (member) =>
+                        member.status == 'ACTIVE' && member.userId != userId,
+                  )
+                  .toList();
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -173,7 +196,13 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
-                        for (final amount in [10000, 25000, 50000, 100000, 250000])
+                        for (final amount in [
+                          10000,
+                          25000,
+                          50000,
+                          100000,
+                          250000,
+                        ])
                           ActionChip(
                             label: Text(_shortMoney(amount)),
                             onPressed: () {
@@ -196,8 +225,9 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _LoanEstimateCard(
-                      monthlyPaymentMinor:
-                          _term == 0 ? 0 : (_totalPayableMinor / _term).ceil(),
+                      monthlyPaymentMinor: _term == 0
+                          ? 0
+                          : (_totalPayableMinor / _term).ceil(),
                       interestMinor: _interestMinor,
                       processingFeeMinor: _processingFeeMinor,
                       totalPayableMinor: _totalPayableMinor,
@@ -290,7 +320,9 @@ class _LoanRepaymentScreenState extends ConsumerState<LoanRepaymentScreen> {
         _errorMessage = '';
         _isSubmitting = true;
       });
-      await ref.read(loansRepositoryProvider).recordRepayment(
+      await ref
+          .read(loansRepositoryProvider)
+          .recordRepayment(
             groupId,
             loanId,
             RecordLoanRepaymentInput(
@@ -346,7 +378,8 @@ class _LoanRepaymentScreenState extends ConsumerState<LoanRepaymentScreen> {
     return _LoanFutureScreen<LoanRepaymentResult>(
       title: 'Loans',
       future: ref.watch(loansRepositoryProvider).repayment(group.id, loanId),
-      onRefresh: () => ref.read(loansRepositoryProvider).repayment(group.id, loanId),
+      onRefresh: () =>
+          ref.read(loansRepositoryProvider).repayment(group.id, loanId),
       builder: (context, result) {
         if (_amountController.text.isEmpty) {
           _amountController.text = result.loan.outstandingMinor.toString();
@@ -479,38 +512,45 @@ class _LoanApplicationReviewScreenState
             const SizedBox(height: AppSpacing.md),
             _GuarantorVerificationCard(application: application),
             const SizedBox(height: AppSpacing.md),
-            _AdminReviewCard(controller: _notesController),
+            if (application.canReview)
+              _AdminReviewCard(controller: _notesController),
             const SizedBox(height: AppSpacing.md),
             AuthErrorMessage(message: _errorMessage),
-            if (_errorMessage.isNotEmpty)
-              const SizedBox(height: AppSpacing.md),
-            FilledButton.icon(
-              onPressed: _isSubmitting
-                  ? null
-                  : () => _review(
+            if (_errorMessage.isNotEmpty) const SizedBox(height: AppSpacing.md),
+            if (application.canReview)
+              FilledButton.icon(
+                onPressed:
+                    _isSubmitting ||
+                        application.guarantorSummary.confirmed <
+                            application.guarantorSummary.required
+                    ? null
+                    : () => _review(
                         groupId: group.id,
                         applicationId: application.id,
                         approve: true,
                       ),
-              icon: const Icon(Icons.check_circle_outline),
-              label: Text(_isSubmitting ? 'Saving' : 'Approve & Disburse Funds'),
-            ),
+                icon: const Icon(Icons.check_circle_outline),
+                label: Text(
+                  _isSubmitting ? 'Saving' : 'Approve & Disburse Funds',
+                ),
+              ),
             const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed: _isSubmitting
-                  ? null
-                  : () => _review(
+            if (application.canReview)
+              OutlinedButton.icon(
+                onPressed: _isSubmitting
+                    ? null
+                    : () => _review(
                         groupId: group.id,
                         applicationId: application.id,
                         approve: false,
                       ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                ),
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('Reject Application'),
               ),
-              icon: const Icon(Icons.cancel_outlined),
-              label: const Text('Reject Application'),
-            ),
           ],
         );
       },
@@ -566,7 +606,9 @@ class _LoanFutureScreenState<T> extends State<_LoanFutureScreen<T>> {
             return const _LoadingState();
           }
           if (snapshot.hasError) {
-            return _ErrorState(message: AuthFailure.from(snapshot.error!).message);
+            return _ErrorState(
+              message: AuthFailure.from(snapshot.error!).message,
+            );
           }
           final data = snapshot.data;
           if (data == null) return const _EmptyLoanCard();
@@ -577,7 +619,7 @@ class _LoanFutureScreenState<T> extends State<_LoanFutureScreen<T>> {
   }
 }
 
-class _LoanScaffold extends StatelessWidget {
+class _LoanScaffold extends ConsumerWidget {
   const _LoanScaffold({
     required this.title,
     required this.child,
@@ -591,16 +633,40 @@ class _LoanScaffold extends StatelessWidget {
   final RefreshCallback? onRefresh;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final isMemberPortal = activeGroup?.role == 'MEMBER';
+
     return Scaffold(
       backgroundColor: AppColors.surface,
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
           if (index == selectedIndex) return;
+          if (isMemberPortal) {
+            switch (index) {
+              case 0:
+                context.go('/member/dashboard');
+                break;
+              case 1:
+                context.go('/member/contributions');
+                break;
+              case 2:
+                context.go('/loans');
+                break;
+              case 3:
+                context.go('/member/payments/select');
+                break;
+              case 4:
+                context.go('/member/profile');
+                break;
+            }
+            return;
+          }
+
           switch (index) {
             case 0:
-              context.go('/dashboard');
+              context.go(portalHomeRoute(activeGroup));
               break;
             case 1:
               context.go('/members');
@@ -612,47 +678,77 @@ class _LoanScaffold extends StatelessWidget {
               context.go('/reports');
               break;
             case 4:
-              context.go('/settings/admin');
+              context.go(portalMoreRoute(activeGroup));
               break;
           }
         },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_2_outlined),
-            selectedIcon: Icon(Icons.groups_2),
-            label: 'Members',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Loans',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.insert_chart_outlined),
-            selectedIcon: Icon(Icons.insert_chart),
-            label: 'Activity',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        destinations: isMemberPortal
+            ? const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.history_outlined),
+                  selectedIcon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: Icon(Icons.account_balance_wallet),
+                  label: 'Loans',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.payments_outlined),
+                  selectedIcon: Icon(Icons.payments),
+                  label: 'Payments',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Account',
+                ),
+              ]
+            : const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Dashboard',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.groups_2_outlined),
+                  selectedIcon: Icon(Icons.groups_2),
+                  label: 'Members',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.account_balance_wallet_outlined),
+                  selectedIcon: Icon(Icons.account_balance_wallet),
+                  label: 'Loans',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.insert_chart_outlined),
+                  selectedIcon: Icon(Icons.insert_chart),
+                  label: 'Activity',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
       ),
       body: SafeArea(
         child: Column(
           children: [
             VikoplusTopBar(
               title: title,
-              onBack: () => context.canPop() ? context.pop() : context.go('/dashboard'),
+              onBack: () => context.canPop()
+                  ? context.pop()
+                  : context.go(portalHomeRoute(activeGroup)),
               trailing: IconButton(
                 tooltip: 'Account',
-                onPressed: () => context.go('/member/profile'),
+                onPressed: () => context.go(portalMoreRoute(activeGroup)),
                 icon: const CircleAvatar(
                   radius: 16,
                   backgroundColor: AppColors.primary,
@@ -713,21 +809,23 @@ class _MissingGroupLoansState extends StatelessWidget {
         padding: AppInsets.card,
         child: Column(
           children: [
-            const Icon(Icons.groups_2_outlined, color: AppColors.primary, size: 42),
+            const Icon(
+              Icons.groups_2_outlined,
+              color: AppColors.primary,
+              size: 42,
+            ),
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Choose a group first',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
               'Loans are managed inside a group.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
@@ -775,20 +873,21 @@ class _EmptyLoanCard extends StatelessWidget {
       padding: AppInsets.card,
       child: Column(
         children: [
-          const Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary),
+          const Icon(
+            Icons.account_balance_wallet_outlined,
+            color: AppColors.primary,
+          ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'No active loans',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(
             'Approved loans will appear here.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
         ],
       ),
@@ -824,22 +923,24 @@ class _LoanPanelHeader extends StatelessWidget {
               Text(
                 'VIKOPLUS CREDIT',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppColors.onSurfaceVariant,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
         ),
         const CircleAvatar(
           backgroundColor: AppColors.surfaceContainer,
-          child: Icon(Icons.account_balance_wallet_outlined, color: AppColors.primary),
+          child: Icon(
+            Icons.account_balance_wallet_outlined,
+            color: AppColors.primary,
+          ),
         ),
       ],
     );
@@ -872,14 +973,17 @@ class _BorrowingPowerCard extends StatelessWidget {
                 child: Text(
                   'AVAILABLE BORROWING POWER',
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.onPrimaryContainer,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: AppColors.onPrimaryContainer,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const CircleAvatar(
                 backgroundColor: AppColors.surfaceTint,
-                child: Icon(Icons.verified_outlined, color: AppColors.onPrimary),
+                child: Icon(
+                  Icons.verified_outlined,
+                  color: AppColors.onPrimary,
+                ),
               ),
             ],
           ),
@@ -887,9 +991,9 @@ class _BorrowingPowerCard extends StatelessWidget {
           Text(
             _money(overview.borrowingPowerMinor, overview.currency),
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: AppColors.onPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: AppColors.onPrimary,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -897,17 +1001,16 @@ class _BorrowingPowerCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Credit Limit: ${_money(overview.creditLimitMinor, overview.currency)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.onPrimaryContainer,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.onPrimaryContainer),
                 ),
               ),
               Text(
                 overview.tierLabel,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.onPrimaryContainer,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  color: AppColors.onPrimaryContainer,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -954,15 +1057,13 @@ class _ActiveLoanCard extends StatelessWidget {
                   children: [
                     Text(
                       loan.purpose,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     Text(
                       'Due ${_date(loan.dueAt)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -973,12 +1074,15 @@ class _ActiveLoanCard extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           Row(
             children: [
-              Expanded(child: Text('Paid: ${_money(loan.amountPaidMinor, loan.currency)}')),
+              Expanded(
+                child: Text(
+                  'Paid: ${_money(loan.amountPaidMinor, loan.currency)}',
+                ),
+              ),
               Text(
                 'Remaining: ${_money(loan.outstandingMinor, loan.currency)}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -1025,9 +1129,8 @@ class _EligibilityCard extends StatelessWidget {
               const SizedBox(width: AppSpacing.xs),
               Text(
                 'Eligibility & Requirements',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ],
           ),
@@ -1058,7 +1161,9 @@ class _ChecklistLine extends StatelessWidget {
             size: 16,
           ),
           const SizedBox(width: AppSpacing.xs),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+          Expanded(
+            child: Text(text, style: Theme.of(context).textTheme.bodySmall),
+          ),
         ],
       ),
     );
@@ -1084,9 +1189,8 @@ class _PurposeSelector extends StatelessWidget {
       children: [
         Text(
           'Loan Purpose',
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
+          style: Theme.of(context).textTheme.labelMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: AppSpacing.xs),
         Wrap(
@@ -1160,8 +1264,14 @@ class _LoanEstimateCard extends StatelessWidget {
             value: _money(monthlyPaymentMinor, 'TZS'),
           ),
           _ReviewDetailRow(label: 'Interest Rate', value: '1.5% / month'),
-          _ReviewDetailRow(label: 'Processing Fee', value: _money(processingFeeMinor, 'TZS')),
-          _ReviewDetailRow(label: 'Total Payable', value: _money(totalPayableMinor, 'TZS')),
+          _ReviewDetailRow(
+            label: 'Processing Fee',
+            value: _money(processingFeeMinor, 'TZS'),
+          ),
+          _ReviewDetailRow(
+            label: 'Total Payable',
+            value: _money(totalPayableMinor, 'TZS'),
+          ),
         ],
       ),
     );
@@ -1193,9 +1303,8 @@ class _GuarantorCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Select Guarantors',
-                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(context).textTheme.labelMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               StatusPill(label: '${selectedIds.length}/2 Selected'),
@@ -1207,9 +1316,8 @@ class _GuarantorCard extends StatelessWidget {
           else if (members.length < 2)
             Text(
               'Add more group members before applying for a loan.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             )
           else
             for (final member in members) ...[
@@ -1265,9 +1373,8 @@ class _RepaymentContent extends StatelessWidget {
             children: [
               Text(
                 'Make a Repayment',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: AppSpacing.sm),
               TextField(
@@ -1293,9 +1400,15 @@ class _RepaymentContent extends StatelessWidget {
                 initialValue: method,
                 decoration: const InputDecoration(labelText: 'Payment Method'),
                 items: const [
-                  DropdownMenuItem(value: 'MOBILE_MONEY', child: Text('Mobile money')),
+                  DropdownMenuItem(
+                    value: 'MOBILE_MONEY',
+                    child: Text('Mobile money'),
+                  ),
                   DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                  DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Bank transfer')),
+                  DropdownMenuItem(
+                    value: 'BANK_TRANSFER',
+                    child: Text('Bank transfer'),
+                  ),
                   DropdownMenuItem(value: 'OTHER', child: Text('Other')),
                 ],
                 onChanged: (value) {
@@ -1343,9 +1456,9 @@ class _RepaymentHeroCard extends StatelessWidget {
           Text(
             loan.purpose,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.onPrimary,
-                  fontWeight: FontWeight.w900,
-                ),
+              color: AppColors.onPrimary,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const Divider(color: AppColors.surfaceTint),
           Row(
@@ -1388,16 +1501,15 @@ class _HeroMetric extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.onPrimaryContainer,
-              ),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: AppColors.onPrimaryContainer),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: AppColors.onPrimary,
-                fontWeight: FontWeight.w900,
-              ),
+            color: AppColors.onPrimary,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ],
     );
@@ -1418,17 +1530,15 @@ class _RepaymentHistoryCard extends StatelessWidget {
         children: [
           Text(
             'Repayment History',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: AppSpacing.sm),
           if (repayments.isEmpty)
             Text(
               'No repayments recorded yet.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             )
           else
             for (final repayment in repayments) ...[
@@ -1439,7 +1549,9 @@ class _RepaymentHistoryCard extends StatelessWidget {
                   child: Icon(Icons.arrow_downward, color: AppColors.primary),
                 ),
                 title: Text(_money(repayment.amountMinor, repayment.currency)),
-                subtitle: Text('${_titleCase(repayment.method)} | ${_date(repayment.paidAt)}'),
+                subtitle: Text(
+                  '${_titleCase(repayment.method)} | ${_date(repayment.paidAt)}',
+                ),
                 trailing: StatusPill(label: _titleCase(repayment.status)),
               ),
               const Divider(height: 1),
@@ -1461,11 +1573,23 @@ class _LoanReviewFilters extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          ChoiceChip(label: Text('All ($total)'), selected: true, onSelected: (_) {}),
+          ChoiceChip(
+            label: Text('All ($total)'),
+            selected: true,
+            onSelected: (_) {},
+          ),
           const SizedBox(width: AppSpacing.xs),
-          ChoiceChip(label: const Text('Pending Review'), selected: false, onSelected: (_) {}),
+          ChoiceChip(
+            label: const Text('Pending Review'),
+            selected: false,
+            onSelected: (_) {},
+          ),
           const SizedBox(width: AppSpacing.xs),
-          ChoiceChip(label: const Text('Guarantor Pending'), selected: false, onSelected: (_) {}),
+          ChoiceChip(
+            label: const Text('Guarantor Pending'),
+            selected: false,
+            onSelected: (_) {},
+          ),
         ],
       ),
     );
@@ -1486,7 +1610,9 @@ class _LoanApplicationCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              InitialsAvatar(initials: _initials(application.applicant.fullName)),
+              InitialsAvatar(
+                initials: _initials(application.applicant.fullName),
+              ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Column(
@@ -1494,15 +1620,13 @@ class _LoanApplicationCard extends StatelessWidget {
                   children: [
                     Text(
                       application.applicant.fullName,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     Text(
                       '${application.termMonths} Months | ${_titleCase(application.status)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -1513,15 +1637,14 @@ class _LoanApplicationCard extends StatelessWidget {
                   Text(
                     _money(application.amountMinor, application.currency),
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   Text(
                     application.purpose,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                        ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: AppColors.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -1536,7 +1659,8 @@ class _LoanApplicationCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
-            onPressed: () => context.go('/loans/applications/${application.id}'),
+            onPressed: () =>
+                context.go('/loans/applications/${application.id}'),
             icon: const Icon(Icons.rate_review_outlined),
             label: const Text('Review Application'),
           ),
@@ -1565,15 +1689,15 @@ class _ApplicantReviewHeader extends StatelessWidget {
               children: [
                 Text(
                   application.applicant.fullName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 Text(
-                  application.applicant.memberNumber ?? application.applicant.status ?? 'Member',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                  application.applicant.memberNumber ??
+                      application.applicant.status ??
+                      'Member',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ],
             ),
@@ -1599,9 +1723,8 @@ class _LoanReviewDetailsCard extends StatelessWidget {
         children: [
           Text(
             'Loan Details',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: AppSpacing.md),
           _ReviewDetailRow(
@@ -1615,7 +1738,10 @@ class _LoanReviewDetailsCard extends StatelessWidget {
           ),
           _ReviewDetailRow(
             label: 'Estimated Total',
-            value: _money(application.estimatedTotalPayableMinor, application.currency),
+            value: _money(
+              application.estimatedTotalPayableMinor,
+              application.currency,
+            ),
           ),
           _ReviewDetailRow(label: 'Interest Rate', value: '1.5% / month'),
         ],
@@ -1639,18 +1765,16 @@ class _ReviewDetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
           ),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -1673,15 +1797,16 @@ class _GuarantorVerificationCard extends StatelessWidget {
         children: [
           Text(
             'Guarantor Verification',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: AppSpacing.sm),
           for (final guarantor in application.guarantors) ...[
             ListTile(
               contentPadding: EdgeInsets.zero,
-              leading: InitialsAvatar(initials: _initials(guarantor.member.fullName)),
+              leading: InitialsAvatar(
+                initials: _initials(guarantor.member.fullName),
+              ),
               title: Text(guarantor.member.fullName),
               trailing: StatusPill(label: _titleCase(guarantor.status)),
             ),
@@ -1707,9 +1832,8 @@ class _AdminReviewCard extends StatelessWidget {
         children: [
           Text(
             'Treasurer Review',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: AppSpacing.sm),
           TextField(
@@ -1758,10 +1882,8 @@ class _SoftInfoLine extends StatelessWidget {
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                    ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: color, fontWeight: FontWeight.w700),
               ),
             ),
           ],

@@ -26,6 +26,8 @@ import {
   ImportHistoricalContributionPaymentsDto,
   InviteMembersDto,
   JoinGroupDto,
+  PaymentRulesDto,
+  LoanDecisionDto,
   PreviewJoinCodeDto,
   RecordContributionPaymentDto,
   RecordLoanRepaymentDto,
@@ -333,6 +335,72 @@ export class GroupsController {
     return this.groups.loansOverview(user, groupId);
   }
 
+  @Get("groups/:groupId/loans/tasks")
+  loanTasksEntry(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.loanTasks(user, groupId);
+  }
+
+  @Get("groups/:groupId/payment-rules")
+  paymentRules(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.paymentRules(user, groupId);
+  }
+
+  @Put("groups/:groupId/payment-rules")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  savePaymentRules(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: PaymentRulesDto,
+  ) {
+    return this.groups.savePaymentRules(user, groupId, body);
+  }
+
+  @Get("groups/:groupId/reminder-settings")
+  reminderSettings(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.reminderSettings(user, groupId);
+  }
+
+  @Post("groups/:groupId/loans/guarantees/:guaranteeId/respond")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  respondToGuarantee(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("guaranteeId") guaranteeId: string,
+    @Body() body: LoanDecisionDto,
+  ) {
+    return this.groups.respondToGuarantee(
+      user,
+      groupId,
+      guaranteeId,
+      body.approve,
+    );
+  }
+
+  @Post("groups/:groupId/loans/repayments/:repaymentId/review")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  reviewLoanRepayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("repaymentId") repaymentId: string,
+    @Body() body: LoanDecisionDto,
+  ) {
+    return this.groups.reviewLoanRepayment(
+      user,
+      groupId,
+      repaymentId,
+      body.approve,
+    );
+  }
+
   @Post("groups/:groupId/loans/applications")
   @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
   createLoanApplication(
@@ -368,7 +436,12 @@ export class GroupsController {
     @Param("applicationId") applicationId: string,
     @Body() body: ReviewLoanApplicationDto,
   ) {
-    return this.groups.approveLoanApplication(user, groupId, applicationId, body);
+    return this.groups.approveLoanApplication(
+      user,
+      groupId,
+      applicationId,
+      body,
+    );
   }
 
   @Post("groups/:groupId/loans/applications/:applicationId/reject")
@@ -379,7 +452,12 @@ export class GroupsController {
     @Param("applicationId") applicationId: string,
     @Body() body: ReviewLoanApplicationDto,
   ) {
-    return this.groups.rejectLoanApplication(user, groupId, applicationId, body);
+    return this.groups.rejectLoanApplication(
+      user,
+      groupId,
+      applicationId,
+      body,
+    );
   }
 
   @Get("groups/:groupId/loans/:loanId/repayment")

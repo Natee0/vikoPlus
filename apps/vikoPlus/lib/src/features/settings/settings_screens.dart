@@ -367,45 +367,6 @@ class CurrencyFeesScreen extends StatelessWidget {
   }
 }
 
-class ContributionPenaltiesScreen extends StatelessWidget {
-  const ContributionPenaltiesScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return VikoplusScreen(
-      title: 'Contribution Penalties',
-      backRoute: '/settings/admin',
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _SettingSwitch(
-            title: 'Enable late penalties',
-            subtitle: 'Apply a charge after the grace period ends.',
-            value: true,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          TextField(
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Penalty amount',
-              hintText: '2000',
-              prefixIcon: Icon(Icons.payments_outlined),
-            ),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          TextField(
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'Grace period',
-              hintText: '3 days',
-              prefixIcon: Icon(Icons.event_available_outlined),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _SettingsHero extends StatelessWidget {
   const _SettingsHero();

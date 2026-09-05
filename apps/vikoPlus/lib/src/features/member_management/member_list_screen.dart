@@ -83,16 +83,18 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
       bottomNavigationIndex: 1,
       showBottomNavigation: widget.showBottomNavigation,
       actions: [
-        IconButton(
-          tooltip: 'Invite members',
-          onPressed: () => context.push('/members/invite'),
-          icon: const Icon(Icons.person_add_alt_outlined),
-        ),
-        IconButton(
-          tooltip: 'Add member manually',
-          onPressed: () => context.push('/members/add'),
-          icon: const Icon(Icons.add_circle_outline),
-        ),
+        if (activeGroup?.role == 'GROUP_ADMIN') ...[
+          IconButton(
+            tooltip: 'Invite members',
+            onPressed: () => context.push('/members/invite'),
+            icon: const Icon(Icons.person_add_alt_outlined),
+          ),
+          IconButton(
+            tooltip: 'Add member manually',
+            onPressed: () => context.push('/members/add'),
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+        ],
       ],
       onRefresh: activeGroup == null ? null : _refresh,
       child: Column(
@@ -110,22 +112,24 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
             ),
             const SizedBox(height: 16),
           ],
-          const ActionTile(
-            title: 'Invite members',
-            subtitle:
-                'Share a role-based invitation code, link, SMS or WhatsApp',
-            icon: Icons.person_add_alt_outlined,
-            route: '/members/invite',
-          ),
-          const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Add member manually',
-            subtitle: 'Create a member record and assign their group role',
-            icon: Icons.add_circle_outline,
-            route: '/members/add',
-            color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: 16),
+          if (activeGroup?.role == 'GROUP_ADMIN') ...[
+            const ActionTile(
+              title: 'Invite members',
+              subtitle:
+                  'Share a role-based invitation code, link, SMS or WhatsApp',
+              icon: Icons.person_add_alt_outlined,
+              route: '/members/invite',
+            ),
+            const SizedBox(height: 12),
+            const ActionTile(
+              title: 'Add member manually',
+              subtitle: 'Create a member record and assign their group role',
+              icon: Icons.add_circle_outline,
+              route: '/members/add',
+              color: AppColors.secondaryGreen,
+            ),
+            const SizedBox(height: 16),
+          ],
           _MemberStatsRow(
             membersFuture: _membersFuture,
             fallbackMembersCount: activeGroup?.membersCount ?? 0,
@@ -276,17 +280,15 @@ class _EmptyMembersCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'No members yet',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(context).textTheme.titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 4),
             Text(
               'Add the first member or invite members to join this group.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.secondaryText,
-                  ),
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: AppColors.secondaryText),
             ),
           ],
         ),

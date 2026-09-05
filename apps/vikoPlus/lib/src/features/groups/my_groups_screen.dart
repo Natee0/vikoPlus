@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -45,9 +46,12 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final activeGroup = ref.watch(activeGroupProvider);
+
     return VikoplusScreen(
       title: 'My Groups',
-      backRoute: '/dashboard',
+      backRoute: portalHomeRoute(activeGroup),
+      showBackButton: activeGroup != null,
       actions: [
         IconButton(
           tooltip: 'Refresh groups',
@@ -131,7 +135,7 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
                       group: group,
                       onOpen: () {
                         ref.read(activeGroupProvider.notifier).setGroup(group);
-                        context.go(_routeForRole(group.role));
+                        context.go(routeForGroupRole(group.role));
                       },
                     ),
                     const SizedBox(height: AppSpacing.sm),
@@ -368,11 +372,6 @@ class _GroupAccessCard extends StatelessWidget {
         .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
         .join(' ');
   }
-}
-
-String _routeForRole(String role) {
-  if (role == 'MEMBER') return '/member/dashboard';
-  return '/dashboard';
 }
 
 class _MiniChip extends StatelessWidget {

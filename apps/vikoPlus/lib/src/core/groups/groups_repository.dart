@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
+import '../auth/auth_session.dart';
 
 final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
   return GroupsRepository(ref.watch(apiClientProvider));
@@ -19,7 +20,10 @@ final selectedContributionPaymentProvider = NotifierProvider<
 
 class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
   @override
-  GroupAccessSummary? build() => null;
+  GroupAccessSummary? build() {
+    ref.watch(authSessionProvider.select((session) => session.user?.id));
+    return null;
+  }
 
   void setGroup(GroupAccessSummary group) {
     state = group;
@@ -33,7 +37,10 @@ class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
 class SelectedContributionPaymentNotifier
     extends Notifier<SelectedContributionPayment?> {
   @override
-  SelectedContributionPayment? build() => null;
+  SelectedContributionPayment? build() {
+    ref.watch(activeGroupProvider.select((group) => group?.id));
+    return null;
+  }
 
   void set(SelectedContributionPayment payment) {
     state = payment;
@@ -48,6 +55,15 @@ class GroupsRepository {
   const GroupsRepository(this._dio);
 
   final Dio _dio;
+
+  Future<Map<String, dynamic>> paymentRules(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/groups/$groupId/payment-rules');
+    return _responseBody(response.data);
+  }
+
+  Future<void> savePaymentRules(String groupId, {required bool allowsPartial, required bool penaltiesEnabled, required int penaltyAmountMinor, required int graceDays}) async {
+    await _dio.put<void>('/groups/$groupId/payment-rules', data: {'allowsPartial': allowsPartial, 'penaltiesEnabled': penaltiesEnabled, 'penaltyAmountMinor': penaltyAmountMinor, 'graceDays': graceDays});
+  }
 
   Future<CreateGroupResult> createGroup(CreateGroupInput input) async {
     final response = await _dio.post<Map<String, dynamic>>(
@@ -113,6 +129,11 @@ class GroupsRepository {
       '/groups/$groupId/reminder-settings',
       data: input.toJson(),
     );
+  }
+
+  Future<Map<String, dynamic>> reminderSettings(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/groups/$groupId/reminder-settings');
+    return _responseBody(response.data);
   }
 
   Future<ReminderPackagesResult> reminderPackages(String groupId) async {
@@ -552,17 +573,20 @@ class FinancialYearInput {
     required this.name,
     required this.startsAt,
     required this.endsAt,
+    this.automaticRollover = true,
   });
 
   final String name;
   final DateTime startsAt;
   final DateTime endsAt;
+  final bool automaticRollover;
 
   Map<String, dynamic> toJson() {
     return {
       'name': name.trim(),
       'startsAt': startsAt.toIso8601String(),
       'endsAt': endsAt.toIso8601String(),
+      'automaticRollover': automaticRollover,
     };
   }
 }
@@ -663,13 +687,20 @@ class ContributionSettingsInput {
 }
 
 class ReminderSettingsInput {
-  const ReminderSettingsInput({this.dueReminderTemplate});
+  const ReminderSettingsInput({this.dueReminderTemplate, this.enabled = false, this.offsets = const [-3, 0], this.locale = 'en'});
+
+  final bool enabled;
+  final List<int> offsets;
+  final String locale;
 
   final String? dueReminderTemplate;
 
   Map<String, dynamic> toJson() {
     final template = dueReminderTemplate?.trim();
     return {
+      'enabled': enabled,
+      'offsets': offsets,
+      'locale': locale,
       if (template != null && template.isNotEmpty)
         'dueReminderTemplate': template,
     };
@@ -923,6 +954,7 @@ class GroupMemberSummary {
     this.memberNumber,
     this.phone,
     this.email,
+    this.userId,
   });
 
   factory GroupMemberSummary.fromJson(Map<String, dynamic> json) {
@@ -934,6 +966,7 @@ class GroupMemberSummary {
       memberNumber: json['memberNumber'] as String?,
       phone: json['phone'] as String?,
       email: json['email'] as String?,
+      userId: json['userId'] as String?,
     );
   }
 
@@ -944,6 +977,7 @@ class GroupMemberSummary {
   final String? memberNumber;
   final String? phone;
   final String? email;
+  final String? userId;
 }
 
 class HistoricalPaymentInput {

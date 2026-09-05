@@ -123,9 +123,8 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
             children: [
               Text(
                 'Assign Role',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: AppSpacing.sm),
               RadioGroup<VikoplusRole>(
@@ -156,11 +155,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
         _errorMessage = '';
         _isAssigningRole = true;
       });
-      await ref.read(groupsRepositoryProvider).assignRole(
-            widget.groupId,
-            member.id,
-            _apiRole(selected),
-          );
+      await ref
+          .read(groupsRepositoryProvider)
+          .assignRole(widget.groupId, member.id, _apiRole(selected));
       if (!mounted) return;
       setState(_reload);
     } on Object catch (error) {
@@ -199,11 +196,12 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       title: 'Member Profile',
       backRoute: '/members',
       actions: [
-        IconButton(
-          onPressed: _isAssigningRole ? null : () {},
-          icon: const Icon(Icons.edit_outlined),
-          tooltip: 'Edit member',
-        ),
+        if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN')
+          IconButton(
+            onPressed: _isAssigningRole ? null : () {},
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit member',
+          ),
       ],
       onRefresh: _refresh,
       child: FutureBuilder<GroupMemberSummary>(
@@ -276,18 +274,24 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
               ),
               const SizedBox(height: AppSpacing.md),
               AuthErrorMessage(message: _errorMessage),
-              if (_errorMessage.isNotEmpty) const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
-                onPressed: _isAssigningRole ? null : () => _assignRole(member),
-                icon: _isAssigningRole
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.admin_panel_settings_outlined),
-                label: Text(_isAssigningRole ? 'Updating role' : 'Assign Role'),
-              ),
+              if (_errorMessage.isNotEmpty)
+                const SizedBox(height: AppSpacing.sm),
+              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN')
+                OutlinedButton.icon(
+                  onPressed: _isAssigningRole
+                      ? null
+                      : () => _assignRole(member),
+                  icon: _isAssigningRole
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.admin_panel_settings_outlined),
+                  label: Text(
+                    _isAssigningRole ? 'Updating role' : 'Assign Role',
+                  ),
+                ),
               const SizedBox(height: AppSpacing.sm),
               FilledButton.icon(
                 onPressed: () => context.go(

@@ -18,6 +18,7 @@ class AuthRepository {
     String? phone,
     String? email,
     required String password,
+    String preferredLocale = 'en',
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',
@@ -26,7 +27,7 @@ class AuthRepository {
         'phone': phone,
         'email': email,
         'password': password,
-        'preferredLocale': 'en',
+        'preferredLocale': preferredLocale,
       },
       options: Options(extra: {'skipAuth': true}),
     );

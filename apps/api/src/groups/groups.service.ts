@@ -1,3 +1,4 @@
+// cspell:words Habari malipo yako yanatakiwa tarehe Kumbusho
 import {
   BadGatewayException,
   BadRequestException,
@@ -18,12 +19,13 @@ import {
   GroupMemberStatus,
   GroupRole,
   LoanApplicationStatus,
+  LoanGuarantorStatus,
   LoanRepaymentStatus,
   Locale,
   PaymentAllocationStatus,
   ReceiptStatus,
 } from "@prisma/client";
-import type { GroupMember } from "@prisma/client";
+import type { GroupMember, Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
@@ -33,6 +35,7 @@ import { SubscriptionBillingProvider } from "../billing/subscription-billing-pro
 import { BriqMessagingService } from "../messaging/briq-messaging.service";
 import { SmtpEmailService } from "../messaging/smtp-email.service";
 import { groupInvitationEmailTemplate } from "./group-invitation-email.template";
+import { ReminderDispatchService } from "./reminder-dispatch.service";
 import {
   AddMemberDto,
   AssignRoleDto,
@@ -45,6 +48,7 @@ import {
   ImportHistoricalContributionPaymentsDto,
   InviteMembersDto,
   JoinGroupDto,
+  PaymentRulesDto,
   RecordContributionPaymentDto,
   RecordLoanRepaymentDto,
   ReminderSettingsDto,
@@ -71,6 +75,7 @@ type ScheduleContributionPlan = {
   dueDayOfMonth: number | null;
   amountMinor: number;
   currency: string;
+  cycleAnchorDate?: Date | null;
 };
 
 type ContributionPeriodSpec = {
@@ -96,6 +101,7 @@ export class GroupsService {
     private readonly billingProvider: SubscriptionBillingProvider,
     private readonly briq: BriqMessagingService,
     private readonly email: SmtpEmailService,
+    private readonly reminderDispatch: ReminderDispatchService,
   ) {}
 
   async updateLanguage(user: AuthenticatedUser, input: UpdateLanguageDto) {
@@ -104,6 +110,94 @@ export class GroupsService {
       data: { preferredLocale: input.locale === "sw" ? Locale.sw : Locale.en },
     });
     return { userId: updated.id, preferredLocale: updated.preferredLocale };
+  }
+
+  async paymentRules(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId);
+    return (
+      (await this.prisma.groupPaymentRule.findUnique({
+        where: { groupId },
+      })) ?? {
+        allowsPartial: true,
+        penaltiesEnabled: false,
+        penaltyAmountMinor: 0,
+        graceDays: 0,
+      }
+    );
+  }
+
+  async savePaymentRules(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: PaymentRulesDto,
+  ) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    if (input.penaltiesEnabled && input.penaltyAmountMinor <= 0)
+      throw new BadRequestException("Enter a positive penalty amount.");
+    return this.prisma.$transaction(async (tx) => {
+      const rule = await tx.groupPaymentRule.upsert({
+        where: { groupId },
+        update: { ...input, effectiveAt: new Date() },
+        create: { groupId, ...input },
+      });
+      await tx.contributionPlan.updateMany({
+        where: { groupId },
+        data: { allowsPartial: input.allowsPartial },
+      });
+      return rule;
+    });
+  }
+
+  private async applyLatePenalties(
+    groupId: string,
+    db: Prisma.TransactionClient,
+  ) {
+    const rule = await db.groupPaymentRule.findUnique({ where: { groupId } });
+    if (!rule?.penaltiesEnabled || rule.penaltyAmountMinor <= 0) return;
+    const cutoff = this.addDays(this.startOfDay(new Date()), -rule.graceDays);
+    const obligations = await db.memberContributionObligation.findMany({
+      where: {
+        member: { groupId, status: GroupMemberStatus.ACTIVE },
+        plan: { type: { not: ContributionPlanType.PENALTY } },
+        dueAt: { gte: rule.effectiveAt, lt: cutoff },
+        status: {
+          in: [
+            ContributionObligationStatus.DUE,
+            ContributionObligationStatus.PARTIALLY_PAID,
+            ContributionObligationStatus.OVERDUE,
+          ],
+        },
+      },
+    });
+    for (const item of obligations) {
+      if (item.amountPaidMinor >= item.amountDueMinor) continue;
+      const plan = await db.contributionPlan.upsert({
+        where: { groupId_name: { groupId, name: "Late penalty" } },
+        update: {},
+        create: {
+          groupId,
+          name: "Late penalty",
+          type: ContributionPlanType.PENALTY,
+          frequency: ContributionFrequency.ONCE,
+          amountMinor: rule.penaltyAmountMinor,
+          currency: item.currency,
+          allowsPartial: rule.allowsPartial,
+        },
+      });
+      await db.memberContributionObligation.upsert({
+        where: { penaltySourceId: item.id },
+        update: {},
+        create: {
+          penaltySourceId: item.id,
+          groupMemberId: item.groupMemberId,
+          planId: plan.id,
+          amountDueMinor: rule.penaltyAmountMinor,
+          currency: item.currency,
+          dueAt: new Date(),
+          status: ContributionObligationStatus.DUE,
+        },
+      });
+    }
   }
 
   async myGroups(user: AuthenticatedUser) {
@@ -201,57 +295,82 @@ export class GroupsService {
   }
 
   async joinGroup(user: AuthenticatedUser, input: JoinGroupDto) {
-    const invitation = await this.prisma.groupInvitation.findUnique({
-      where: { tokenHash: this.hash(input.invitationCode) },
-      include: { group: true, member: true },
-    });
-    if (
-      !invitation ||
-      invitation.acceptedAt ||
-      invitation.expiresAt <= new Date()
-    ) {
-      throw new NotFoundException("Invitation was not found or has expired.");
-    }
-    const existingMembership = await this.prisma.groupMember.findFirst({
-      where: {
-        groupId: invitation.groupId,
-        userId: user.id,
-        status: GroupMemberStatus.ACTIVE,
-      },
-    });
-    if (existingMembership) {
-      throw new ConflictException("You are already a member of this group.");
-    }
-
-    const now = new Date();
-    const membership = invitation.member
-      ? await this.activateInvitedMember(
-          user,
-          invitation.member,
-          invitation.role,
-          now,
-        )
-      : await this.prisma.groupMember.create({
-          data: {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const invitation = await tx.groupInvitation.findUnique({
+          where: { tokenHash: this.hash(input.invitationCode) },
+          include: { group: true, member: true },
+        });
+        if (
+          !invitation ||
+          invitation.acceptedAt ||
+          invitation.expiresAt <= new Date()
+        ) {
+          throw new NotFoundException(
+            "Invitation was not found or has expired.",
+          );
+        }
+        const existingMembership = await tx.groupMember.findFirst({
+          where: {
             groupId: invitation.groupId,
             userId: user.id,
-            fullName: await this.displayName(user.id),
-            role: invitation.role,
-            status: GroupMemberStatus.ACTIVE,
-            joinedAt: now,
+            ...(invitation.groupMemberId
+              ? { id: { not: invitation.groupMemberId } }
+              : {}),
           },
         });
-    await this.prisma.groupInvitation.update({
-      where: { id: invitation.id },
-      data: { acceptedAt: now },
-    });
-    await this.generateContributionSchedule(invitation.groupId, membership.id);
-    return {
-      groupId: invitation.groupId,
-      membershipId: membership.id,
-      role: membership.role,
-      status: membership.status,
-    };
+        if (existingMembership) {
+          throw new ConflictException(
+            "You are already a member of this group.",
+          );
+        }
+
+        const now = new Date();
+        const claimed = await tx.groupInvitation.updateMany({
+          where: {
+            id: invitation.id,
+            acceptedAt: null,
+            expiresAt: { gt: now },
+          },
+          data: { acceptedAt: now },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            "This invitation has already been accepted.",
+          );
+        }
+        const membership = invitation.member
+          ? await this.activateInvitedMember(
+              user,
+              invitation.member,
+              invitation.role,
+              now,
+              tx,
+            )
+          : await tx.groupMember.create({
+              data: {
+                groupId: invitation.groupId,
+                userId: user.id,
+                fullName: await this.displayName(user.id),
+                role: invitation.role,
+                status: GroupMemberStatus.ACTIVE,
+                joinedAt: now,
+              },
+            });
+        await this.generateContributionSchedule(
+          invitation.groupId,
+          membership.id,
+          tx,
+        );
+        return {
+          groupId: invitation.groupId,
+          membershipId: membership.id,
+          role: membership.role,
+          status: membership.status,
+        };
+      },
+      { timeout: 30000 },
+    );
   }
 
   async onboarding(user: AuthenticatedUser, groupId: string) {
@@ -282,21 +401,40 @@ export class GroupsService {
     input: FinancialYearDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    await this.prisma.financialYear.updateMany({
-      where: { groupId },
-      data: { isActive: false },
-    });
-    const financialYear = await this.prisma.financialYear.create({
-      data: {
-        groupId,
-        name: input.name,
-        startsAt: new Date(input.startsAt),
-        endsAt: new Date(input.endsAt),
-        isActive: true,
+    const startsAt = new Date(input.startsAt);
+    const endsAt = new Date(input.endsAt);
+    const duration = endsAt.getTime() - startsAt.getTime();
+    if (duration <= 0 || duration > 367 * 86400000)
+      throw new BadRequestException(
+        "Enter a valid financial year of no more than 12 months.",
+      );
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.financialYear.updateMany({
+          where: { groupId },
+          data: { isActive: false },
+        });
+        const financialYear = await tx.financialYear.upsert({
+          where: { groupId_startsAt_endsAt: { groupId, startsAt, endsAt } },
+          update: {
+            name: input.name,
+            isActive: true,
+            automaticRollover: input.automaticRollover ?? true,
+          },
+          create: {
+            groupId,
+            name: input.name,
+            startsAt: new Date(input.startsAt),
+            endsAt: new Date(input.endsAt),
+            isActive: true,
+            automaticRollover: input.automaticRollover ?? true,
+          },
+        });
+        await this.generateContributionSchedule(groupId, undefined, tx);
+        return financialYear;
       },
-    });
-    await this.generateContributionSchedule(groupId);
-    return financialYear;
+      { isolationLevel: "Serializable", timeout: 30000 },
+    );
   }
 
   async financialYears(user: AuthenticatedUser, groupId: string) {
@@ -331,12 +469,11 @@ export class GroupsService {
     );
     const memberContributionMinor =
       input.memberContributionMinor ?? input.membershipFeeMinor;
-    const memberContributionWeekDays =
-      this.memberContributionWeeklyDays(input);
+    const memberContributionWeekDays = this.memberContributionWeeklyDays(input);
     const memberContributionDueDayOfWeek =
       memberContributionFrequency === ContributionFrequency.WEEKLY
         ? memberContributionWeekDays[0]
-        : input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek;
+        : (input.memberContributionDueDayOfWeek ?? input.dueDayOfWeek);
     this.validateContributionCycle(
       membershipFrequency,
       input.membershipDueDayOfWeek ?? input.dueDayOfWeek,
@@ -432,6 +569,20 @@ export class GroupsService {
         });
       }),
     ]);
+    const paymentRule = await this.prisma.groupPaymentRule.findUnique({
+      where: { groupId },
+    });
+    const group = await this.prisma.group.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { currency: true },
+    });
+    await this.prisma.contributionPlan.updateMany({
+      where: { groupId },
+      data: {
+        currency: group.currency,
+        allowsPartial: paymentRule?.allowsPartial ?? true,
+      },
+    });
     await this.generateContributionSchedule(groupId);
     return {
       groupId,
@@ -452,21 +603,54 @@ export class GroupsService {
     input: ReminderSettingsDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    if (!input.dueReminderTemplate) return { groupId, configured: false };
+    const locale = input.locale ?? "en";
+    const existing = await this.prisma.groupReminderRule.findUnique({
+      where: { groupId },
+    });
+    const body =
+      input.dueReminderTemplate?.trim() ||
+      existing?.body ||
+      (locale === "sw"
+        ? "Habari {member_name}, malipo yako ya {amount} yanatakiwa tarehe {due_date}."
+        : "Hi {member_name}, your payment of {amount} is due on {due_date}.");
+    const enabled = input.enabled ?? Boolean(input.dueReminderTemplate);
+    const offsets = input.offsets ?? existing?.offsets ?? [-3, 0];
+    if (enabled && offsets.length === 0)
+      throw new BadRequestException("Select a reminder schedule.");
+    await this.prisma.groupReminderRule.upsert({
+      where: { groupId },
+      update: { enabled, offsets, locale, body },
+      create: { groupId, enabled, offsets, locale, body },
+    });
     const template = await this.prisma.reminderTemplate.upsert({
       where: {
-        groupId_locale_code: { groupId, locale: Locale.en, code: "dues" },
+        groupId_locale_code: { groupId, locale, code: "dues" },
       },
-      update: { body: input.dueReminderTemplate },
+      update: { body },
       create: {
         groupId,
-        locale: Locale.en,
+        locale,
         code: "dues",
         title: "Outstanding dues",
-        body: input.dueReminderTemplate,
+        body,
       },
     });
     return { groupId, configured: true, templateId: template.id };
+  }
+
+  async reminderSettings(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    return (
+      (await this.prisma.groupReminderRule.findUnique({
+        where: { groupId },
+      })) ?? {
+        groupId,
+        enabled: false,
+        offsets: [-3, 0],
+        locale: "en",
+        body: "",
+      }
+    );
   }
 
   async dashboard(user: AuthenticatedUser, groupId: string) {
@@ -511,7 +695,9 @@ export class GroupsService {
     groupId: string,
     input: AddMemberDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    const inviter = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+    ]);
     const group = await this.prisma.group.findUniqueOrThrow({
       where: { id: groupId },
     });
@@ -532,35 +718,43 @@ export class GroupsService {
 
     const role = input.role ?? GroupRole.MEMBER;
     const token = randomBytes(18).toString("base64url");
-    const { member, invitation } = await this.prisma.$transaction(async (tx) => {
-      const createdMember = await tx.groupMember.create({
-        data: {
-          groupId,
-          memberNumber,
-          fullName,
-          phone,
-          email,
-          role,
-          status: GroupMemberStatus.INVITED,
-        },
-      });
-      const createdInvitation = await tx.groupInvitation.create({
-        data: {
-          groupId,
-          groupMemberId: createdMember.id,
-          tokenHash: this.hash(token),
-          role,
-          expiresAt: this.daysFromNow(14),
-        },
-      });
-      return { member: createdMember, invitation: createdInvitation };
-    });
+    const { member, invitation } = await this.prisma.$transaction(
+      async (tx) => {
+        const createdMember = await tx.groupMember.create({
+          data: {
+            groupId,
+            memberNumber,
+            fullName,
+            phone,
+            email,
+            role,
+            status: GroupMemberStatus.INVITED,
+          },
+        });
+        const createdInvitation = await tx.groupInvitation.create({
+          data: {
+            groupId,
+            groupMemberId: createdMember.id,
+            tokenHash: this.hash(token),
+            role,
+            expiresAt: this.daysFromNow(14),
+          },
+        });
+        return { member: createdMember, invitation: createdInvitation };
+      },
+    );
 
     let deliveries: InvitationDeliveryResult[];
     try {
       deliveries = await this.deliverMemberInvitation({
         groupName: group.name,
+        groupCode: group.slug,
+        groupType: group.type,
+        currency: group.currency,
         memberName: member.fullName,
+        memberRole: role,
+        inviterName: inviter.fullName,
+        inviterRole: inviter.role,
         phone,
         email,
         invitationCode: token,
@@ -652,6 +846,7 @@ export class GroupsService {
 
   async contributionRegister(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
+    await this.generateContributionSchedule(groupId);
     const rolesAllowedToSeeAllObligations: GroupRole[] = [
       GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
@@ -697,43 +892,52 @@ export class GroupsService {
     input: SubmitContributionPaymentRequestDto,
   ) {
     const membership = await this.requireMembership(user, groupId);
-    const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
-    const payment = await this.prisma.groupContributionPayment.create({
-      data: {
-        groupId,
-        groupMemberId: membership.id,
-        createdByUserId: user.id,
-        amountMinor: input.amountMinor,
-        method: input.method,
-        reference: input.reference,
-        paidAt,
-        status: GroupContributionPaymentStatus.PENDING_VERIFICATION,
-        submittedAt: new Date(),
+    return this.prisma.$transaction(
+      async (tx) => {
+        const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+        const payment = await tx.groupContributionPayment.create({
+          data: {
+            groupId,
+            groupMemberId: membership.id,
+            createdByUserId: user.id,
+            amountMinor: input.amountMinor,
+            method: input.method,
+            reference: input.reference,
+            paidAt,
+            status: GroupContributionPaymentStatus.PENDING_VERIFICATION,
+            submittedAt: new Date(),
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action: AuditAction.GROUP_CONTRIBUTION_PAYMENT_SUBMITTED,
+            entityType: "GroupContributionPayment",
+            entityId: payment.id,
+            newValue: {
+              amountMinor: payment.amountMinor,
+              method: payment.method,
+              status: payment.status,
+            },
+          },
+        });
+        await this.allocatePaymentToObligations(
+          groupId,
+          payment.id,
+          membership.id,
+          input.amountMinor,
+          input.obligationIds,
+          false,
+          tx,
+        );
+        return tx.groupContributionPayment.findUniqueOrThrow({
+          where: { id: payment.id },
+          include: { receipt: true, member: true },
+        });
       },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        actorUserId: user.id,
-        groupId,
-        action: AuditAction.GROUP_CONTRIBUTION_PAYMENT_SUBMITTED,
-        entityType: "GroupContributionPayment",
-        entityId: payment.id,
-        newValue: {
-          amountMinor: payment.amountMinor,
-          method: payment.method,
-          status: payment.status,
-        },
-      },
-    });
-    await this.allocatePaymentToObligations(
-      groupId,
-      payment.id,
-      membership.id,
-      input.amountMinor,
-      input.obligationIds,
-      false,
+      { isolationLevel: "Serializable" },
     );
-    return this.paymentWithReceipt(payment.id);
   }
 
   async recordPayment(
@@ -741,33 +945,49 @@ export class GroupsService {
     groupId: string,
     input: RecordContributionPaymentDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
+    const reviewer = await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+    ]);
+    if (reviewer.id === input.memberId)
+      throw new ForbiddenException(
+        "Submit your own payment for another treasurer to verify.",
+      );
     await this.ensureGroupMember(groupId, input.memberId);
-    const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
-    const payment = await this.prisma.groupContributionPayment.create({
-      data: {
-        groupId,
-        groupMemberId: input.memberId,
-        createdByUserId: user.id,
-        reviewedByUserId: user.id,
-        amountMinor: input.amountMinor,
-        method: input.method,
-        reference: input.reference,
-        paidAt,
-        status: GroupContributionPaymentStatus.APPROVED,
-        submittedAt: paidAt,
-        reviewedAt: new Date(),
+    return this.prisma.$transaction(
+      async (tx) => {
+        const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
+        const payment = await tx.groupContributionPayment.create({
+          data: {
+            groupId,
+            groupMemberId: input.memberId,
+            createdByUserId: user.id,
+            reviewedByUserId: user.id,
+            amountMinor: input.amountMinor,
+            method: input.method,
+            reference: input.reference,
+            paidAt,
+            status: GroupContributionPaymentStatus.APPROVED,
+            submittedAt: paidAt,
+            reviewedAt: new Date(),
+          },
+        });
+        await this.allocatePaymentToObligations(
+          groupId,
+          payment.id,
+          input.memberId,
+          input.amountMinor,
+          input.obligationIds,
+          true,
+          tx,
+        );
+        await this.createReceiptForPayment(groupId, payment.id, tx);
+        return tx.groupContributionPayment.findUniqueOrThrow({
+          where: { id: payment.id },
+          include: { receipt: true, member: true },
+        });
       },
-    });
-    await this.allocatePaymentToObligations(
-      groupId,
-      payment.id,
-      input.memberId,
-      input.amountMinor,
-      input.obligationIds,
+      { isolationLevel: "Serializable" },
     );
-    await this.createReceiptForPayment(groupId, payment.id);
-    return this.paymentWithReceipt(payment.id);
   }
 
   async importHistoricalPayments(
@@ -805,12 +1025,16 @@ export class GroupsService {
     });
     const now = new Date();
     await Promise.all(
-      payments.map((payment) => this.ensureGroupMember(groupId, payment.memberId)),
+      payments.map((payment) =>
+        this.ensureGroupMember(groupId, payment.memberId),
+      ),
     );
     payments.forEach((payment) => {
       const paidAt = new Date(payment.paidAt);
       if (paidAt > now) {
-        throw new BadRequestException("Historical payment dates cannot be future dates.");
+        throw new BadRequestException(
+          "Historical payment dates cannot be future dates.",
+        );
       }
       if (group.establishedAt && paidAt < group.establishedAt) {
         throw new BadRequestException(
@@ -841,7 +1065,9 @@ export class GroupsService {
     );
 
     await Promise.all(
-      created.map((payment) => this.createReceiptForPayment(groupId, payment.id)),
+      created.map((payment) =>
+        this.createReceiptForPayment(groupId, payment.id),
+      ),
     );
     await this.prisma.auditLog.create({
       data: {
@@ -857,7 +1083,10 @@ export class GroupsService {
       },
     });
 
-    return { imported: created.length, paymentIds: created.map((item) => item.id) };
+    return {
+      imported: created.length,
+      paymentIds: created.map((item) => item.id),
+    };
   }
 
   async approvePayment(
@@ -866,42 +1095,67 @@ export class GroupsService {
     paymentId: string,
     input: ReviewContributionPaymentDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
-    const payment = await this.findGroupPayment(groupId, paymentId);
-    const paymentStatusesAllowedForApproval: GroupContributionPaymentStatus[] = [
-      GroupContributionPaymentStatus.SUBMITTED,
-      GroupContributionPaymentStatus.PENDING_VERIFICATION,
-      GroupContributionPaymentStatus.CORRECTION_REQUESTED,
-    ];
-    if (!paymentStatusesAllowedForApproval.includes(payment.status)) {
-      throw new ForbiddenException("Payment cannot be approved from this state.");
-    }
+    const membership = await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+    ]);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const payment = await tx.groupContributionPayment.findFirstOrThrow({
+          where: { id: paymentId, groupId },
+        });
+        if (
+          payment.createdByUserId === user.id ||
+          payment.groupMemberId === membership.id
+        )
+          throw new ForbiddenException(
+            "Another treasurer must verify this payment.",
+          );
+        const paymentStatusesAllowedForApproval: GroupContributionPaymentStatus[] =
+          [
+            GroupContributionPaymentStatus.SUBMITTED,
+            GroupContributionPaymentStatus.PENDING_VERIFICATION,
+            GroupContributionPaymentStatus.CORRECTION_REQUESTED,
+          ];
+        if (!paymentStatusesAllowedForApproval.includes(payment.status)) {
+          throw new ForbiddenException(
+            "Payment cannot be approved from this state.",
+          );
+        }
 
-    await this.prisma.groupContributionPayment.update({
-      where: { id: payment.id },
-      data: {
-        reviewedByUserId: user.id,
-        reviewedAt: new Date(),
-        status: GroupContributionPaymentStatus.APPROVED,
-        correctionMessage: null,
+        await tx.groupContributionPayment.update({
+          where: { id: payment.id },
+          data: {
+            reviewedByUserId: user.id,
+            reviewedAt: new Date(),
+            status: GroupContributionPaymentStatus.APPROVED,
+            correctionMessage: null,
+          },
+        });
+        await this.allocatePaymentToObligations(
+          groupId,
+          payment.id,
+          payment.groupMemberId,
+          payment.amountMinor,
+          input.obligationIds,
+          true,
+          tx,
+        );
+        await this.createReceiptForPayment(groupId, payment.id, tx);
+        await this.auditPaymentReview(
+          user,
+          groupId,
+          payment.id,
+          AuditAction.GROUP_CONTRIBUTION_PAYMENT_APPROVED,
+          input.reason,
+          tx,
+        );
+        return tx.groupContributionPayment.findUniqueOrThrow({
+          where: { id: payment.id },
+          include: { receipt: true, member: true },
+        });
       },
-    });
-    await this.allocatePaymentToObligations(
-      groupId,
-      payment.id,
-      payment.groupMemberId,
-      payment.amountMinor,
-      input.obligationIds,
+      { isolationLevel: "Serializable" },
     );
-    await this.createReceiptForPayment(groupId, payment.id);
-    await this.auditPaymentReview(
-      user,
-      groupId,
-      payment.id,
-      AuditAction.GROUP_CONTRIBUTION_PAYMENT_APPROVED,
-      input.reason,
-    );
-    return this.paymentWithReceipt(payment.id);
   }
 
   async rejectPayment(
@@ -912,8 +1166,17 @@ export class GroupsService {
   ) {
     await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const payment = await this.findGroupPayment(groupId, paymentId);
+    if (
+      ![
+        GroupContributionPaymentStatus.SUBMITTED,
+        GroupContributionPaymentStatus.PENDING_VERIFICATION,
+        GroupContributionPaymentStatus.CORRECTION_REQUESTED,
+      ].some((status) => status === payment.status)
+    ) {
+      throw new ConflictException("Only pending payments can be rejected.");
+    }
     const updated = await this.prisma.groupContributionPayment.update({
-      where: { id: payment.id },
+      where: { id: payment.id, status: payment.status },
       data: {
         reviewedByUserId: user.id,
         reviewedAt: new Date(),
@@ -939,8 +1202,16 @@ export class GroupsService {
   ) {
     await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const payment = await this.findGroupPayment(groupId, paymentId);
+    if (
+      ![
+        GroupContributionPaymentStatus.SUBMITTED,
+        GroupContributionPaymentStatus.PENDING_VERIFICATION,
+      ].some((status) => status === payment.status)
+    ) {
+      throw new ConflictException("Only pending payments can be corrected.");
+    }
     const updated = await this.prisma.groupContributionPayment.update({
-      where: { id: payment.id },
+      where: { id: payment.id, status: payment.status },
       data: {
         reviewedByUserId: user.id,
         reviewedAt: new Date(),
@@ -959,9 +1230,15 @@ export class GroupsService {
   }
 
   async receipt(user: AuthenticatedUser, groupId: string, receiptId: string) {
-    await this.requireMembership(user, groupId);
+    const membership = await this.requireMembership(user, groupId);
     const receipt = await this.prisma.receipt.findFirst({
-      where: { id: receiptId, groupId },
+      where: {
+        id: receiptId,
+        groupId,
+        ...(membership.role === GroupRole.MEMBER
+          ? { payment: { groupMemberId: membership.id } }
+          : {}),
+      },
       include: { payment: { include: { member: true } } },
     });
     if (!receipt) throw new NotFoundException("Receipt not found.");
@@ -981,7 +1258,7 @@ export class GroupsService {
     await this.requireMembership(user, groupId);
     return {
       packages: await this.prisma.platformPrice.findMany({
-        where: { isActive: true },
+        where: { isActive: true, channel: "SMS" },
         orderBy: [{ channel: "asc" }, { amountMinor: "asc" }],
       }),
     };
@@ -1008,6 +1285,10 @@ export class GroupsService {
     if (!reminderPackage?.isActive) {
       throw new NotFoundException("Reminder package was not found.");
     }
+    if (reminderPackage.channel !== "SMS")
+      throw new BadRequestException(
+        "Only SMS packages are available until WhatsApp is connected.",
+      );
 
     const amountMinor = reminderPackage.amountMinor * input.quantity;
     const customer = await this.billingProvider.createCustomer({
@@ -1099,6 +1380,10 @@ export class GroupsService {
       GroupRole.SECRETARY,
     ]);
 
+    if (input.channel !== "SMS")
+      throw new BadRequestException(
+        "WhatsApp reminders are not available yet. Select SMS.",
+      );
     const selectedMemberIds =
       input.memberIds?.map((id) => id.trim()).filter(Boolean) ?? [];
     const members =
@@ -1114,7 +1399,15 @@ export class GroupsService {
         : await this.membersWithOutstandingObligations(groupId);
 
     if (members.length === 0) {
-      throw new BadRequestException("No eligible members were found for this reminder.");
+      throw new BadRequestException(
+        "No eligible members were found for this reminder.",
+      );
+    }
+    if (
+      selectedMemberIds.length &&
+      members.length !== new Set(selectedMemberIds).size
+    ) {
+      throw new BadRequestException("Select active members from this group.");
     }
 
     const notificationRecipients = members
@@ -1131,18 +1424,33 @@ export class GroupsService {
         "No phone numbers were found for the selected SMS reminder recipients.",
       );
     }
-    const smsResults = await Promise.allSettled(
-      smsRecipients.map((phone) =>
-        this.briq.sendSms({
-          to: phone,
-          content: `Vikoplus: ${input.message}`,
-        }),
-      ),
-    );
-    const smsSent = smsResults.filter((result) => result.status === "fulfilled")
-      .length;
+    const dispatchId = randomBytes(16).toString("hex");
+    // Sequential reservations avoid contention on the group's shared credit packages.
+    const smsResults: PromiseSettledResult<boolean>[] = [];
+    for (const phone of new Set(smsRecipients)) {
+      try {
+        const sent = await this.reminderDispatch.send(
+          groupId,
+          `manual:${dispatchId}:${this.hash(phone)}`,
+          phone,
+          `Vikoplus: ${input.message}`,
+        );
+        smsResults.push({ status: "fulfilled", value: sent });
+      } catch (error) {
+        smsResults.push({ status: "rejected", reason: error });
+      }
+    }
+    const smsSent = smsResults.filter(
+      (result) => result.status === "fulfilled" && result.value,
+    ).length;
     const smsFailed = smsResults.length - smsSent;
     if (shouldSendSms && smsSent === 0) {
+      const creditFailure = smsResults.find(
+        (result) =>
+          result.status === "rejected" &&
+          result.reason instanceof BadRequestException,
+      );
+      if (creditFailure?.status === "rejected") throw creditFailure.reason;
       throw new BadGatewayException("Briq SMS reminder delivery failed.");
     }
 
@@ -1159,12 +1467,19 @@ export class GroupsService {
     });
 
     if (notificationRecipients.length > 0) {
+      const recipients = await this.prisma.user.findMany({
+        where: { id: { in: notificationRecipients } },
+        select: { id: true, preferredLocale: true },
+      });
       await this.prisma.notification.createMany({
-        data: notificationRecipients.map((userId) => ({
-          userId,
-          title: "Payment reminder",
+        data: recipients.map((recipient) => ({
+          userId: recipient.id,
+          title:
+            recipient.preferredLocale === Locale.sw
+              ? "Kumbusho la malipo"
+              : "Payment reminder",
           body: input.message,
-          locale: Locale.en,
+          locale: recipient.preferredLocale,
         })),
       });
     }
@@ -1183,10 +1498,7 @@ export class GroupsService {
           smsRecipients: smsRecipients.length,
           smsSent,
           smsFailed,
-          whatsappPending:
-            input.channel === "WHATSAPP" || input.channel === "BOTH"
-              ? members.length
-              : 0,
+          whatsappPending: 0,
         },
       },
     });
@@ -1198,33 +1510,46 @@ export class GroupsService {
       appNotificationsCreated: notificationRecipients.length,
       smsSent,
       smsFailed,
-      whatsappPending:
-        input.channel === "WHATSAPP" || input.channel === "BOTH"
-          ? members.length
-          : 0,
+      whatsappPending: 0,
       sentAt: campaign.sentAt,
     };
   }
 
   async loansOverview(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
+    return this.loanOverviewForMember(membership, groupId);
+  }
+
+  private async loanOverviewForMember(
+    membership: GroupMember,
+    groupId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
     const [group, savings, obligations, activeLoans, applications] =
       await Promise.all([
-        this.prisma.group.findUniqueOrThrow({
+        db.group.findUniqueOrThrow({
           where: { id: groupId },
           select: { currency: true },
         }),
-        this.prisma.groupContributionPayment.aggregate({
+        db.paymentAllocation.aggregate({
           where: {
-            groupId,
-            groupMemberId: membership.id,
-            status: GroupContributionPaymentStatus.APPROVED,
+            payment: {
+              groupId,
+              groupMemberId: membership.id,
+              status: GroupContributionPaymentStatus.APPROVED,
+            },
+            plan: {
+              name: { startsWith: "Member contribution" },
+              type: ContributionPlanType.RECURRING,
+            },
+            status: PaymentAllocationStatus.APPLIED,
           },
           _sum: { amountMinor: true },
         }),
-        this.prisma.memberContributionObligation.aggregate({
+        db.memberContributionObligation.aggregate({
           where: {
             groupMemberId: membership.id,
+            dueAt: { lt: this.startOfDay(new Date()) },
             status: {
               in: [
                 ContributionObligationStatus.DUE,
@@ -1236,7 +1561,7 @@ export class GroupsService {
           _sum: { amountDueMinor: true, amountPaidMinor: true },
           _count: true,
         }),
-        this.prisma.groupLoan.findMany({
+        db.groupLoan.findMany({
           where: {
             groupId,
             groupMemberId: membership.id,
@@ -1245,7 +1570,7 @@ export class GroupsService {
           include: { repayments: { orderBy: { createdAt: "desc" } } },
           orderBy: { createdAt: "desc" },
         }),
-        this.prisma.loanApplication.findMany({
+        db.loanApplication.findMany({
           where: {
             groupId,
             groupMemberId: membership.id,
@@ -1261,12 +1586,15 @@ export class GroupsService {
       0,
     );
     const activeLoanBalanceMinor = activeLoans.reduce(
-      (total, loan) => total + Math.max(loan.totalPayableMinor - loan.amountPaidMinor, 0),
+      (total, loan) =>
+        total + Math.max(loan.totalPayableMinor - loan.amountPaidMinor, 0),
       0,
     );
     const creditLimitMinor = totalSavingsMinor * 2;
     const borrowingPowerMinor = Math.max(
-      creditLimitMinor - activeLoanBalanceMinor,
+      creditLimitMinor -
+        activeLoanBalanceMinor -
+        applications.reduce((total, item) => total + item.amountMinor, 0),
       0,
     );
 
@@ -1304,66 +1632,99 @@ export class GroupsService {
     input: CreateLoanApplicationDto,
   ) {
     const membership = await this.requireMembership(user, groupId);
-    const guarantorIds = [...new Set(input.guarantorMemberIds)];
-    if (guarantorIds.includes(membership.id)) {
-      throw new BadRequestException("You cannot guarantee your own loan.");
-    }
-    const guarantors = await this.prisma.groupMember.findMany({
-      where: {
-        id: { in: guarantorIds },
-        groupId,
-        status: GroupMemberStatus.ACTIVE,
-      },
-      select: { id: true },
-    });
-    if (guarantors.length !== guarantorIds.length) {
-      throw new BadRequestException("Select active guarantors from this group.");
-    }
+    return this.prisma.$transaction(
+      async (tx) => {
+        const guarantorIds = [...new Set(input.guarantorMemberIds)];
+        if (guarantorIds.length < 2) {
+          throw new BadRequestException(
+            "Select at least two different guarantors.",
+          );
+        }
+        const overview = await this.loanOverviewForMember(
+          membership,
+          groupId,
+          tx,
+        );
+        if (
+          overview.outstandingMinor > 0 ||
+          input.amountMinor > overview.borrowingPowerMinor
+        ) {
+          throw new BadRequestException(
+            "Clear overdue contributions and apply within your available borrowing limit.",
+          );
+        }
+        if (guarantorIds.includes(membership.id)) {
+          throw new BadRequestException("You cannot guarantee your own loan.");
+        }
+        const guarantors = await tx.groupMember.findMany({
+          where: {
+            id: { in: guarantorIds },
+            groupId,
+            status: GroupMemberStatus.ACTIVE,
+          },
+          select: { id: true },
+        });
+        if (guarantors.length !== guarantorIds.length) {
+          throw new BadRequestException(
+            "Select active guarantors from this group.",
+          );
+        }
 
-    const application = await this.prisma.loanApplication.create({
-      data: {
-        groupId,
-        groupMemberId: membership.id,
-        requestedByUserId: user.id,
-        amountMinor: input.amountMinor,
-        purpose: input.purpose.trim(),
-        termMonths: input.termMonths,
-        processingFeeMinor: this.processingFee(input.amountMinor),
-        guarantors: {
-          create: guarantorIds.map((groupMemberId) => ({ groupMemberId })),
-        },
+        const application = await tx.loanApplication.create({
+          data: {
+            groupId,
+            groupMemberId: membership.id,
+            requestedByUserId: user.id,
+            amountMinor: input.amountMinor,
+            currency: overview.currency,
+            purpose: input.purpose.trim(),
+            termMonths: input.termMonths,
+            processingFeeMinor: this.processingFee(input.amountMinor),
+            guarantors: {
+              create: guarantorIds.map((groupMemberId) => ({ groupMemberId })),
+            },
+          },
+          include: { member: true, guarantors: { include: { member: true } } },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action: AuditAction.LOAN_APPLICATION_SUBMITTED,
+            entityType: "LoanApplication",
+            entityId: application.id,
+            newValue: {
+              amountMinor: application.amountMinor,
+              purpose: application.purpose,
+              termMonths: application.termMonths,
+              guarantors: guarantorIds.length,
+            },
+          },
+        });
+        return this.loanApplicationSummary(application);
       },
-      include: { member: true, guarantors: { include: { member: true } } },
-    });
-    await this.prisma.auditLog.create({
-      data: {
-        actorUserId: user.id,
-        groupId,
-        action: AuditAction.LOAN_APPLICATION_SUBMITTED,
-        entityType: "LoanApplication",
-        entityId: application.id,
-        newValue: {
-          amountMinor: application.amountMinor,
-          purpose: application.purpose,
-          termMonths: application.termMonths,
-          guarantors: guarantorIds.length,
-        },
-      },
-    });
-    return this.loanApplicationSummary(application);
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async listLoanApplications(user: AuthenticatedUser, groupId: string) {
-    await this.requireMembership(user, groupId, [
-      GroupRole.GROUP_ADMIN,
-      GroupRole.TREASURER,
-    ]);
+    const membership = await this.requireMembership(user, groupId);
     const applications = await this.prisma.loanApplication.findMany({
-      where: { groupId },
+      where: {
+        groupId,
+        ...(this.canReviewLoans(membership.role)
+          ? {}
+          : { groupMemberId: membership.id }),
+      },
       include: { member: true, guarantors: { include: { member: true } } },
       orderBy: { createdAt: "desc" },
     });
-    return { groupId, applications: applications.map((item) => this.loanApplicationSummary(item)) };
+    return {
+      groupId,
+      applications: applications.map((item) =>
+        this.loanApplicationSummary(item),
+      ),
+    };
   }
 
   async loanApplication(
@@ -1382,8 +1743,15 @@ export class GroupsService {
       },
       include: { member: true, guarantors: { include: { member: true } } },
     });
-    if (!application) throw new NotFoundException("Loan application not found.");
-    return this.loanApplicationSummary(application);
+    if (!application)
+      throw new NotFoundException("Loan application not found.");
+    return {
+      ...this.loanApplicationSummary(application),
+      canReview:
+        this.canReviewLoans(membership.role) &&
+        application.groupMemberId !== membership.id &&
+        application.status === LoanApplicationStatus.SUBMITTED,
+    };
   }
 
   async approveLoanApplication(
@@ -1392,64 +1760,119 @@ export class GroupsService {
     applicationId: string,
     input: ReviewLoanApplicationDto,
   ) {
-    await this.requireMembership(user, groupId, [
-      GroupRole.GROUP_ADMIN,
-      GroupRole.TREASURER,
-    ]);
+    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const application = await this.prisma.loanApplication.findFirst({
       where: { id: applicationId, groupId },
       include: { member: true, guarantors: { include: { member: true } } },
     });
-    if (!application) throw new NotFoundException("Loan application not found.");
+    if (!application)
+      throw new NotFoundException("Loan application not found.");
+    if (
+      application.requestedByUserId === user.id ||
+      application.member.userId === user.id
+    ) {
+      throw new ForbiddenException(
+        "Another treasurer must review your loan application.",
+      );
+    }
+    if (application.member.status !== GroupMemberStatus.ACTIVE) {
+      throw new BadRequestException(
+        "The applicant must be an active group member.",
+      );
+    }
+    if (
+      application.guarantors.filter(
+        (item) =>
+          item.status === LoanGuarantorStatus.CONFIRMED &&
+          item.member.status === GroupMemberStatus.ACTIVE,
+      ).length < 2
+    ) {
+      throw new BadRequestException(
+        "At least two active guarantors must confirm before approval.",
+      );
+    }
     if (application.status !== LoanApplicationStatus.SUBMITTED) {
-      throw new BadRequestException("Only submitted applications can be approved.");
+      throw new BadRequestException(
+        "Only submitted applications can be approved.",
+      );
     }
     const amountMinor = input.approvedAmountMinor ?? application.amountMinor;
+    if (amountMinor > application.amountMinor) {
+      throw new BadRequestException(
+        "Approved amount cannot exceed the requested amount.",
+      );
+    }
     const totalPayableMinor = this.loanTotalPayable(
       amountMinor,
       application.termMonths,
       application.monthlyInterestRateBps,
-      application.processingFeeMinor,
+      this.processingFee(amountMinor),
     );
     const dueAt = this.addMonths(new Date(), application.termMonths);
-    const updated = await this.prisma.$transaction(async (tx) => {
-      const savedApplication = await tx.loanApplication.update({
-        where: { id: application.id },
-        data: {
-          status: LoanApplicationStatus.DISBURSED,
-          approvedAmountMinor: amountMinor,
-          reviewedByUserId: user.id,
-          reviewNotes: input.notes,
-          approvedAt: new Date(),
-        },
-        include: { member: true, guarantors: { include: { member: true } } },
-      });
-      await tx.groupLoan.create({
-        data: {
-          applicationId: application.id,
+    const updated = await this.prisma.$transaction(
+      async (tx) => {
+        const eligibility = await this.loanOverviewForMember(
+          application.member,
           groupId,
-          groupMemberId: application.groupMemberId,
-          amountMinor,
-          totalPayableMinor,
-          currency: application.currency,
-          purpose: application.purpose,
-          termMonths: application.termMonths,
-          monthlyInterestRateBps: application.monthlyInterestRateBps,
-          dueAt,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          actorUserId: user.id,
-          groupId,
-          action: AuditAction.LOAN_APPLICATION_APPROVED,
-          entityType: "LoanApplication",
-          entityId: application.id,
-          newValue: { amountMinor, totalPayableMinor, dueAt },
-        },
-      });
-      return savedApplication;
-    });
+          tx,
+        );
+        if (
+          eligibility.outstandingMinor > 0 ||
+          amountMinor >
+            eligibility.borrowingPowerMinor + application.amountMinor
+        ) {
+          throw new BadRequestException(
+            "Applicant no longer meets the borrowing requirements.",
+          );
+        }
+        const claimed = await tx.loanApplication.updateMany({
+          where: {
+            id: application.id,
+            status: LoanApplicationStatus.SUBMITTED,
+          },
+          data: {
+            status: LoanApplicationStatus.DISBURSED,
+            approvedAmountMinor: amountMinor,
+            processingFeeMinor: this.processingFee(amountMinor),
+            reviewedByUserId: user.id,
+            reviewNotes: input.notes,
+            approvedAt: new Date(),
+          },
+        });
+        if (claimed.count !== 1)
+          throw new ConflictException("Application has already been reviewed.");
+        const savedApplication = await tx.loanApplication.findUniqueOrThrow({
+          where: { id: application.id },
+          include: { member: true, guarantors: { include: { member: true } } },
+        });
+        await tx.groupLoan.create({
+          data: {
+            applicationId: application.id,
+            groupId,
+            groupMemberId: application.groupMemberId,
+            amountMinor,
+            totalPayableMinor,
+            currency: application.currency,
+            purpose: application.purpose,
+            termMonths: application.termMonths,
+            monthlyInterestRateBps: application.monthlyInterestRateBps,
+            dueAt,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action: AuditAction.LOAN_APPLICATION_APPROVED,
+            entityType: "LoanApplication",
+            entityId: application.id,
+            newValue: { amountMinor, totalPayableMinor, dueAt },
+          },
+        });
+        return savedApplication;
+      },
+      { isolationLevel: "Serializable" },
+    );
     return this.loanApplicationSummary(updated);
   }
 
@@ -1459,20 +1882,25 @@ export class GroupsService {
     applicationId: string,
     input: ReviewLoanApplicationDto,
   ) {
-    await this.requireMembership(user, groupId, [
-      GroupRole.GROUP_ADMIN,
-      GroupRole.TREASURER,
-    ]);
+    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const application = await this.prisma.loanApplication.findFirst({
       where: { id: applicationId, groupId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, requestedByUserId: true },
     });
-    if (!application) throw new NotFoundException("Loan application not found.");
+    if (!application)
+      throw new NotFoundException("Loan application not found.");
+    if (application.requestedByUserId === user.id) {
+      throw new ForbiddenException(
+        "Another treasurer must review your loan application.",
+      );
+    }
     if (application.status !== LoanApplicationStatus.SUBMITTED) {
-      throw new BadRequestException("Only submitted applications can be rejected.");
+      throw new BadRequestException(
+        "Only submitted applications can be rejected.",
+      );
     }
     const updated = await this.prisma.loanApplication.update({
-      where: { id: application.id },
+      where: { id: application.id, status: LoanApplicationStatus.SUBMITTED },
       data: {
         status: LoanApplicationStatus.REJECTED,
         reviewedByUserId: user.id,
@@ -1494,7 +1922,11 @@ export class GroupsService {
     return this.loanApplicationSummary(updated);
   }
 
-  async loanRepayment(user: AuthenticatedUser, groupId: string, loanId: string) {
+  async loanRepayment(
+    user: AuthenticatedUser,
+    groupId: string,
+    loanId: string,
+  ) {
     const membership = await this.requireMembership(user, groupId);
     const loan = await this.prisma.groupLoan.findFirst({
       where: {
@@ -1520,69 +1952,215 @@ export class GroupsService {
     input: RecordLoanRepaymentDto,
   ) {
     const membership = await this.requireMembership(user, groupId);
-    const loan = await this.prisma.groupLoan.findFirst({
+    return this.prisma.$transaction(
+      async (tx) => {
+        const loan = await tx.groupLoan.findFirst({
+          where: { id: loanId, groupId, groupMemberId: membership.id },
+        });
+        if (!loan) throw new NotFoundException("Loan not found.");
+        if (loan.status !== GroupLoanStatus.ACTIVE) {
+          throw new BadRequestException(
+            "Only active loans can receive repayments.",
+          );
+        }
+        const pending = await tx.loanRepayment.aggregate({
+          where: { loanId, status: LoanRepaymentStatus.SUBMITTED },
+          _sum: { amountMinor: true },
+        });
+        const available =
+          loan.totalPayableMinor -
+          loan.amountPaidMinor -
+          (pending._sum.amountMinor ?? 0);
+        if (input.amountMinor > available) {
+          throw new BadRequestException(
+            "Amount exceeds the balance remaining after pending repayments.",
+          );
+        }
+        const repayment = await tx.loanRepayment.create({
+          data: {
+            loanId,
+            groupId,
+            groupMemberId: loan.groupMemberId,
+            createdByUserId: user.id,
+            amountMinor: input.amountMinor,
+            currency: loan.currency,
+            method: input.method,
+            reference: input.reference,
+            paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+            status: LoanRepaymentStatus.SUBMITTED,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action: AuditAction.LOAN_REPAYMENT_SUBMITTED,
+            entityType: "LoanRepayment",
+            entityId: repayment.id,
+            newValue: { loanId, amountMinor: repayment.amountMinor },
+          },
+        });
+        return repayment;
+      },
+      { isolationLevel: "Serializable" },
+    );
+  }
+
+  async loanTasks(user: AuthenticatedUser, groupId: string) {
+    const membership = await this.requireMembership(user, groupId);
+    const [guarantees, repayments] = await Promise.all([
+      this.prisma.loanGuarantor.findMany({
+        where: {
+          groupMemberId: membership.id,
+          status: LoanGuarantorStatus.PENDING,
+          application: { groupId, status: LoanApplicationStatus.SUBMITTED },
+        },
+        select: {
+          id: true,
+          application: {
+            select: {
+              amountMinor: true,
+              currency: true,
+              purpose: true,
+              member: { select: { fullName: true } },
+            },
+          },
+        },
+      }),
+      membership.role === GroupRole.TREASURER
+        ? this.prisma.loanRepayment.findMany({
+            where: {
+              groupId,
+              status: LoanRepaymentStatus.SUBMITTED,
+              groupMemberId: { not: membership.id },
+            },
+            select: {
+              id: true,
+              amountMinor: true,
+              currency: true,
+              method: true,
+              reference: true,
+              member: { select: { fullName: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          })
+        : Promise.resolve([]),
+    ]);
+    return { guarantees, repayments };
+  }
+
+  async respondToGuarantee(
+    user: AuthenticatedUser,
+    groupId: string,
+    guaranteeId: string,
+    accept: boolean,
+  ) {
+    const membership = await this.requireMembership(user, groupId);
+    const updated = await this.prisma.loanGuarantor.updateMany({
       where: {
-        id: loanId,
-        groupId,
-        ...(this.canReviewLoans(membership.role)
-          ? {}
-          : { groupMemberId: membership.id }),
+        id: guaranteeId,
+        groupMemberId: membership.id,
+        status: LoanGuarantorStatus.PENDING,
+        application: { groupId, status: LoanApplicationStatus.SUBMITTED },
       },
-    });
-    if (!loan) throw new NotFoundException("Loan not found.");
-    const approveImmediately = this.canReviewLoans(membership.role);
-    const repayment = await this.prisma.loanRepayment.create({
       data: {
-        loanId,
-        groupId,
-        groupMemberId: loan.groupMemberId,
-        createdByUserId: user.id,
-        reviewedByUserId: approveImmediately ? user.id : null,
-        amountMinor: input.amountMinor,
-        currency: loan.currency,
-        method: input.method,
-        reference: input.reference,
-        paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
-        status: approveImmediately
-          ? LoanRepaymentStatus.APPROVED
-          : LoanRepaymentStatus.SUBMITTED,
-        reviewedAt: approveImmediately ? new Date() : null,
+        status: accept
+          ? LoanGuarantorStatus.CONFIRMED
+          : LoanGuarantorStatus.DECLINED,
+        confirmedAt: accept ? new Date() : null,
       },
     });
-    if (approveImmediately) {
-      const amountPaidMinor = loan.amountPaidMinor + input.amountMinor;
-      await this.prisma.groupLoan.update({
-        where: { id: loan.id },
-        data: {
-          amountPaidMinor,
-          status:
-            amountPaidMinor >= loan.totalPayableMinor
-              ? GroupLoanStatus.PAID
-              : GroupLoanStatus.ACTIVE,
-        },
-      });
-    }
-    await this.prisma.auditLog.create({
-      data: {
-        actorUserId: user.id,
-        groupId,
-        action: approveImmediately
-          ? AuditAction.LOAN_REPAYMENT_APPROVED
-          : AuditAction.LOAN_REPAYMENT_SUBMITTED,
-        entityType: "LoanRepayment",
-        entityId: repayment.id,
-        newValue: {
-          loanId,
-          amountMinor: repayment.amountMinor,
-          status: repayment.status,
-        },
+    if (updated.count !== 1)
+      throw new ConflictException(
+        "Guarantee request is unavailable or already answered.",
+      );
+    return { accepted: accept };
+  }
+
+  async reviewLoanRepayment(
+    user: AuthenticatedUser,
+    groupId: string,
+    repaymentId: string,
+    approve: boolean,
+  ) {
+    const membership = await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+    ]);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const repayment = await tx.loanRepayment.findFirst({
+          where: { id: repaymentId, groupId },
+          include: { loan: true },
+        });
+        if (!repayment) throw new NotFoundException("Repayment not found.");
+        if (
+          repayment.groupMemberId === membership.id ||
+          repayment.createdByUserId === user.id
+        ) {
+          throw new ForbiddenException(
+            "Another treasurer must verify your repayment.",
+          );
+        }
+        if (repayment.status !== LoanRepaymentStatus.SUBMITTED) {
+          throw new ConflictException("Repayment has already been reviewed.");
+        }
+        const loan = repayment.loan;
+        if (
+          approve &&
+          (loan.status !== GroupLoanStatus.ACTIVE ||
+            repayment.amountMinor >
+              loan.totalPayableMinor - loan.amountPaidMinor)
+        ) {
+          throw new BadRequestException(
+            "Repayment exceeds the active loan balance.",
+          );
+        }
+        const updated = await tx.loanRepayment.update({
+          where: { id: repaymentId, status: LoanRepaymentStatus.SUBMITTED },
+          data: {
+            status: approve
+              ? LoanRepaymentStatus.APPROVED
+              : LoanRepaymentStatus.REJECTED,
+            reviewedByUserId: user.id,
+            reviewedAt: new Date(),
+          },
+        });
+        if (approve) {
+          const amountPaidMinor = loan.amountPaidMinor + repayment.amountMinor;
+          await tx.groupLoan.update({
+            where: { id: loan.id },
+            data: {
+              amountPaidMinor,
+              status:
+                amountPaidMinor === loan.totalPayableMinor
+                  ? GroupLoanStatus.PAID
+                  : GroupLoanStatus.ACTIVE,
+            },
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action: approve
+              ? AuditAction.LOAN_REPAYMENT_APPROVED
+              : AuditAction.LOAN_REPAYMENT_REJECTED,
+            entityType: "LoanRepayment",
+            entityId: repaymentId,
+            newValue: {
+              amountMinor: repayment.amountMinor,
+              status: updated.status,
+            },
+          },
+        });
+        return updated;
       },
-    });
-    return repayment;
+      { isolationLevel: "Serializable" },
+    );
   }
 
   private canReviewLoans(role: GroupRole): boolean {
-    return role === GroupRole.GROUP_ADMIN || role === GroupRole.TREASURER;
+    return role === GroupRole.TREASURER;
   }
 
   private processingFee(amountMinor: number): number {
@@ -1886,10 +2464,7 @@ export class GroupsService {
       ContributionFrequency.QUARTERLY,
       ContributionFrequency.ANNUAL,
     ];
-    if (
-      monthlyLikeFrequencies.includes(frequency) &&
-      !dueDayOfMonth
-    ) {
+    if (monthlyLikeFrequencies.includes(frequency) && !dueDayOfMonth) {
       throw new BadRequestException(
         "Monthly, quarterly, and annual contributions require a due day.",
       );
@@ -1939,16 +2514,52 @@ export class GroupsService {
   private async generateContributionSchedule(
     groupId: string,
     memberId?: string,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    const financialYear = await this.prisma.financialYear.findFirst({
+    let financialYear = await db.financialYear.findFirst({
       where: { groupId, isActive: true },
-      select: { id: true, name: true, startsAt: true, endsAt: true },
+      select: {
+        id: true,
+        name: true,
+        startsAt: true,
+        endsAt: true,
+        automaticRollover: true,
+      },
     });
     if (!financialYear) return;
+    if (financialYear.automaticRollover && financialYear.endsAt < new Date()) {
+      let startsAt = this.addDays(this.startOfDay(financialYear.endsAt), 1);
+      let endsAt = this.addDays(this.addMonths(startsAt, 12), -1);
+      while (endsAt < this.startOfDay(new Date())) {
+        startsAt = this.addDays(endsAt, 1);
+        endsAt = this.addDays(this.addMonths(startsAt, 12), -1);
+      }
+      const nextYear = await db.financialYear.upsert({
+        where: { groupId_startsAt_endsAt: { groupId, startsAt, endsAt } },
+        update: { isActive: true },
+        create: {
+          groupId,
+          name: `${startsAt.toISOString().slice(0, 10)} - ${endsAt.toISOString().slice(0, 10)}`,
+          startsAt,
+          endsAt,
+          isActive: true,
+          automaticRollover: true,
+        },
+      });
+      await db.financialYear.updateMany({
+        where: { groupId, id: { not: nextYear.id }, isActive: true },
+        data: { isActive: false },
+      });
+      financialYear = nextYear;
+    }
 
     const [plans, members] = await Promise.all([
-      this.prisma.contributionPlan.findMany({
-        where: { groupId, isActive: true },
+      db.contributionPlan.findMany({
+        where: {
+          groupId,
+          isActive: true,
+          type: { not: ContributionPlanType.PENALTY },
+        },
         select: {
           id: true,
           name: true,
@@ -1958,68 +2569,99 @@ export class GroupsService {
           dueDayOfMonth: true,
           amountMinor: true,
           currency: true,
+          cycleAnchorDate: true,
         },
       }),
-      this.prisma.groupMember.findMany({
+      db.groupMember.findMany({
         where: {
           groupId,
           status: GroupMemberStatus.ACTIVE,
           ...(memberId ? { id: memberId } : {}),
         },
-        select: { id: true },
+        select: { id: true, joinedAt: true },
       }),
     ]);
+    await db.memberContributionObligation.updateMany({
+      where: {
+        member: { groupId },
+        plan: { isActive: false },
+        amountPaidMinor: 0,
+        dueAt: { gt: new Date() },
+        allocations: { none: {} },
+      },
+      data: { status: ContributionObligationStatus.WAIVED },
+    });
     if (!plans.length || !members.length) return;
 
     for (const plan of plans) {
+      await db.memberContributionObligation.updateMany({
+        where: {
+          planId: plan.id,
+          amountPaidMinor: 0,
+          dueAt: { gt: new Date() },
+          allocations: { none: {} },
+          status: ContributionObligationStatus.DUE,
+        },
+        data: {
+          amountDueMinor: plan.amountMinor,
+          currency: plan.currency,
+          ...(plan.amountMinor === 0
+            ? { status: ContributionObligationStatus.WAIVED }
+            : {}),
+        },
+      });
       if (plan.amountMinor <= 0) continue;
       const periods = await this.ensureContributionPeriods(
         groupId,
         financialYear,
         plan,
+        db,
       );
       for (const member of members) {
+        const joinedAt = member.joinedAt
+          ? this.startOfDay(member.joinedAt)
+          : financialYear.startsAt;
         await Promise.all(
-          periods.map((period) =>
-            this.prisma.memberContributionObligation.upsert({
-              where: {
-                groupMemberId_planId_periodId: {
+          periods
+            .filter((period) => period.endsAt >= joinedAt)
+            .map((period) =>
+              db.memberContributionObligation.upsert({
+                where: {
+                  groupMemberId_planId_periodId: {
+                    groupMemberId: member.id,
+                    planId: plan.id,
+                    periodId: period.id,
+                  },
+                },
+                update: {},
+                create: {
                   groupMemberId: member.id,
                   planId: plan.id,
                   periodId: period.id,
+                  amountDueMinor: plan.amountMinor,
+                  currency: plan.currency,
+                  dueAt: period.dueAt < joinedAt ? joinedAt : period.dueAt,
+                  status: ContributionObligationStatus.DUE,
                 },
-              },
-              update: {
-                amountDueMinor: plan.amountMinor,
-                currency: plan.currency,
-                dueAt: period.dueAt,
-              },
-              create: {
-                groupMemberId: member.id,
-                planId: plan.id,
-                periodId: period.id,
-                amountDueMinor: plan.amountMinor,
-                currency: plan.currency,
-                dueAt: period.dueAt,
-                status: ContributionObligationStatus.DUE,
-              },
-            }),
-          ),
+              }),
+            ),
         );
       }
     }
+    await this.applyLatePenalties(groupId, db);
   }
 
   private async ensureContributionPeriods(
     groupId: string,
     financialYear: ScheduleFinancialYear,
     plan: ScheduleContributionPlan,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
     const specs = this.contributionPeriodSpecs(financialYear, plan);
     const periods = [];
     for (const spec of specs) {
       periods.push(
-        await this.prisma.contributionPeriod.upsert({
+        await db.contributionPeriod.upsert({
           where: {
             groupId_planId_startsAt: {
               groupId,
@@ -2066,17 +2708,27 @@ export class GroupsService {
           label: `${financialYear.name} ${plan.name}`,
           startsAt,
           endsAt,
-          dueAt: startsAt,
+          dueAt:
+            plan.type === ContributionPlanType.JOINING_FEE
+              ? startsAt
+              : this.periodDueDate(plan, startsAt, endsAt),
           sortOrder: 0,
         },
       ];
     }
 
     const specs: ContributionPeriodSpec[] = [];
-    let cursor = startsAt;
+    let cursor = plan.cycleAnchorDate
+      ? this.startOfDay(plan.cycleAnchorDate)
+      : startsAt;
+    while (cursor < startsAt) {
+      const next = this.nextPeriodStart(cursor, plan.frequency);
+      if (next > startsAt) break;
+      cursor = next;
+    }
     let sortOrder = 0;
     while (cursor <= endsAt && specs.length < 370) {
-      const periodStart = cursor;
+      const periodStart = cursor < startsAt ? startsAt : cursor;
       const nextStart = this.nextPeriodStart(cursor, plan.frequency);
       const periodEnd = this.minDate(this.addDays(nextStart, -1), endsAt);
       specs.push({
@@ -2099,8 +2751,9 @@ export class GroupsService {
     amountMinor: number,
     obligationIds?: string[],
     applyImmediately = true,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    const existingAllocations = await this.prisma.paymentAllocation.findMany({
+    const existingAllocations = await db.paymentAllocation.findMany({
       where: { paymentId },
       include: { obligation: true },
     });
@@ -2110,12 +2763,12 @@ export class GroupsService {
         (allocation) => allocation.status === PaymentAllocationStatus.PENDING,
       );
       if (!pendingAllocations.length) return;
-      await this.applyPendingPaymentAllocations(pendingAllocations);
+      await this.applyPendingPaymentAllocations(pendingAllocations, db);
       return;
     }
 
     const requestedIds = [...new Set(obligationIds ?? [])].filter(Boolean);
-    const obligations = await this.prisma.memberContributionObligation.findMany({
+    const obligations = await db.memberContributionObligation.findMany({
       where: {
         ...(requestedIds.length ? { id: { in: requestedIds } } : {}),
         groupMemberId: memberId,
@@ -2128,20 +2781,49 @@ export class GroupsService {
           ],
         },
       },
+      include: {
+        plan: true,
+        allocations: {
+          where: {
+            status: PaymentAllocationStatus.PENDING,
+            payment: {
+              status: {
+                in: [
+                  GroupContributionPaymentStatus.PENDING_VERIFICATION,
+                  GroupContributionPaymentStatus.SUBMITTED,
+                ],
+              },
+            },
+          },
+        },
+      },
       orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }],
     });
 
     if (requestedIds.length && obligations.length !== requestedIds.length) {
-      throw new BadRequestException("Some selected contributions are not payable.");
+      throw new BadRequestException(
+        "Some selected contributions are not payable.",
+      );
     }
 
+    const reserved = (obligation: (typeof obligations)[number]) =>
+      obligation.allocations.reduce(
+        (total, allocation) => total + allocation.amountMinor,
+        0,
+      );
     const payableObligations = obligations.filter(
       (obligation) =>
-        obligation.amountDueMinor - obligation.amountPaidMinor > 0,
+        obligation.amountDueMinor -
+          obligation.amountPaidMinor -
+          reserved(obligation) >
+        0,
     );
     const totalOutstanding = payableObligations.reduce(
       (total, obligation) =>
-        total + (obligation.amountDueMinor - obligation.amountPaidMinor),
+        total +
+        (obligation.amountDueMinor -
+          obligation.amountPaidMinor -
+          reserved(obligation)),
       0,
     );
     if (!payableObligations.length || amountMinor > totalOutstanding) {
@@ -2155,11 +2837,18 @@ export class GroupsService {
     for (const obligation of payableObligations) {
       if (remaining <= 0) break;
       const outstanding =
-        obligation.amountDueMinor - obligation.amountPaidMinor;
+        obligation.amountDueMinor -
+        obligation.amountPaidMinor -
+        reserved(obligation);
       const allocated = Math.min(outstanding, remaining);
+      if (!obligation.plan.allowsPartial && allocated < outstanding) {
+        throw new BadRequestException(
+          "This contribution must be paid in full.",
+        );
+      }
       const amountPaidMinor = obligation.amountPaidMinor + allocated;
       operations.push(
-        this.prisma.paymentAllocation.create({
+        db.paymentAllocation.create({
           data: {
             paymentId,
             planId: obligation.planId,
@@ -2174,7 +2863,7 @@ export class GroupsService {
       );
       if (applyImmediately) {
         operations.push(
-          this.prisma.memberContributionObligation.update({
+          db.memberContributionObligation.update({
             where: { id: obligation.id },
             data: {
               amountPaidMinor,
@@ -2194,7 +2883,7 @@ export class GroupsService {
         "Payment amount must match outstanding contributions.",
       );
     }
-    await this.prisma.$transaction(operations);
+    await Promise.all(operations);
   }
 
   private async applyPendingPaymentAllocations(
@@ -2207,25 +2896,31 @@ export class GroupsService {
         amountPaidMinor: number;
       } | null;
     }>,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
     const operations = [];
     for (const allocation of allocations) {
       const obligation = allocation.obligation;
       if (!obligation) {
-        throw new BadRequestException("Payment allocation is missing an obligation.");
+        throw new BadRequestException(
+          "Payment allocation is missing an obligation.",
+        );
       }
-      const amountPaidMinor = obligation.amountPaidMinor + allocation.amountMinor;
+      const amountPaidMinor =
+        obligation.amountPaidMinor + allocation.amountMinor;
       if (amountPaidMinor > obligation.amountDueMinor) {
-        throw new BadRequestException("Payment exceeds outstanding contribution.");
+        throw new BadRequestException(
+          "Payment exceeds outstanding contribution.",
+        );
       }
       operations.push(
-        this.prisma.paymentAllocation.update({
+        db.paymentAllocation.update({
           where: { id: allocation.id },
           data: { status: PaymentAllocationStatus.APPLIED },
         }),
       );
       operations.push(
-        this.prisma.memberContributionObligation.update({
+        db.memberContributionObligation.update({
           where: { id: obligation.id },
           data: {
             amountPaidMinor,
@@ -2237,7 +2932,7 @@ export class GroupsService {
         }),
       );
     }
-    await this.prisma.$transaction(operations);
+    await Promise.all(operations);
   }
 
   private obligationStatus(
@@ -2253,10 +2948,7 @@ export class GroupsService {
     return ContributionObligationStatus.DUE;
   }
 
-  private nextPeriodStart(
-    date: Date,
-    frequency: ContributionFrequency,
-  ): Date {
+  private nextPeriodStart(date: Date, frequency: ContributionFrequency): Date {
     if (frequency === ContributionFrequency.DAILY) {
       return this.addDays(date, 1);
     }
@@ -2391,8 +3083,9 @@ export class GroupsService {
   private async createReceiptForPayment(
     groupId: string,
     paymentId: string,
+    db: Prisma.TransactionClient = this.prisma,
   ): Promise<void> {
-    const existing = await this.prisma.receipt.findUnique({
+    const existing = await db.receipt.findUnique({
       where: { paymentId },
       select: { id: true },
     });
@@ -2403,7 +3096,7 @@ export class GroupsService {
       .update(`${groupId}:${paymentId}:${receiptNumber}`)
       .digest("hex");
 
-    await this.prisma.receipt.create({
+    await db.receipt.create({
       data: {
         groupId,
         paymentId,
@@ -2412,7 +3105,7 @@ export class GroupsService {
         verificationHash,
       },
     });
-    await this.prisma.auditLog.create({
+    await db.auditLog.create({
       data: {
         groupId,
         action: AuditAction.RECEIPT_CREATED,
@@ -2436,8 +3129,9 @@ export class GroupsService {
     paymentId: string,
     action: AuditAction,
     reason?: string,
+    db: Prisma.TransactionClient = this.prisma,
   ) {
-    return this.prisma.auditLog.create({
+    return db.auditLog.create({
       data: {
         actorUserId: user.id,
         groupId,
@@ -2490,16 +3184,29 @@ export class GroupsService {
     member: GroupMember,
     role: GroupRole,
     joinedAt: Date,
+    tx: Prisma.TransactionClient,
   ) {
-    if (member.status === GroupMemberStatus.ACTIVE) {
+    if (member.status !== GroupMemberStatus.INVITED) {
       throw new ConflictException("This invitation has already been accepted.");
     }
     if (member.userId && member.userId !== user.id) {
       throw new ConflictException("This invitation belongs to another user.");
     }
 
-    const fullName = member.fullName.trim() || (await this.displayName(user.id));
-    return this.prisma.groupMember.update({
+    const identities = await tx.userIdentity.findMany({
+      where: { userId: user.id, isVerified: true },
+      select: { value: true },
+    });
+    const destinations = [member.email?.trim().toLowerCase(), member.phone];
+    if (!identities.some((identity) => destinations.includes(identity.value))) {
+      throw new ForbiddenException(
+        "Sign in with the verified email or phone number that received this invitation.",
+      );
+    }
+
+    const fullName =
+      member.fullName.trim() || (await this.displayName(user.id));
+    return tx.groupMember.update({
       where: { id: member.id },
       data: {
         userId: user.id,
@@ -2513,7 +3220,13 @@ export class GroupsService {
 
   private async deliverMemberInvitation(input: {
     groupName: string;
+    groupCode: string | null;
+    groupType: string | null;
+    currency: string;
     memberName: string;
+    memberRole: string;
+    inviterName: string;
+    inviterRole: string;
     phone: string | null;
     email: string | null;
     invitationCode: string;
@@ -2542,7 +3255,10 @@ export class GroupsService {
 
     if (input.email) {
       try {
-        const message = groupInvitationEmailTemplate(input);
+        const message = groupInvitationEmailTemplate({
+          ...input,
+          recipientEmail: input.email,
+        });
         const result = await this.email.sendEmail({
           to: input.email,
           subject: message.subject,

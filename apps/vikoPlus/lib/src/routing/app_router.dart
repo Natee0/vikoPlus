@@ -34,6 +34,7 @@ import '../features/member_management/invite_members_screen.dart';
 import '../features/member_management/member_list_screen.dart';
 import '../features/member_management/member_profile_screen.dart';
 import '../features/loans/loan_screens.dart';
+import '../features/loans/loan_tasks_screen.dart';
 import '../features/more/more_menu_screen.dart';
 import '../features/more/stitch_screen_catalog_screen.dart';
 import '../features/notifications/notifications_screen.dart';
@@ -48,6 +49,10 @@ import '../features/reports/outstanding_report_screen.dart';
 import '../features/reports/report_filters_screen.dart';
 import '../features/reports/reports_dashboard_screen.dart';
 import '../features/settings/settings_screens.dart';
+import '../features/settings/payment_rules_screen.dart';
+import 'portal_route_guard.dart';
+import '../features/dashboard/staff_portal_screen.dart';
+import '../features/dashboard/treasurer_dashboard_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -125,70 +130,101 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/groups/financial-year',
-      builder: (context, state) => ConfigureFinancialYearScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ConfigureFinancialYearScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/financial-year/start',
-      builder: (context, state) => ConfigureFinancialYearScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ConfigureFinancialYearScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/financial-year/review',
-      builder: (context, state) => ConfigureFinancialYearScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ConfigureFinancialYearScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/contributions',
-      builder: (context, state) => ConfigureContributionsScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ConfigureContributionsScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/history',
-      builder: (context, state) => HistoricalRecordsScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.records,
+        child: HistoricalRecordsScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/reminders',
-      builder: (context, state) => ConfigureRemindersScreen(
-        groupId: state.uri.queryParameters['groupId'],
-        returnTo: state.uri.queryParameters['returnTo'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ConfigureRemindersScreen(
+          groupId: state.uri.queryParameters['groupId'],
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(
       path: '/groups/onboarding-success',
-      builder: (context, state) => OnboardingSuccessScreen(
-        groupId: state.uri.queryParameters['groupId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.admin,
+        child: OnboardingSuccessScreen(
+          groupId: state.uri.queryParameters['groupId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/billing/plans',
-      builder: (context, state) => const SubscriptionPlanScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: SubscriptionPlanScreen(),
+      ),
     ),
     GoRoute(
       path: '/billing',
-      builder: (context, state) => const BillingOverviewScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: BillingOverviewScreen(),
+      ),
     ),
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          AdminTabShellScreen(navigationShell: navigationShell),
+      builder: (context, state, navigationShell) => PortalRouteGuard(
+        area: PortalArea.staff,
+        child: AdminTabShellScreen(navigationShell: navigationShell),
+      ),
       branches: [
         StatefulShellBranch(
           routes: [
             GoRoute(
               path: '/dashboard',
-              builder: (context, state) =>
-                  const AdminDashboardScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.admin,
+                child: AdminDashboardScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -196,8 +232,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/members',
-              builder: (context, state) =>
-                  const MemberListScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.staff,
+                child: MemberListScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -205,8 +243,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/contributions',
-              builder: (context, state) =>
-                  const ContributionRegisterScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.staff,
+                child: ContributionRegisterScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -214,8 +254,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/reports',
-              builder: (context, state) =>
-                  const ReportsDashboardScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.staff,
+                child: ReportsDashboardScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -223,8 +265,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/more',
-              builder: (context, state) =>
-                  const MoreMenuScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.admin,
+                child: MoreMenuScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -232,18 +276,47 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/dashboard/empty',
-      builder: (context, state) => const DashboardEmptyStateScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: DashboardEmptyStateScreen(),
+      ),
     ),
+    for (final role in ['treasurer', 'secretary']) ...[
+      GoRoute(
+        path: '/$role/dashboard',
+        builder: (context, state) => PortalRouteGuard(
+          area: role == 'treasurer'
+              ? PortalArea.treasurer
+              : PortalArea.secretary,
+          child: role == 'treasurer'
+              ? const TreasurerDashboardScreen()
+              : const StaffPortalScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/$role/more',
+        builder: (context, state) => PortalRouteGuard(
+          area: role == 'treasurer'
+              ? PortalArea.treasurer
+              : PortalArea.secretary,
+          child: const MoreMenuScreen(),
+        ),
+      ),
+    ],
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) =>
-          MemberTabShellScreen(navigationShell: navigationShell),
+      builder: (context, state, navigationShell) => PortalRouteGuard(
+        area: PortalArea.member,
+        child: MemberTabShellScreen(navigationShell: navigationShell),
+      ),
       branches: [
         StatefulShellBranch(
           routes: [
             GoRoute(
               path: '/member/dashboard',
-              builder: (context, state) =>
-                  const MemberDashboardScreen(showBottomNavigation: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.member,
+                child: MemberDashboardScreen(showBottomNavigation: false),
+              ),
             ),
           ],
         ),
@@ -251,8 +324,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/member/contributions',
-              builder: (context, state) =>
-                  const MyContributionsScreen(showBackButton: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.member,
+                child: MyContributionsScreen(showBackButton: false),
+              ),
             ),
           ],
         ),
@@ -260,8 +335,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/member/payments/select',
-              builder: (context, state) =>
-                  const SelectContributionScreen(showBackButton: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.member,
+                child: SelectContributionScreen(showBackButton: false),
+              ),
             ),
           ],
         ),
@@ -269,8 +346,10 @@ final appRouter = GoRouter(
           routes: [
             GoRoute(
               path: '/member/profile',
-              builder: (context, state) =>
-                  const MyProfileScreen(showBackButton: false),
+              builder: (context, state) => const PortalRouteGuard(
+                area: PortalArea.member,
+                child: MyProfileScreen(showBackButton: false),
+              ),
             ),
           ],
         ),
@@ -278,15 +357,31 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/member/dashboard/new',
-      builder: (context, state) => const MemberDashboardNewUserScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: MemberDashboardNewUserScreen(),
+      ),
     ),
     GoRoute(
       path: '/member/dues',
-      builder: (context, state) => const DuesArrearsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: DuesArrearsScreen(),
+      ),
     ),
     GoRoute(
       path: '/loans',
-      builder: (context, state) => const LoansOverviewScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: LoansOverviewScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/loans/tasks',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: LoanTasksScreen(),
+      ),
     ),
     GoRoute(
       path: '/loans/apply',
@@ -294,183 +389,286 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/loans/repayment',
-      builder: (context, state) => LoanRepaymentScreen(
-        loanId: state.uri.queryParameters['loanId'],
-      ),
+      builder: (context, state) =>
+          LoanRepaymentScreen(loanId: state.uri.queryParameters['loanId']),
     ),
     GoRoute(
       path: '/loans/applications',
-      builder: (context, state) => const LoanApplicationsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: LoanApplicationsScreen(),
+      ),
     ),
     GoRoute(
       path: '/loans/applications/:id',
-      builder: (context, state) => LoanApplicationReviewScreen(
-        applicationId: state.pathParameters['id'] ?? '',
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.group,
+        child: LoanApplicationReviewScreen(
+          applicationId: state.pathParameters['id'] ?? '',
+        ),
       ),
     ),
     GoRoute(
       path: '/member/payments/method',
-      builder: (context, state) => const PaymentMethodScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: PaymentMethodScreen(),
+      ),
     ),
     GoRoute(
       path: '/member/payments/review',
-      builder: (context, state) => const ReviewPaymentScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: ReviewPaymentScreen(),
+      ),
     ),
     GoRoute(
       path: '/member/payments/review/mobile-money',
-      builder: (context, state) =>
-          const ReviewPaymentScreen(method: 'Mobile money'),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: ReviewPaymentScreen(method: 'Mobile money'),
+      ),
     ),
     GoRoute(
       path: '/member/payments/review/cash',
-      builder: (context, state) =>
-          const ReviewPaymentScreen(method: 'Cash to treasurer'),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: ReviewPaymentScreen(method: 'Cash to treasurer'),
+      ),
     ),
     GoRoute(
       path: '/member/payments/success',
-      builder: (context, state) => PaymentSuccessfulScreen(
-        paymentId: state.uri.queryParameters['paymentId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.member,
+        child: PaymentSuccessfulScreen(
+          paymentId: state.uri.queryParameters['paymentId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/member/payments/success/mobile-money',
-      builder: (context, state) => PaymentSuccessfulScreen(
-        method: 'Mobile money',
-        paymentId: state.uri.queryParameters['paymentId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.member,
+        child: PaymentSuccessfulScreen(
+          method: 'Mobile money',
+          paymentId: state.uri.queryParameters['paymentId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/member/payments/success/cash',
-      builder: (context, state) => PaymentSuccessfulScreen(
-        method: 'Cash to treasurer',
-        paymentId: state.uri.queryParameters['paymentId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.member,
+        child: PaymentSuccessfulScreen(
+          method: 'Cash to treasurer',
+          paymentId: state.uri.queryParameters['paymentId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/member/receipts/:id',
-      builder: (context, state) => DigitalReceiptScreen(
-        receiptId: state.pathParameters['id'],
-        backRoute: '/member/payments/success',
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.member,
+        child: DigitalReceiptScreen(
+          receiptId: state.pathParameters['id'],
+          backRoute: '/member/payments/success',
+        ),
       ),
     ),
     GoRoute(
       path: '/members/invite',
-      builder: (context, state) => const InviteMembersScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: InviteMembersScreen(),
+      ),
     ),
     GoRoute(
       path: '/members/add',
-      builder: (context, state) => const AddMemberScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: AddMemberScreen(),
+      ),
     ),
     GoRoute(
       path: '/members/:id/fully-paid',
       builder: (context, state) {
-        return MemberProfileScreen(memberId: state.pathParameters['id']);
+        return PortalRouteGuard(
+          area: PortalArea.staff,
+          child: MemberProfileScreen(memberId: state.pathParameters['id']),
+        );
       },
     ),
     GoRoute(
       path: '/members/:id/outstanding',
       builder: (context, state) {
-        return MemberProfileScreen(memberId: state.pathParameters['id']);
+        return PortalRouteGuard(
+          area: PortalArea.staff,
+          child: MemberProfileScreen(memberId: state.pathParameters['id']),
+        );
       },
     ),
     GoRoute(
       path: '/members/:id',
       builder: (context, state) {
-        return MemberProfileScreen(memberId: state.pathParameters['id']);
+        return PortalRouteGuard(
+          area: PortalArea.staff,
+          child: MemberProfileScreen(memberId: state.pathParameters['id']),
+        );
       },
     ),
     GoRoute(
       path: '/contributions/record',
-      builder: (context, state) => const RecordPaymentSelectMemberScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.treasurer,
+        child: RecordPaymentSelectMemberScreen(),
+      ),
     ),
     GoRoute(
       path: '/contributions/record/select-member',
-      builder: (context, state) => const RecordPaymentSelectMemberScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.treasurer,
+        child: RecordPaymentSelectMemberScreen(),
+      ),
     ),
     GoRoute(
       path: '/contributions/record/details',
-      builder: (context, state) => RecordPaymentScreen(
-        memberId: state.uri.queryParameters['memberId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.treasurer,
+        child: RecordPaymentScreen(
+          memberId: state.uri.queryParameters['memberId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/contributions/receipt',
-      builder: (context, state) => const DigitalReceiptScreen(
-        backRoute: '/contributions',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: DigitalReceiptScreen(backRoute: '/contributions'),
       ),
     ),
     GoRoute(
       path: '/contributions/receipt/:id',
-      builder: (context, state) => DigitalReceiptScreen(
-        receiptId: state.pathParameters['id'],
-        backRoute: '/contributions',
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.staff,
+        child: DigitalReceiptScreen(
+          receiptId: state.pathParameters['id'],
+          backRoute: '/contributions',
+        ),
       ),
     ),
     GoRoute(
       path: '/reports/outstanding',
-      builder: (context, state) => const OutstandingReportScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: OutstandingReportScreen(),
+      ),
     ),
     GoRoute(
       path: '/reports/member-analysis',
-      builder: (context, state) => const MemberAnalysisScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: MemberAnalysisScreen(),
+      ),
     ),
     GoRoute(
       path: '/reports/filters',
-      builder: (context, state) => const ReportFiltersScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: ReportFiltersScreen(),
+      ),
     ),
     GoRoute(
       path: '/reminders',
-      builder: (context, state) => const ReminderCentreScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: ReminderCentreScreen(),
+      ),
     ),
     GoRoute(
       path: '/reminders/new',
-      builder: (context, state) => SendNewReminderScreen(
-        memberId: state.uri.queryParameters['memberId'],
+      builder: (context, state) => PortalRouteGuard(
+        area: PortalArea.staff,
+        child: SendNewReminderScreen(
+          memberId: state.uri.queryParameters['memberId'],
+        ),
       ),
     ),
     GoRoute(
       path: '/reminders/templates',
-      builder: (context, state) => const MessageTemplatesScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: MessageTemplatesScreen(),
+      ),
     ),
     GoRoute(
       path: '/reminders/campaigns/:id',
-      builder: (context, state) => const CampaignDetailsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.staff,
+        child: CampaignDetailsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/admin',
-      builder: (context, state) => const AdminSettingsDashboardScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: AdminSettingsDashboardScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/app',
-      builder: (context, state) => const AppSettingsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: AppSettingsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/security',
-      builder: (context, state) => const SecuritySettingsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: SecuritySettingsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/security/pin',
-      builder: (context, state) => const ChangeSecurityPinScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: ChangeSecurityPinScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/notifications',
-      builder: (context, state) => const NotificationPreferencesScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: NotificationPreferencesScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/roles',
-      builder: (context, state) => const MemberRolesPermissionsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: MemberRolesPermissionsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/audit',
-      builder: (context, state) => const AuditLogsScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: AuditLogsScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/currency-fees',
-      builder: (context, state) => const CurrencyFeesScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: CurrencyFeesScreen(),
+      ),
     ),
     GoRoute(
       path: '/settings/contribution-penalties',
-      builder: (context, state) => const ContributionPenaltiesScreen(),
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: ContributionPenaltiesScreen(),
+      ),
     ),
     GoRoute(
       path: '/notifications',

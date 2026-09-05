@@ -2,6 +2,8 @@ import {
   ArrayMinSize,
   ArrayMaxSize,
   IsArray,
+  IsBoolean,
+  ArrayUnique,
   IsDateString,
   IsEmail,
   IsIn,
@@ -73,6 +75,9 @@ export class JoinGroupDto {
 }
 
 export class FinancialYearDto {
+  @IsOptional()
+  @IsBoolean()
+  automaticRollover?: boolean;
   @IsString()
   @IsNotEmpty()
   @Length(2, 100)
@@ -101,16 +106,13 @@ export class ContributionSettingsDto {
 
   @IsOptional()
   @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
-  membershipFeeFrequency?: "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
+  membershipFeeFrequency?:
+    "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
 
   @IsOptional()
   @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
   memberContributionFrequency?:
-    | "DAILY"
-    | "WEEKLY"
-    | "MONTHLY"
-    | "QUARTERLY"
-    | "ANNUAL";
+    "DAILY" | "WEEKLY" | "MONTHLY" | "QUARTERLY" | "ANNUAL";
 
   @IsOptional()
   @IsIn(["DAILY", "WEEKLY", "MONTHLY", "QUARTERLY", "ANNUAL"])
@@ -169,9 +171,38 @@ export class ContributionSettingsDto {
 
 export class ReminderSettingsDto {
   @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @ArrayMaxSize(3)
+  @IsIn([-3, 0, 3], { each: true })
+  offsets?: number[];
+
+  @IsOptional()
+  @IsIn(["en", "sw"])
+  locale?: "en" | "sw";
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   dueReminderTemplate?: string;
+}
+
+export class PaymentRulesDto {
+  @IsBoolean()
+  allowsPartial!: boolean;
+  @IsBoolean()
+  penaltiesEnabled!: boolean;
+  @IsInt()
+  @Min(0)
+  @Max(2147483647)
+  penaltyAmountMinor!: number;
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  graceDays!: number;
 }
 
 export class AddMemberDto {
@@ -385,6 +416,7 @@ export class CreateLoanApplicationDto {
 
   @IsArray()
   @ArrayMinSize(2)
+  @ArrayUnique()
   @ArrayMaxSize(10)
   @IsString({ each: true })
   guarantorMemberIds!: string[];
@@ -405,6 +437,11 @@ export class ReviewLoanApplicationDto {
   @IsString()
   @MaxLength(300)
   reason?: string;
+}
+
+export class LoanDecisionDto {
+  @IsBoolean()
+  approve!: boolean;
 }
 
 export class RecordLoanRepaymentDto {

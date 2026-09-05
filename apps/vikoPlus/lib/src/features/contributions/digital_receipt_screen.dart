@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -23,10 +24,11 @@ class DigitalReceiptScreen extends ConsumerWidget {
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final id = receiptId;
+    final fallbackRoute = backRoute ?? portalHomeRoute(activeGroup);
 
     return VikoplusScreen(
       title: 'Digital Receipt',
-      backRoute: backRoute ?? '/member/payments/success',
+      backRoute: fallbackRoute,
       actions: [
         IconButton(
           onPressed: () {},
@@ -34,7 +36,7 @@ class DigitalReceiptScreen extends ConsumerWidget {
           tooltip: 'More options',
         ),
       ],
-      child: _body(context, ref, formatters, activeGroup, id),
+      child: _body(context, ref, formatters, activeGroup, id, fallbackRoute),
     );
   }
 
@@ -44,13 +46,14 @@ class DigitalReceiptScreen extends ConsumerWidget {
     AppFormatters formatters,
     GroupAccessSummary? activeGroup,
     String? id,
+    String fallbackRoute,
   ) {
     if (id == null || id == 'latest') {
-      return _ReceiptUnavailable(backRoute: backRoute);
+      return _ReceiptUnavailable(backRoute: fallbackRoute);
     }
     if (activeGroup == null) {
       return _ReceiptUnavailable(
-        backRoute: backRoute,
+        backRoute: fallbackRoute,
         title: 'Select a group',
         message: 'Open a group before viewing receipts.',
       );
@@ -77,7 +80,7 @@ class DigitalReceiptScreen extends ConsumerWidget {
               ),
               const SizedBox(height: AppSpacing.md),
               FilledButton(
-                onPressed: () => context.go(backRoute ?? '/dashboard'),
+                onPressed: () => context.go(fallbackRoute),
                 child: const Text('Go Back'),
               ),
             ],
@@ -88,6 +91,7 @@ class DigitalReceiptScreen extends ConsumerWidget {
           receipt: snapshot.data!,
           groupName: activeGroup.name,
           formatters: formatters,
+          returnRoute: fallbackRoute,
         );
       },
     );
@@ -102,7 +106,7 @@ class _ReceiptUnavailable extends StatelessWidget {
         'A receipt will be created after the treasurer approves this payment.',
   });
 
-  final String? backRoute;
+  final String backRoute;
   final String title;
   final String message;
 
@@ -113,7 +117,7 @@ class _ReceiptUnavailable extends StatelessWidget {
       title: title,
       message: message,
       actionLabel: 'Go Back',
-      onAction: () => context.go(backRoute ?? '/dashboard'),
+      onAction: () => context.go(backRoute),
     );
   }
 }
@@ -123,11 +127,13 @@ class _ReceiptContent extends StatelessWidget {
     required this.receipt,
     required this.groupName,
     required this.formatters,
+    required this.returnRoute,
   });
 
   final ReceiptSummary receipt;
   final String groupName;
   final AppFormatters formatters;
+  final String returnRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -139,6 +145,7 @@ class _ReceiptContent extends StatelessWidget {
 
     return _ReceiptLayout(
       amount: amount,
+      returnRoute: returnRoute,
       lines: [
         ('Reference No', receipt.receiptNumber),
         ('Date & Time', formatters.date(receipt.issuedAt)),
@@ -154,9 +161,14 @@ class _ReceiptContent extends StatelessWidget {
 }
 
 class _ReceiptLayout extends StatelessWidget {
-  const _ReceiptLayout({required this.amount, required this.lines});
+  const _ReceiptLayout({
+    required this.amount,
+    required this.returnRoute,
+    required this.lines,
+  });
 
   final String amount;
+  final String returnRoute;
   final List<(String, String)> lines;
 
   @override
@@ -181,7 +193,7 @@ class _ReceiptLayout extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         TextButton(
-          onPressed: () => context.go('/dashboard'),
+          onPressed: () => context.go(returnRoute),
           child: const Text('Return to Dashboard'),
         ),
         const SizedBox(height: AppSpacing.md),

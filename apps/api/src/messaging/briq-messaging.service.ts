@@ -21,6 +21,7 @@ export class BriqMessagingService {
     const senderId = this.config.getOrThrow<string>("BRIQ_SENDER_ID");
     const response = await fetch(`${baseUrl}/v1/message/send-instant`, {
       method: "POST",
+      signal: AbortSignal.timeout(20000),
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",

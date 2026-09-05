@@ -4,6 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../core/locale/locale_controller.dart';
+import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_session.dart';
+import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_screen.dart';
@@ -19,7 +23,7 @@ class LanguageScreen extends ConsumerWidget {
 
     return VikoplusScreen(
       title: loc.selectLanguage,
-      backRoute: '/welcome',
+      backRoute: ref.watch(authSessionProvider).isAuthenticated ? portalHomeRoute(ref.watch(activeGroupProvider)) : '/welcome',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -85,7 +89,7 @@ class LanguageScreen extends ConsumerWidget {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go('/welcome');
+                context.go(ref.read(authSessionProvider).isAuthenticated ? portalHomeRoute(ref.read(activeGroupProvider)) : '/welcome');
               }
             },
             child: Text(loc.continueAction),
@@ -101,7 +105,12 @@ class LanguageScreen extends ConsumerWidget {
     String? value,
   ) async {
     if (value == null) return;
-    await ref.read(localeControllerProvider.notifier).setLocale(Locale(value));
+    try {
+      await ref.read(localeControllerProvider.notifier).setLocale(Locale(value));
+    } catch (error) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthFailure.from(error).message)));
+      return;
+    }
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).languageSaved)),

@@ -1,21 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/groups/groups_repository.dart';
+import '../../routing/portal_route_guard.dart';
+
 import 'package:go_router/go_router.dart';
 
 import '../../theme/app_colors.dart';
 
-class AdminTabShellScreen extends StatelessWidget {
+class AdminTabShellScreen extends ConsumerWidget {
   const AdminTabShellScreen({required this.navigationShell, super.key});
 
   final StatefulNavigationShell navigationShell;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final group = ref.watch(activeGroupProvider);
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
+          if (index == 0) {
+            context.go(portalHomeRoute(group));
+            return;
+          }
+          if (index == 4) {
+            context.go(portalMoreRoute(group));
+            return;
+          }
           if (index == navigationShell.currentIndex) return;
 
           navigationShell.goBranch(

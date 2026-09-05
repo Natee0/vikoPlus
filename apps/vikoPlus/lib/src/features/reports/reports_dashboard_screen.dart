@@ -12,30 +12,82 @@ import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class ReportsDashboardScreen extends ConsumerWidget {
+class ReportsDashboardScreen extends ConsumerStatefulWidget {
   const ReportsDashboardScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportsDashboardScreen> createState() =>
+      _ReportsDashboardScreenState();
+}
+
+class _ReportsDashboardScreenState extends ConsumerState<ReportsDashboardScreen> {
+  Future<ContributionReportResult>? _reportFuture;
+  String? _loadedGroupId;
+  String? _loadedFinancialYearId;
+
+  Future<ContributionReportResult> _loadReport(
+    String groupId,
+    ContributionReportFilters filters,
+  ) {
+    return ref.read(groupsRepositoryProvider).contributionReport(
+          groupId,
+          financialYearId: filters.financialYearId,
+        );
+  }
+
+  void _setReportFuture(
+    String groupId,
+    ContributionReportFilters filters, [
+    Future<ContributionReportResult>? future,
+  ]) {
+    _loadedGroupId = groupId;
+    _loadedFinancialYearId = filters.financialYearId;
+    _reportFuture = future ?? _loadReport(groupId, filters);
+  }
+
+  void _ensureReportFuture(String? groupId, ContributionReportFilters filters) {
+    if (groupId == null || groupId.isEmpty) return;
+    if (_loadedGroupId != groupId ||
+        _loadedFinancialYearId != filters.financialYearId ||
+        _reportFuture == null) {
+      _setReportFuture(groupId, filters);
+    }
+  }
+
+  Future<void> _refresh() async {
+    final group = ref.read(activeGroupProvider);
+    if (group == null) return;
+
+    final filters = ref.read(contributionReportFiltersProvider);
+    final future = _loadReport(group.id, filters);
+    setState(() => _setReportFuture(group.id, filters, future));
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final filters = ref.watch(contributionReportFiltersProvider);
+    _ensureReportFuture(activeGroup?.id, filters);
 
     return VikoplusScreen(
       title: 'Reports',
       bottomNavigationIndex: 3,
-      showBottomNavigation: showBottomNavigation,
+      showBottomNavigation: widget.showBottomNavigation,
+      onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _ReportSummaryBlock(
             groupId: activeGroup?.id,
-            filters: filters,
+            reportFuture: _reportFuture,
             formatters: formatters,
+            exportFormatLabel: filters.exportFormat.label,
           ),
           const SizedBox(height: 16),
           const SectionHeader(title: 'Available reports'),
@@ -70,13 +122,15 @@ class ReportsDashboardScreen extends ConsumerWidget {
 class _ReportSummaryBlock extends ConsumerWidget {
   const _ReportSummaryBlock({
     required this.groupId,
-    required this.filters,
+    required this.reportFuture,
     required this.formatters,
+    required this.exportFormatLabel,
   });
 
   final String? groupId;
-  final ContributionReportFilters filters;
+  final Future<ContributionReportResult>? reportFuture;
   final AppFormatters formatters;
+  final String exportFormatLabel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,10 +150,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
     }
 
     return FutureBuilder<ContributionReportResult>(
-      future: ref.read(groupsRepositoryProvider).contributionReport(
-            id,
-            financialYearId: filters.financialYearId,
-          ),
+      future: reportFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -155,7 +206,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
             const SizedBox(height: 12),
             InfoCard(
               title: 'Export format',
-              value: filters.exportFormat.label,
+              value: exportFormatLabel,
               icon: Icons.file_download_outlined,
             ),
           ],

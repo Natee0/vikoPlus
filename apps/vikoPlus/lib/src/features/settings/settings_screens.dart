@@ -1,64 +1,78 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/formatters/app_formatters.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
+import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class AdminSettingsDashboardScreen extends StatelessWidget {
+class AdminSettingsDashboardScreen extends ConsumerWidget {
   const AdminSettingsDashboardScreen({super.key});
 
+  String _setupRoute(String path, GroupAccessSummary? group) {
+    final route = group == null
+        ? path
+        : '$path?groupId=${Uri.encodeComponent(group.id)}';
+    final separator = route.contains('?') ? '&' : '?';
+    return '$route${separator}returnTo=${Uri.encodeComponent('/settings/admin')}';
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+
     return VikoplusScreen(
       title: 'Admin Settings',
       backRoute: '/more',
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SettingsHero(),
-          SizedBox(height: AppSpacing.md),
-          ActionTile(
+          const _SettingsHero(),
+          const SizedBox(height: AppSpacing.md),
+          const ActionTile(
             title: 'Member roles',
             subtitle:
                 'Assign chairperson, treasurer, secretary and member access',
             icon: Icons.admin_panel_settings_outlined,
             route: '/settings/roles',
           ),
-          SizedBox(height: AppSpacing.sm),
-          ActionTile(
+          const SizedBox(height: AppSpacing.sm),
+          const ActionTile(
             title: 'Currency and fees',
             subtitle: 'TZS defaults, platform access and messaging charges',
             icon: Icons.payments_outlined,
             route: '/settings/currency-fees',
             color: AppColors.gold,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           ActionTile(
             title: 'Contribution setup',
             subtitle: 'Set joining fee, membership fee and payment rules',
             icon: Icons.price_change_outlined,
-            route: '/groups/contributions',
+            route: _setupRoute('/groups/contributions', activeGroup),
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           ActionTile(
             title: 'Historical records',
             subtitle: 'Import previous group contributions and old ledgers',
             icon: Icons.history_edu_outlined,
-            route: '/groups/history',
+            route: _setupRoute('/groups/history', activeGroup),
             color: AppColors.secondaryGreen,
           ),
-          SizedBox(height: AppSpacing.sm),
-          ActionTile(
+          const SizedBox(height: AppSpacing.sm),
+          const ActionTile(
             title: 'Contribution penalties',
             subtitle: 'Late-fee rules and grace periods',
             icon: Icons.gavel_outlined,
             route: '/settings/contribution-penalties',
           ),
-          SizedBox(height: AppSpacing.sm),
-          ActionTile(
+          const SizedBox(height: AppSpacing.sm),
+          const ActionTile(
             title: 'Audit logs',
             subtitle: 'Payment, role and subscription history',
             icon: Icons.manage_search_outlined,
@@ -250,39 +264,65 @@ class MemberRolesPermissionsScreen extends StatelessWidget {
   }
 }
 
-class AuditLogsScreen extends StatelessWidget {
+class AuditLogsScreen extends ConsumerWidget {
   const AuditLogsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+
     return VikoplusScreen(
       title: 'Audit Logs',
       backRoute: '/settings/admin',
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _AuditTile(
-            title: 'Role assigned',
-            subtitle: 'Amina Issa was assigned Secretary',
-            time: 'Today, 09:15',
-            icon: Icons.admin_panel_settings_outlined,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          _AuditTile(
-            title: 'Payment recorded',
-            subtitle: 'TZS 70,000 receipt created for Emmanuel Malekela',
-            time: 'Yesterday',
-            icon: Icons.receipt_long_outlined,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          _AuditTile(
-            title: 'Group access activated',
-            subtitle: 'Annual access paid by chairperson/admin',
-            time: 'Aug 30',
-            icon: Icons.workspace_premium_outlined,
-          ),
-        ],
-      ),
+      child: activeGroup == null
+          ? const AuthErrorMessage(
+              message: 'Select a group to view audit logs.',
+            )
+          : FutureBuilder<AuditLogResult>(
+              future: ref.read(groupsRepositoryProvider).auditLog(activeGroup.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (snapshot.hasError || snapshot.data == null) {
+                  return const AuthErrorMessage(
+                    message: 'Could not load audit logs.',
+                  );
+                }
+
+                final entries = snapshot.data!.entries;
+                if (entries.isEmpty) {
+                  return const EmptyStateCard(
+                    icon: Icons.manage_search_outlined,
+                    title: 'No audit logs yet',
+                    message: 'Group administration activity will appear here.',
+                  );
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final entry in entries) ...[
+                      _AuditTile(
+                        title: _auditTitle(entry.action),
+                        subtitle: entry.reason ?? entry.entityType,
+                        time: formatters.date(entry.createdAt),
+                        icon: _auditIcon(entry.action),
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                    ],
+                  ],
+                );
+              },
+            ),
     );
   }
 }
@@ -521,6 +561,27 @@ class _AuditTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return _FeeTile(title: title, value: '$subtitle\n$time', icon: icon);
   }
+}
+
+String _auditTitle(String action) {
+  return action
+      .toLowerCase()
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
+}
+
+IconData _auditIcon(String action) {
+  final normalized = action.toLowerCase();
+  if (normalized.contains('role')) return Icons.admin_panel_settings_outlined;
+  if (normalized.contains('payment')) return Icons.receipt_long_outlined;
+  if (normalized.contains('loan')) return Icons.account_balance_wallet_outlined;
+  if (normalized.contains('subscription')) {
+    return Icons.workspace_premium_outlined;
+  }
+  return Icons.manage_search_outlined;
 }
 
 class _FeeTile extends StatelessWidget {

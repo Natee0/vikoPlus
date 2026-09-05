@@ -20,28 +20,63 @@ class MemberListScreen extends ConsumerStatefulWidget {
 }
 
 class _MemberListScreenState extends ConsumerState<MemberListScreen> {
-  late Future<GroupMembersResult>? _membersFuture;
+  String? _loadedMembersGroupId;
+  Future<GroupMembersResult>? _membersFuture;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    final group = ref.read(activeGroupProvider);
+    if (group != null) {
+      _setMembersFuture(group.id);
+    }
   }
 
-  void _load() {
-    final group = ref.read(activeGroupProvider);
-    _membersFuture = group == null
-        ? null
-        : ref.read(groupsRepositoryProvider).listMembers(group.id);
+  Future<GroupMembersResult> _loadMembers(String groupId) {
+    return ref.read(groupsRepositoryProvider).listMembers(groupId);
+  }
+
+  void _setMembersFuture(String groupId, [Future<GroupMembersResult>? future]) {
+    _loadedMembersGroupId = groupId;
+    _membersFuture = future ?? _loadMembers(groupId);
+  }
+
+  void _ensureMembersFuture(String? groupId) {
+    if (groupId == null || groupId.isEmpty) {
+      _loadedMembersGroupId = null;
+      _membersFuture = null;
+      return;
+    }
+    if (_loadedMembersGroupId != groupId || _membersFuture == null) {
+      _setMembersFuture(groupId);
+    }
   }
 
   void _reload() {
-    setState(_load);
+    final group = ref.read(activeGroupProvider);
+    setState(() {
+      if (group == null) {
+        _loadedMembersGroupId = null;
+        _membersFuture = null;
+        return;
+      }
+      _setMembersFuture(group.id);
+    });
+  }
+
+  Future<void> _refresh() async {
+    final group = ref.read(activeGroupProvider);
+    if (group == null) return;
+
+    final future = _loadMembers(group.id);
+    setState(() => _setMembersFuture(group.id, future));
+    await future;
   }
 
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
+    _ensureMembersFuture(activeGroup?.id);
 
     return VikoplusScreen(
       title: 'Members',
@@ -59,6 +94,7 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
           icon: const Icon(Icons.add_circle_outline),
         ),
       ],
+      onRefresh: activeGroup == null ? null : _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -90,16 +126,10 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
             color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              const Expanded(
-                child: _MemberCountCard(),
-              ),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: _AdminCountCard(),
-              ),
-            ],
+          _MemberStatsRow(
+            membersFuture: _membersFuture,
+            fallbackMembersCount: activeGroup?.membersCount ?? 0,
+            role: activeGroup?.role ?? 'NONE',
           ),
           const SizedBox(height: 16),
           const TextField(
@@ -128,31 +158,45 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
   }
 }
 
-class _MemberCountCard extends ConsumerWidget {
-  const _MemberCountCard();
+class _MemberStatsRow extends StatelessWidget {
+  const _MemberStatsRow({
+    required this.membersFuture,
+    required this.fallbackMembersCount,
+    required this.role,
+  });
+
+  final Future<GroupMembersResult>? membersFuture;
+  final int fallbackMembersCount;
+  final String role;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final group = ref.watch(activeGroupProvider);
-    return InfoCard(
-      title: 'Total members',
-      value: '${group?.membersCount ?? 0}',
-      icon: Icons.groups_2_outlined,
-    );
-  }
-}
-
-class _AdminCountCard extends ConsumerWidget {
-  const _AdminCountCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final group = ref.watch(activeGroupProvider);
-    return InfoCard(
-      title: 'Current role',
-      value: _roleLabel(group?.role ?? 'NONE'),
-      icon: Icons.admin_panel_settings_outlined,
-      accentColor: AppColors.warning,
+  Widget build(BuildContext context) {
+    return FutureBuilder<GroupMembersResult>(
+      future: membersFuture,
+      builder: (context, snapshot) {
+        final membersCount =
+            snapshot.data?.members.length ?? fallbackMembersCount;
+        return Row(
+          children: [
+            Expanded(
+              child: InfoCard(
+                title: 'Total members',
+                value: '$membersCount',
+                icon: Icons.groups_2_outlined,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: InfoCard(
+                title: 'Current role',
+                value: _roleLabel(role),
+                icon: Icons.admin_panel_settings_outlined,
+                accentColor: AppColors.warning,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -184,7 +228,9 @@ class _MemberListBody extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AuthErrorMessage(message: AuthFailure.from(snapshot.error!).message),
+              AuthErrorMessage(
+                message: AuthFailure.from(snapshot.error!).message,
+              ),
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onReload,

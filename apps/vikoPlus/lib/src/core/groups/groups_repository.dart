@@ -335,6 +335,27 @@ class GroupsRepository {
     return GroupMemberSummary.fromJson(_responseBody(response.data));
   }
 
+  Future<NotificationsResult> notifications() async {
+    final response = await _dio.get<Map<String, dynamic>>('/notifications');
+    return NotificationsResult.fromJson(_responseBody(response.data));
+  }
+
+  Future<NotificationSummary> markNotificationRead(
+    String notificationId,
+  ) async {
+    final response = await _dio.patch<Map<String, dynamic>>(
+      '/notifications/$notificationId/read',
+    );
+    return NotificationSummary.fromJson(_responseBody(response.data));
+  }
+
+  Future<AuditLogResult> auditLog(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/audit-log',
+    );
+    return AuditLogResult.fromJson(_responseBody(response.data));
+  }
+
   Map<String, dynamic> _responseBody(Map<String, dynamic>? json) {
     if (json == null) {
       throw const FormatException('API returned an empty response.');
@@ -1486,6 +1507,103 @@ class MemberInvitation {
   final String role;
   final String invitationCode;
   final DateTime? expiresAt;
+}
+
+class NotificationsResult {
+  const NotificationsResult({required this.notifications});
+
+  factory NotificationsResult.fromJson(Map<String, dynamic> json) {
+    final items = json['notifications'];
+    return NotificationsResult(
+      notifications: items is List
+          ? items
+              .whereType<Map>()
+              .map((item) => NotificationSummary.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList()
+          : const [],
+    );
+  }
+
+  final List<NotificationSummary> notifications;
+}
+
+class NotificationSummary {
+  const NotificationSummary({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    this.readAt,
+  });
+
+  factory NotificationSummary.fromJson(Map<String, dynamic> json) {
+    return NotificationSummary(
+      id: _requiredString(json, 'id'),
+      title: _requiredString(json, 'title'),
+      body: _requiredString(json, 'body'),
+      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
+      readAt: _parseDate(json['readAt']),
+    );
+  }
+
+  final String id;
+  final String title;
+  final String body;
+  final DateTime createdAt;
+  final DateTime? readAt;
+
+  bool get isUnread => readAt == null;
+}
+
+class AuditLogResult {
+  const AuditLogResult({required this.entries});
+
+  factory AuditLogResult.fromJson(Map<String, dynamic> json) {
+    final items = json['entries'];
+    return AuditLogResult(
+      entries: items is List
+          ? items
+              .whereType<Map>()
+              .map((item) => AuditLogEntrySummary.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .toList()
+          : const [],
+    );
+  }
+
+  final List<AuditLogEntrySummary> entries;
+}
+
+class AuditLogEntrySummary {
+  const AuditLogEntrySummary({
+    required this.id,
+    required this.action,
+    required this.entityType,
+    required this.entityId,
+    required this.createdAt,
+    this.reason,
+  });
+
+  factory AuditLogEntrySummary.fromJson(Map<String, dynamic> json) {
+    return AuditLogEntrySummary(
+      id: _requiredString(json, 'id'),
+      action: json['action'] as String? ?? 'AUDIT_EVENT',
+      entityType: json['entityType'] as String? ?? 'Record',
+      entityId: json['entityId'] as String? ?? '',
+      reason: json['reason'] as String?,
+      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
+    );
+  }
+
+  final String id;
+  final String action;
+  final String entityType;
+  final String entityId;
+  final String? reason;
+  final DateTime createdAt;
 }
 
 String? _nonEmpty(String? value) {

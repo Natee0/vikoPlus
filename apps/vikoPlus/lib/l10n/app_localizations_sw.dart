@@ -85,7 +85,7 @@ class AppLocalizationsSw extends AppLocalizations {
   String get updatePaymentMethod => 'Badili njia ya malipo';
 
   @override
-  String get adminDashboardTitle => 'Sofia Wajukuu';
+  String get adminDashboardTitle => 'Dashibodi ya Admin';
 
   @override
   String get totalContributions => 'Jumla ya michango';
@@ -103,11 +103,11 @@ class AppLocalizationsSw extends AppLocalizations {
   String get financialYear => 'Mwaka wa fedha';
 
   @override
-  String get financialYearValue => 'Julai 2026 - Juni 2027';
+  String get financialYearValue => 'Mwaka wa fedha wa sasa';
 
   @override
   String get contributionRule =>
-      'Kiingilio TZS 10,000 na ada ya mwezi TZS 5,000';
+      'Kanuni za michango hutokana na mipangilio ya kikundi kilichochaguliwa.';
 
   @override
   String get billingNotice =>

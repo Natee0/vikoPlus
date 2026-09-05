@@ -14,9 +14,10 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
 class ConfigureRemindersScreen extends ConsumerStatefulWidget {
-  const ConfigureRemindersScreen({this.groupId, super.key});
+  const ConfigureRemindersScreen({this.groupId, this.returnTo, super.key});
 
   final String? groupId;
+  final String? returnTo;
 
   @override
   ConsumerState<ConfigureRemindersScreen> createState() =>
@@ -26,7 +27,7 @@ class ConfigureRemindersScreen extends ConsumerStatefulWidget {
 class _ConfigureRemindersScreenState
     extends ConsumerState<ConfigureRemindersScreen> {
   static const _template =
-      'Hi {member_name}, this is a friendly reminder that your payment of {amount} for Sofia Wajukuu is due soon.';
+      'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.';
 
   String _errorMessage = '';
   String _checkoutUrl = '';
@@ -42,7 +43,23 @@ class _ConfigureRemindersScreenState
     if (widgetGroupId != null && widgetGroupId.isNotEmpty) {
       return widgetGroupId;
     }
-    return ref.read(groupSetupDraftProvider).createdGroupId;
+    final draftGroupId = ref.read(groupSetupDraftProvider).createdGroupId;
+    if (draftGroupId != null && draftGroupId.isNotEmpty) {
+      return draftGroupId;
+    }
+    return ref.read(activeGroupProvider)?.id;
+  }
+
+  String get _backRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
+    if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
+      return '/dashboard';
+    }
+
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return '/groups/contributions';
+    return '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}';
   }
 
   Uri _billingReturnUri(String path) {
@@ -101,15 +118,29 @@ class _ConfigureRemindersScreenState
     return packages.first;
   }
 
+  void _setPackagesFuture(
+    String groupId, [
+    Future<ReminderPackagesResult>? future,
+  ]) {
+    _loadedPackagesGroupId = groupId;
+    _packagesFuture =
+        future ?? ref.read(groupsRepositoryProvider).reminderPackages(groupId);
+  }
+
   Future<ReminderPackagesResult>? _packagesFor(String? groupId) {
     if (groupId == null || groupId.isEmpty) return null;
     if (_loadedPackagesGroupId != groupId || _packagesFuture == null) {
-      _loadedPackagesGroupId = groupId;
-      _packagesFuture = ref.read(groupsRepositoryProvider).reminderPackages(
-            groupId,
-          );
+      _setPackagesFuture(groupId);
     }
     return _packagesFuture;
+  }
+
+  Future<void> _refresh() async {
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return;
+    final future = ref.read(groupsRepositoryProvider).reminderPackages(groupId);
+    setState(() => _setPackagesFuture(groupId, future));
+    await future;
   }
 
   Future<void> _save({required bool configureLater}) async {
@@ -133,9 +164,16 @@ class _ConfigureRemindersScreenState
           );
       if (!mounted) return;
       ref.read(groupSetupDraftProvider.notifier).reset();
-      context.go(
-        '/groups/onboarding-success?groupId=${Uri.encodeComponent(groupId)}',
-      );
+      final returnTo = widget.returnTo;
+      if (returnTo != null && returnTo.isNotEmpty) {
+        context.go(returnTo);
+      } else if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
+        context.go('/dashboard');
+      } else {
+        context.go(
+          '/groups/onboarding-success?groupId=${Uri.encodeComponent(groupId)}',
+        );
+      }
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);
@@ -155,9 +193,9 @@ class _ConfigureRemindersScreenState
 
     return VikoplusScreen(
       title: 'Configure Reminders',
-      backRoute: groupId == null
-          ? '/groups/contributions'
-          : '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}',
+      backRoute: _backRoute,
+      preferBackRoute: true,
+      onRefresh: groupId == null ? null : _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -675,7 +713,7 @@ class _MessagePreview extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Hi {member_name}, this is a friendly reminder that your payment of {amount} for Sofia Wajukuu is due soon.',
+              'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.onSurface,
                 fontStyle: FontStyle.italic,

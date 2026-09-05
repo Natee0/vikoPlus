@@ -119,47 +119,57 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/groups/verify',
-      builder: (context, state) => const VerifyGroupDetailsScreen(),
+      builder: (context, state) => VerifyGroupDetailsScreen(
+        invitationCode: state.uri.queryParameters['code'],
+      ),
     ),
     GoRoute(
       path: '/groups/financial-year',
       builder: (context, state) => ConfigureFinancialYearScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/financial-year/start',
       builder: (context, state) => ConfigureFinancialYearScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/financial-year/review',
       builder: (context, state) => ConfigureFinancialYearScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/contributions',
       builder: (context, state) => ConfigureContributionsScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/history',
       builder: (context, state) => HistoricalRecordsScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/reminders',
       builder: (context, state) => ConfigureRemindersScreen(
         groupId: state.uri.queryParameters['groupId'],
+        returnTo: state.uri.queryParameters['returnTo'],
       ),
     ),
     GoRoute(
       path: '/groups/onboarding-success',
-      builder: (context, state) => const OnboardingSuccessScreen(),
+      builder: (context, state) => OnboardingSuccessScreen(
+        groupId: state.uri.queryParameters['groupId'],
+      ),
     ),
     GoRoute(
       path: '/billing/plans',
@@ -284,7 +294,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/loans/repayment',
-      builder: (context, state) => const LoanRepaymentScreen(),
+      builder: (context, state) => LoanRepaymentScreen(
+        loanId: state.uri.queryParameters['loanId'],
+      ),
     ),
     GoRoute(
       path: '/loans/applications',
@@ -293,7 +305,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/loans/applications/:id',
       builder: (context, state) => LoanApplicationReviewScreen(
-        applicationId: state.pathParameters['id'] ?? 'david-kiprop',
+        applicationId: state.pathParameters['id'] ?? '',
       ),
     ),
     GoRoute(

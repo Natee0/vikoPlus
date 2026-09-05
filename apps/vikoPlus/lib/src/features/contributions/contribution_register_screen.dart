@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
-import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -27,8 +26,35 @@ class ContributionRegisterScreen extends ConsumerStatefulWidget {
 
 class _ContributionRegisterScreenState
     extends ConsumerState<ContributionRegisterScreen> {
+  Future<ContributionPaymentsResult>? _paymentsFuture;
+  String? _loadedPaymentsGroupId;
   bool _isReviewing = false;
   String _errorMessage = '';
+
+  Future<ContributionPaymentsResult> _loadPayments(String groupId) {
+    return ref.read(groupsRepositoryProvider).contributionPayments(groupId);
+  }
+
+  void _setPaymentsFuture(String groupId, [Future<ContributionPaymentsResult>? future]) {
+    _loadedPaymentsGroupId = groupId;
+    _paymentsFuture = future ?? _loadPayments(groupId);
+  }
+
+  void _ensurePaymentsFuture(String? groupId) {
+    if (groupId == null) return;
+    if (_loadedPaymentsGroupId != groupId || _paymentsFuture == null) {
+      _setPaymentsFuture(groupId);
+    }
+  }
+
+  Future<void> _refresh() async {
+    final group = ref.read(activeGroupProvider);
+    if (group == null) return;
+
+    final future = _loadPayments(group.id);
+    setState(() => _setPaymentsFuture(group.id, future));
+    await future;
+  }
 
   Future<void> _reviewPayment(
     GroupAccessSummary group,
@@ -45,7 +71,9 @@ class _ContributionRegisterScreenState
           : ref
               .read(groupsRepositoryProvider)
               .rejectPayment(group.id, payment.id, reason: 'Rejected by treasurer'));
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() => _setPaymentsFuture(group.id));
+      }
     } catch (_) {
       if (!mounted) return;
       setState(
@@ -65,11 +93,13 @@ class _ContributionRegisterScreenState
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final canReviewPayments = activeGroup?.role == 'TREASURER';
+    _ensurePaymentsFuture(activeGroup?.id);
 
     return VikoplusScreen(
       title: 'Contribution Register',
       bottomNavigationIndex: 2,
       showBottomNavigation: widget.showBottomNavigation,
+      onRefresh: _refresh,
       actions: [
         if (canReviewPayments)
           IconButton(
@@ -81,7 +111,7 @@ class _ContributionRegisterScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          StatusPill(label: activeGroup?.name ?? sofiaFinancialYear),
+          StatusPill(label: activeGroup?.name ?? 'No group selected'),
           const SizedBox(height: 16),
           const ActionTile(
             title: 'Loan applications',
@@ -96,14 +126,12 @@ class _ContributionRegisterScreenState
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: () => context.go('/groups/my'),
+              onPressed: () => context.go('/groups'),
               child: const Text('Choose Group'),
             ),
           ] else ...[
             FutureBuilder<ContributionPaymentsResult>(
-              future: ref
-                  .read(groupsRepositoryProvider)
-                  .contributionPayments(activeGroup.id),
+              future: _paymentsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(

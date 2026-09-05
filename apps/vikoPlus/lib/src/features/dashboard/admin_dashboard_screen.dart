@@ -5,21 +5,63 @@ import 'package:go_router/go_router.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
-import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
 import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
+import '../notifications/notification_icon_button.dart';
 
-class AdminDashboardScreen extends ConsumerWidget {
+class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AdminDashboardScreen> createState() =>
+      _AdminDashboardScreenState();
+}
+
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+  String? _loadedDashboardGroupId;
+  Future<GroupDashboardResult>? _dashboardFuture;
+
+  Future<GroupDashboardResult>? _dashboardFor(String? groupId) {
+    if (groupId == null || groupId.isEmpty) return null;
+    if (_loadedDashboardGroupId != groupId || _dashboardFuture == null) {
+      _setDashboardFuture(groupId);
+    }
+    return _dashboardFuture;
+  }
+
+  void _setDashboardFuture(
+    String groupId, [
+    Future<GroupDashboardResult>? future,
+  ]) {
+    _loadedDashboardGroupId = groupId;
+    _dashboardFuture =
+        future ?? ref.read(groupsRepositoryProvider).dashboard(groupId);
+  }
+
+  Future<void> _refresh() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+    final future = ref.read(groupsRepositoryProvider).dashboard(activeGroup.id);
+    setState(() => _setDashboardFuture(activeGroup.id, future));
+    await future;
+  }
+
+  String _setupRoute(String path, GroupAccessSummary? group) {
+    final route = group == null
+        ? path
+        : '$path?groupId=${Uri.encodeComponent(group.id)}';
+    final separator = route.contains('?') ? '&' : '?';
+    return '$route${separator}returnTo=${Uri.encodeComponent('/dashboard')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
@@ -27,18 +69,12 @@ class AdminDashboardScreen extends ConsumerWidget {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: loc.adminDashboardTitle,
+      title: activeGroup?.name ?? 'Admin Dashboard',
       bottomNavigationIndex: 0,
-      showBottomNavigation: showBottomNavigation,
+      showBottomNavigation: widget.showBottomNavigation,
+      onRefresh: activeGroup == null ? null : _refresh,
       actions: [
-        IconButton(
-          tooltip: 'Notifications',
-          onPressed: () => context.go('/notifications'),
-          icon: const Badge(
-            smallSize: 8,
-            child: Icon(Icons.notifications_outlined),
-          ),
-        ),
+        const NotificationIconButton(),
         IconButton(
           tooltip: 'My groups',
           onPressed: () => context.go('/groups'),
@@ -56,28 +92,23 @@ class AdminDashboardScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Current group: ${activeGroup?.name ?? sofiaFinancialYear}',
+            activeGroup == null
+                ? 'Select a group to load live administration tools.'
+                : 'Manage contributions, members, loans and reminders.',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.secondaryText),
           ),
           const SizedBox(height: 16),
           _AdminMetricsBlock(
-            groupId: activeGroup?.id,
+            dashboardFuture: _dashboardFor(activeGroup?.id),
             formatters: formatters,
             totalTitle: loc.totalContributions,
             membersTitle: loc.members,
           ),
-          const SizedBox(height: 12),
-          ProgressBlock(
-            title: "This month's collection",
-            value: formatters.money(65000),
-            caption: '13 paid, 10 outstanding for July',
-            progress: 0.65,
-          ),
           const SizedBox(height: 16),
           const SectionHeader(title: 'Monthly trend'),
           const SizedBox(height: 12),
-          _MonthlyTrend(formatters: formatters),
+          const _MonthlyTrendPlaceholder(),
           const SizedBox(height: 16),
           const SectionHeader(title: 'Quick actions'),
           const SizedBox(height: 12),
@@ -132,28 +163,21 @@ class AdminDashboardScreen extends ConsumerWidget {
             route: '/groups',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
+          ActionTile(
             title: 'Contribution setup',
             subtitle:
                 'Set joining fee, membership contribution and payment rules',
             icon: Icons.price_change_outlined,
-            route: '/groups/contributions',
+            route: _setupRoute('/groups/contributions', activeGroup),
             color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: 12),
-          const ActionTile(
+          ActionTile(
             title: 'Historical records',
             subtitle: 'Import old contribution data one by one or in bulk',
             icon: Icons.history_edu_outlined,
-            route: '/groups/history',
+            route: _setupRoute('/groups/history', activeGroup),
             color: AppColors.gold,
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(loc.contributionRule),
-            ),
           ),
         ],
       ),
@@ -161,23 +185,23 @@ class AdminDashboardScreen extends ConsumerWidget {
   }
 }
 
-class _AdminMetricsBlock extends ConsumerWidget {
+class _AdminMetricsBlock extends StatelessWidget {
   const _AdminMetricsBlock({
-    required this.groupId,
+    required this.dashboardFuture,
     required this.formatters,
     required this.totalTitle,
     required this.membersTitle,
   });
 
-  final String? groupId;
+  final Future<GroupDashboardResult>? dashboardFuture;
   final AppFormatters formatters;
   final String totalTitle;
   final String membersTitle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final id = groupId;
-    if (id == null || id.isEmpty) {
+  Widget build(BuildContext context) {
+    final future = dashboardFuture;
+    if (future == null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -192,7 +216,7 @@ class _AdminMetricsBlock extends ConsumerWidget {
     }
 
     return FutureBuilder<GroupDashboardResult>(
-      future: ref.read(groupsRepositoryProvider).dashboard(id),
+      future: future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
@@ -244,54 +268,27 @@ class _AdminMetricsBlock extends ConsumerWidget {
   }
 }
 
-class _MonthlyTrend extends StatelessWidget {
-  const _MonthlyTrend({required this.formatters});
-
-  final AppFormatters formatters;
+class _MonthlyTrendPlaceholder extends StatelessWidget {
+  const _MonthlyTrendPlaceholder();
 
   @override
   Widget build(BuildContext context) {
-    const maxValue = 65000;
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          height: 164,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (final entry in sofiaMonthTotals)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Tooltip(
-                          message: formatters.money(entry.$2),
-                          child: Container(
-                            height: 92 * (entry.$2 / maxValue),
-                            constraints: const BoxConstraints(minHeight: 8),
-                            decoration: BoxDecoration(
-                              color: entry.$1 == 'Jul'
-                                  ? AppColors.primaryGreen
-                                  : AppColors.lightGreen,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          entry.$1,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      ],
+        child: Row(
+          children: [
+            const Icon(Icons.show_chart, color: AppColors.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Monthly trend will appear after approved contribution payments are available.',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.onSurfaceVariant,
                     ),
-                  ),
-                ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -14,6 +14,8 @@ class VikoplusScreen extends StatelessWidget {
     this.backRoute,
     this.showBackButton,
     this.showBottomNavigation = true,
+    this.onRefresh,
+    this.preferBackRoute = false,
     super.key,
   });
 
@@ -24,14 +26,21 @@ class VikoplusScreen extends StatelessWidget {
   final String? backRoute;
   final bool? showBackButton;
   final bool showBottomNavigation;
+  final RefreshCallback? onRefresh;
+  final bool preferBackRoute;
 
-  void _goBack(BuildContext context) {
+  void _goBack(BuildContext context, {bool preferRoute = false}) {
+    final route = backRoute;
+    if (preferRoute && route != null) {
+      context.go(route);
+      return;
+    }
+
     if (context.canPop()) {
       context.pop();
       return;
     }
 
-    final route = backRoute;
     if (route != null) {
       context.go(route);
     }
@@ -43,7 +52,7 @@ class VikoplusScreen extends StatelessWidget {
         showBackButton ?? (bottomNavigationIndex == null && backRoute != null);
     final topActions = actions;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
@@ -51,7 +60,12 @@ class VikoplusScreen extends StatelessWidget {
             if (title != null)
               VikoplusTopBar(
                 title: title!,
-                onBack: shouldShowBack ? () => _goBack(context) : null,
+                onBack: shouldShowBack
+                    ? () => _goBack(
+                          context,
+                          preferRoute: preferBackRoute,
+                        )
+                    : null,
                 trailing: topActions == null || topActions.isEmpty
                     ? null
                     : Row(
@@ -65,17 +79,19 @@ class VikoplusScreen extends StatelessWidget {
               ),
             Expanded(
               child: VikoplusConstrainedContent(
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    AppSpacing.screenMobile,
-                    AppSpacing.md,
-                    AppSpacing.screenMobile,
-                    bottomNavigationIndex == null
-                        ? AppSpacing.lg
-                        : AppSpacing.xl + AppSpacing.lg,
-                  ),
-                  children: [child],
-                ),
+                child: onRefresh == null
+                    ? _ScreenList(
+                        bottomNavigationIndex: bottomNavigationIndex,
+                        child: child,
+                      )
+                    : RefreshIndicator.adaptive(
+                        onRefresh: onRefresh!,
+                        triggerMode: RefreshIndicatorTriggerMode.anywhere,
+                        child: _ScreenList(
+                          bottomNavigationIndex: bottomNavigationIndex,
+                          child: child,
+                        ),
+                      ),
               ),
             ),
           ],
@@ -135,6 +151,44 @@ class VikoplusScreen extends StatelessWidget {
                 ),
               ],
             ),
+    );
+
+    if (!preferBackRoute || backRoute == null) {
+      return scaffold;
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          _goBack(context, preferRoute: true);
+        }
+      },
+      child: scaffold,
+    );
+  }
+}
+
+class _ScreenList extends StatelessWidget {
+  const _ScreenList({
+    required this.child,
+    required this.bottomNavigationIndex,
+  });
+
+  final Widget child;
+  final int? bottomNavigationIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.screenMobile,
+        AppSpacing.md,
+        AppSpacing.screenMobile,
+        bottomNavigationIndex == null ? AppSpacing.lg : AppSpacing.xl + AppSpacing.lg,
+      ),
+      children: [child],
     );
   }
 }

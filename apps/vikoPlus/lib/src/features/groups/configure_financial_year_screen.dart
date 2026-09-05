@@ -12,9 +12,10 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
 class ConfigureFinancialYearScreen extends ConsumerStatefulWidget {
-  const ConfigureFinancialYearScreen({this.groupId, super.key});
+  const ConfigureFinancialYearScreen({this.groupId, this.returnTo, super.key});
 
   final String? groupId;
+  final String? returnTo;
 
   @override
   ConsumerState<ConfigureFinancialYearScreen> createState() =>
@@ -76,17 +77,39 @@ class _ConfigureFinancialYearScreenState
     if (widgetGroupId != null && widgetGroupId.isNotEmpty) {
       return widgetGroupId;
     }
-    return ref.read(groupSetupDraftProvider).createdGroupId;
+    final draftGroupId = ref.read(groupSetupDraftProvider).createdGroupId;
+    if (draftGroupId != null && draftGroupId.isNotEmpty) {
+      return draftGroupId;
+    }
+    return ref.read(activeGroupProvider)?.id;
+  }
+
+  String get _fallbackBackRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
+    if (ref.read(activeGroupProvider) != null) return '/dashboard';
+    return '/groups/create';
+  }
+
+  bool get _preferFallbackBack {
+    final returnTo = widget.returnTo;
+    return (returnTo != null && returnTo.isNotEmpty) ||
+        (widget.groupId == null && ref.read(activeGroupProvider) != null);
   }
 
   void _goBack() {
     _persistFinancialYear();
+    if (_preferFallbackBack) {
+      context.go(_fallbackBackRoute);
+      return;
+    }
+
     if (context.canPop()) {
       context.pop();
       return;
     }
 
-    context.go('/groups/create');
+    context.go(_fallbackBackRoute);
   }
 
   void _persistFinancialYear() {
@@ -136,7 +159,11 @@ class _ConfigureFinancialYearScreenState
             ),
           );
       if (!mounted) return;
-      context.push('/groups/contributions?groupId=${Uri.encodeComponent(groupId)}');
+      final returnTo = widget.returnTo;
+      final route = returnTo == null || returnTo.isEmpty
+          ? '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}'
+          : '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}&returnTo=${Uri.encodeComponent(returnTo)}';
+      context.push(route);
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);
@@ -150,11 +177,11 @@ class _ConfigureFinancialYearScreenState
   @override
   Widget build(BuildContext context) {
     return PopScope(
-      canPop: context.canPop(),
+      canPop: !_preferFallbackBack && context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
           _persistFinancialYear();
-          context.go('/groups/create');
+          context.go(_fallbackBackRoute);
         }
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(

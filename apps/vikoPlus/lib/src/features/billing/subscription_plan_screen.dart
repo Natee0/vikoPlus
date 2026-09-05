@@ -38,10 +38,25 @@ class _SubscriptionPlanScreenState
   Future<AccessPlansResult>? _plansFor(String? groupId) {
     if (groupId == null || groupId.isEmpty) return null;
     if (_loadedGroupId != groupId || _plansFuture == null) {
-      _loadedGroupId = groupId;
-      _plansFuture = ref.read(billingRepositoryProvider).accessPlans(groupId);
+      _setPlansFuture(groupId);
     }
     return _plansFuture;
+  }
+
+  void _setPlansFuture(String groupId, [Future<AccessPlansResult>? future]) {
+    _loadedGroupId = groupId;
+    _plansFuture =
+        future ?? ref.read(billingRepositoryProvider).accessPlans(groupId);
+  }
+
+  Future<void> _refresh() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+    final future = ref
+        .read(billingRepositoryProvider)
+        .accessPlans(activeGroup.id);
+    setState(() => _setPlansFuture(activeGroup.id, future));
+    await future;
   }
 
   AccessPlanSummary? _selectedPlan(List<AccessPlanSummary> plans) {
@@ -100,6 +115,7 @@ class _SubscriptionPlanScreenState
     return VikoplusScreen(
       title: 'Group Access',
       backRoute: '/groups/onboarding-success',
+      onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
           : FutureBuilder<AccessPlansResult>(

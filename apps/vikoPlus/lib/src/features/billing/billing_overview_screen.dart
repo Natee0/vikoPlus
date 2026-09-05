@@ -10,11 +10,46 @@ import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
-class BillingOverviewScreen extends ConsumerWidget {
+class BillingOverviewScreen extends ConsumerStatefulWidget {
   const BillingOverviewScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BillingOverviewScreen> createState() =>
+      _BillingOverviewScreenState();
+}
+
+class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
+  String? _loadedGroupId;
+  Future<GroupSubscriptionSummary>? _subscriptionFuture;
+
+  Future<GroupSubscriptionSummary> _subscriptionFor(String groupId) {
+    if (_loadedGroupId != groupId || _subscriptionFuture == null) {
+      _setSubscriptionFuture(groupId);
+    }
+    return _subscriptionFuture!;
+  }
+
+  void _setSubscriptionFuture(
+    String groupId, [
+    Future<GroupSubscriptionSummary>? future,
+  ]) {
+    _loadedGroupId = groupId;
+    _subscriptionFuture =
+        future ?? ref.read(billingRepositoryProvider).subscription(groupId);
+  }
+
+  Future<void> _refresh() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+    final future = ref
+        .read(billingRepositoryProvider)
+        .subscription(activeGroup.id);
+    setState(() => _setSubscriptionFuture(activeGroup.id, future));
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
@@ -23,12 +58,11 @@ class BillingOverviewScreen extends ConsumerWidget {
     return VikoplusScreen(
       title: 'Billing',
       backRoute: '/billing/plans',
+      onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
           : FutureBuilder<GroupSubscriptionSummary>(
-              future: ref
-                  .read(billingRepositoryProvider)
-                  .subscription(activeGroup.id),
+              future: _subscriptionFor(activeGroup.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(

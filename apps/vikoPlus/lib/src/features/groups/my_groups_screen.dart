@@ -24,13 +24,23 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
   @override
   void initState() {
     super.initState();
-    _groupsFuture = ref.read(groupsRepositoryProvider).myGroups();
+    _groupsFuture = _loadGroups();
+  }
+
+  Future<MyGroupsResult> _loadGroups() {
+    return ref.read(groupsRepositoryProvider).myGroups();
   }
 
   void _reload() {
     setState(() {
-      _groupsFuture = ref.read(groupsRepositoryProvider).myGroups();
+      _groupsFuture = _loadGroups();
     });
+  }
+
+  Future<void> _refresh() async {
+    final future = _loadGroups();
+    setState(() => _groupsFuture = future);
+    await future;
   }
 
   @override
@@ -39,8 +49,14 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
       title: 'My Groups',
       backRoute: '/dashboard',
       actions: [
+        IconButton(
+          tooltip: 'Refresh groups',
+          onPressed: _reload,
+          icon: const Icon(Icons.refresh),
+        ),
         const AuthLogoutIconButton(),
       ],
+      onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

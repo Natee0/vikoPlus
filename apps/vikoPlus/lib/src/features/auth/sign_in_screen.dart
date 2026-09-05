@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/auth/auth_secure_storage.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -23,10 +24,28 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   bool _isSubmitting = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadRememberedLogin();
+  }
+
+  @override
   void dispose() {
     _identifierController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRememberedLogin() async {
+    final credentials =
+        await ref.read(authSecureStorageProvider).readRememberedLogin();
+    if (!mounted || credentials == null) return;
+
+    setState(() {
+      _identifierController.text = credentials.identifier;
+      _passwordController.text = credentials.password;
+      _rememberMe = true;
+    });
   }
 
   Future<void> _submit() async {
@@ -48,6 +67,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
             identifier: identifier,
             password: password,
           );
+      final storage = ref.read(authSecureStorageProvider);
+      if (_rememberMe) {
+        await storage.saveRememberedLogin(
+          identifier: identifier,
+          password: password,
+        );
+      } else {
+        await storage.clearRememberedLogin();
+      }
       if (!mounted) return;
       context.go(route);
     } on AuthFailure catch (error) {
@@ -63,6 +91,13 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   void _clearError() {
     if (_errorMessage.isEmpty) return;
     setState(() => _errorMessage = '');
+  }
+
+  Future<void> _setRememberMe(bool value) async {
+    setState(() => _rememberMe = value);
+    if (!value) {
+      await ref.read(authSecureStorageProvider).clearRememberedLogin();
+    }
   }
 
   @override
@@ -141,7 +176,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       child: Checkbox(
                         value: _rememberMe,
                         onChanged: (value) {
-                          setState(() => _rememberMe = value ?? false);
+                          _setRememberMe(value ?? false);
                         },
                       ),
                     ),

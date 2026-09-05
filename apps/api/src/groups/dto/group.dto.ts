@@ -367,3 +367,63 @@ export class CreateReminderPackageCheckoutDto {
   @MaxLength(30)
   buyerPhone?: string;
 }
+
+export class CreateLoanApplicationDto {
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  purpose!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(60)
+  termMonths!: number;
+
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(10)
+  @IsString({ each: true })
+  guarantorMemberIds!: string[];
+}
+
+export class ReviewLoanApplicationDto {
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  approvedAmountMinor?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  notes?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  reason?: string;
+}
+
+export class RecordLoanRepaymentDto {
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(50)
+  @IsIn(["CASH", "MOBILE_MONEY", "BANK_TRANSFER", "OTHER"])
+  method!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  reference?: string;
+
+  @IsOptional()
+  @IsDateString()
+  paidAt?: string;
+}

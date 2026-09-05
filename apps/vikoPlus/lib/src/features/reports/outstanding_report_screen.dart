@@ -11,20 +11,71 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class OutstandingReportScreen extends ConsumerWidget {
+class OutstandingReportScreen extends ConsumerStatefulWidget {
   const OutstandingReportScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<OutstandingReportScreen> createState() =>
+      _OutstandingReportScreenState();
+}
+
+class _OutstandingReportScreenState extends ConsumerState<OutstandingReportScreen> {
+  Future<ContributionReportResult>? _reportFuture;
+  String? _loadedGroupId;
+  String? _loadedFinancialYearId;
+
+  Future<ContributionReportResult> _loadReport(
+    String groupId,
+    ContributionReportFilters filters,
+  ) {
+    return ref.read(groupsRepositoryProvider).contributionReport(
+          groupId,
+          financialYearId: filters.financialYearId,
+        );
+  }
+
+  void _setReportFuture(
+    String groupId,
+    ContributionReportFilters filters, [
+    Future<ContributionReportResult>? future,
+  ]) {
+    _loadedGroupId = groupId;
+    _loadedFinancialYearId = filters.financialYearId;
+    _reportFuture = future ?? _loadReport(groupId, filters);
+  }
+
+  void _ensureReportFuture(String? groupId, ContributionReportFilters filters) {
+    if (groupId == null || groupId.isEmpty) return;
+    if (_loadedGroupId != groupId ||
+        _loadedFinancialYearId != filters.financialYearId ||
+        _reportFuture == null) {
+      _setReportFuture(groupId, filters);
+    }
+  }
+
+  Future<void> _refresh() async {
+    final group = ref.read(activeGroupProvider);
+    if (group == null) return;
+
+    final filters = ref.read(contributionReportFiltersProvider);
+    final future = _loadReport(group.id, filters);
+    setState(() => _setReportFuture(group.id, filters, future));
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final filters = ref.watch(contributionReportFiltersProvider);
+    _ensureReportFuture(activeGroup?.id, filters);
 
     return VikoplusScreen(
       title: 'Outstanding report',
       backRoute: '/reports',
+      onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -37,12 +88,7 @@ class OutstandingReportScreen extends ConsumerWidget {
             ),
           ] else
             FutureBuilder<ContributionReportResult>(
-              future: ref
-                  .read(groupsRepositoryProvider)
-                  .contributionReport(
-                    activeGroup.id,
-                    financialYearId: filters.financialYearId,
-                  ),
+              future: _reportFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -11,9 +12,10 @@ import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class HistoricalRecordsScreen extends ConsumerStatefulWidget {
-  const HistoricalRecordsScreen({this.groupId, super.key});
+  const HistoricalRecordsScreen({this.groupId, this.returnTo, super.key});
 
   final String? groupId;
+  final String? returnTo;
 
   @override
   ConsumerState<HistoricalRecordsScreen> createState() =>
@@ -36,10 +38,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   @override
   void initState() {
     super.initState();
-    final groupId = widget.groupId;
-    _membersFuture = groupId == null || groupId.isEmpty
-        ? null
-        : ref.read(groupsRepositoryProvider).listMembers(groupId);
+    _membersFuture = _loadMembers();
   }
 
   @override
@@ -67,6 +66,56 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
     return '${_paidAt.day} ${months[_paidAt.month - 1]} ${_paidAt.year}';
   }
 
+  Future<GroupMembersResult>? _loadMembers() {
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return null;
+    return ref.read(groupsRepositoryProvider).listMembers(groupId);
+  }
+
+  String? get _groupId {
+    final widgetGroupId = widget.groupId;
+    if (widgetGroupId != null && widgetGroupId.isNotEmpty) {
+      return widgetGroupId;
+    }
+    final draftGroupId = ref.read(groupSetupDraftProvider).createdGroupId;
+    if (draftGroupId != null && draftGroupId.isNotEmpty) {
+      return draftGroupId;
+    }
+    return ref.read(activeGroupProvider)?.id;
+  }
+
+  String _routeWithReturnTo(String route) {
+    final returnTo = widget.returnTo;
+    if (returnTo == null || returnTo.isEmpty) return route;
+    final separator = route.contains('?') ? '&' : '?';
+    return '$route${separator}returnTo=${Uri.encodeComponent(returnTo)}';
+  }
+
+  String get _backRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
+    if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
+      return '/dashboard';
+    }
+
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return '/groups/contributions';
+    return '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}';
+  }
+
+  String _remindersRoute(String? groupId) {
+    final route = groupId == null || groupId.isEmpty
+        ? '/groups/reminders'
+        : '/groups/reminders?groupId=${Uri.encodeComponent(groupId)}';
+    return _routeWithReturnTo(route);
+  }
+
+  Future<void> _refresh() async {
+    final future = _loadMembers();
+    setState(() => _membersFuture = future);
+    await future;
+  }
+
   int? _amountMinor() {
     final digits = _amountController.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (digits.isEmpty) return null;
@@ -83,7 +132,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   }
 
   Future<void> _saveSinglePayment() async {
-    final groupId = widget.groupId;
+    final groupId = _groupId;
     if (_isSubmitting) return;
     if (groupId == null || groupId.isEmpty) {
       setState(() => _errorMessage = 'Create a group before importing records.');
@@ -116,7 +165,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
             ),
           );
       if (!mounted) return;
-      context.go('/groups/reminders?groupId=${Uri.encodeComponent(groupId)}');
+      context.go(_remindersRoute(groupId));
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);
@@ -128,12 +177,7 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   }
 
   void _continueToReminders() {
-    final groupId = widget.groupId;
-    context.go(
-      groupId == null
-          ? '/groups/reminders'
-          : '/groups/reminders?groupId=${Uri.encodeComponent(groupId)}',
-    );
+    context.go(_remindersRoute(_groupId));
   }
 
   Future<void> _pickPaidAt() async {
@@ -152,9 +196,9 @@ class _HistoricalRecordsScreenState extends ConsumerState<HistoricalRecordsScree
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'Historical Records',
-      backRoute: widget.groupId == null
-          ? '/groups/contributions'
-          : '/groups/contributions?groupId=${Uri.encodeComponent(widget.groupId!)}',
+      backRoute: _backRoute,
+      preferBackRoute: true,
+      onRefresh: _membersFuture == null ? null : _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

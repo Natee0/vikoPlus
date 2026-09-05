@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
-import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -12,11 +12,13 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class MemberDashboardNewUserScreen extends StatelessWidget {
+class MemberDashboardNewUserScreen extends ConsumerWidget {
   const MemberDashboardNewUserScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupName = ref.watch(activeGroupProvider)?.name ?? 'your group';
+
     return VikoplusScreen(
       title: 'Member Portal',
       actions: [
@@ -27,8 +29,18 @@ class MemberDashboardNewUserScreen extends StatelessWidget {
         children: [
           const _CenteredHero(
             icon: Icons.group_add_outlined,
-            title: 'Welcome to Sofia Wajukuu',
-            subtitle: 'Your membership is active. Start with your first contribution.',
+            title: 'Welcome to your group',
+            subtitle:
+                'Your membership is active. Start with your first contribution.',
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            groupName,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
@@ -48,68 +60,110 @@ class MemberDashboardNewUserScreen extends StatelessWidget {
   }
 }
 
-class MyContributionsScreen extends StatelessWidget {
+class MyContributionsScreen extends ConsumerWidget {
   const MyContributionsScreen({this.showBackButton = true, super.key});
 
   final bool showBackButton;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final formatter = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
-    final member = sofiaMembers[1];
+    final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
       title: 'My Contributions',
       backRoute: '/member/dashboard',
       showBackButton: showBackButton,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _MetricPanel(
-            label: 'Total paid',
-            value: formatter.money(member.totalPaid),
-            icon: Icons.account_balance_wallet_outlined,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          _MetricPanel(
-            label: 'Outstanding',
-            value: formatter.money(member.outstanding),
-            icon: Icons.pending_actions_outlined,
-            color: AppColors.error,
-            backgroundColor: AppColors.errorContainer.withValues(alpha: 0.42),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const SectionHeader(title: 'Contribution History'),
-          const SizedBox(height: AppSpacing.sm),
-          const _MemberContributionTile(
-            title: 'Joining fee',
-            subtitle: 'Required before full activation',
-            amount: 'TZS 10,000',
-            paid: false,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const _MemberContributionTile(
-            title: 'July monthly contribution',
-            subtitle: 'Due on July 5, 2026',
-            amount: 'TZS 5,000',
-            paid: false,
-          ),
-        ],
-      ),
+      child: activeGroup == null
+          ? const AuthErrorMessage(
+              message: 'Select a group to view your contributions.',
+            )
+          : FutureBuilder<ContributionRegisterResult>(
+              future: ref
+                  .read(groupsRepositoryProvider)
+                  .contributionRegister(activeGroup.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (snapshot.hasError || snapshot.data == null) {
+                  return const AuthErrorMessage(
+                    message: 'Could not load contributions. Please try again.',
+                  );
+                }
+
+                final obligations = snapshot.data!.obligations;
+                final totalPaid = obligations.fold<int>(
+                  0,
+                  (total, item) => total + item.amountPaidMinor,
+                );
+                final outstanding = obligations.fold<int>(
+                  0,
+                  (total, item) => total + item.outstandingMinor,
+                );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _MetricPanel(
+                      label: 'Total paid',
+                      value: formatter.money(totalPaid),
+                      icon: Icons.account_balance_wallet_outlined,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _MetricPanel(
+                      label: 'Outstanding',
+                      value: formatter.money(outstanding),
+                      icon: Icons.pending_actions_outlined,
+                      color: AppColors.error,
+                      backgroundColor:
+                          AppColors.errorContainer.withValues(alpha: 0.42),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    const SectionHeader(title: 'Contribution History'),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (obligations.isEmpty)
+                      const AuthErrorMessage(
+                        message: 'No contribution obligations are due.',
+                      )
+                    else
+                      for (final obligation in obligations) ...[
+                        _MemberContributionTile(
+                          title: obligation.planName,
+                          subtitle:
+                              '${obligation.periodLabel} • Due ${formatter.date(obligation.dueAt)}',
+                          amount: formatter.money(
+                            obligation.outstandingMinor,
+                            currency: obligation.currency,
+                          ),
+                          paid: obligation.outstandingMinor <= 0,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                  ],
+                );
+              },
+            ),
     );
   }
 }
 
-class DuesArrearsScreen extends StatelessWidget {
+class DuesArrearsScreen extends ConsumerWidget {
   const DuesArrearsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final formatter = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
+    final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
       title: 'Member Portal',
@@ -121,77 +175,128 @@ class DuesArrearsScreen extends StatelessWidget {
           tooltip: 'Notifications',
         ),
       ],
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Dues & Arrears',
-            style: Theme.of(context).textTheme.headlineMedium
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            'Manage your outstanding club fees.',
-            style: Theme.of(context).textTheme.bodyLarge
-                ?.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          _AmountDueCard(amount: formatter.money(120000)),
-          const SizedBox(height: AppSpacing.md),
-          const SectionHeader(title: 'Outstanding Months'),
-          const SizedBox(height: AppSpacing.sm),
-          const _ArrearsMonthTile(month: 'October 2026', amount: 'TZS 40,000'),
-          const SizedBox(height: AppSpacing.sm),
-          const _ArrearsMonthTile(month: 'November 2026', amount: 'TZS 40,000'),
-          const SizedBox(height: AppSpacing.sm),
-          const _ArrearsMonthTile(
-            month: 'December 2026',
-            amount: 'TZS 40,000',
-            primaryAction: true,
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const _InfoNotice(
-            title: 'Already paid?',
-            message: 'Notify the treasurer for a month you have already paid. The group admin or treasurer will verify and update your record.',
-          ),
-          const SizedBox(height: AppSpacing.md),
-          FilledButton(
-            onPressed: () => context.go('/member/payments/select'),
-            child: const Text('Pay selected dues'),
-          ),
-        ],
-      ),
+      child: activeGroup == null
+          ? const AuthErrorMessage(
+              message: 'Select a group to view dues and arrears.',
+            )
+          : FutureBuilder<ContributionRegisterResult>(
+              future: ref
+                  .read(groupsRepositoryProvider)
+                  .contributionRegister(activeGroup.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                if (snapshot.hasError || snapshot.data == null) {
+                  return const AuthErrorMessage(
+                    message: 'Could not load outstanding dues.',
+                  );
+                }
+
+                final outstanding = snapshot.data!.obligations
+                    .where((item) => item.outstandingMinor > 0)
+                    .toList();
+                final totalOutstanding = outstanding.fold<int>(
+                  0,
+                  (total, item) => total + item.outstandingMinor,
+                );
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Dues & Arrears',
+                      style: Theme.of(context).textTheme.headlineMedium
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Manage your outstanding group fees.',
+                      style: Theme.of(context).textTheme.bodyLarge
+                          ?.copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _AmountDueCard(amount: formatter.money(totalOutstanding)),
+                    const SizedBox(height: AppSpacing.md),
+                    const SectionHeader(title: 'Outstanding Contributions'),
+                    const SizedBox(height: AppSpacing.sm),
+                    if (outstanding.isEmpty)
+                      const AuthErrorMessage(
+                        message: 'You do not have outstanding dues.',
+                      )
+                    else
+                      for (final item in outstanding) ...[
+                        _ArrearsMonthTile(
+                          month: item.periodLabel,
+                          amount: formatter.money(
+                            item.outstandingMinor,
+                            currency: item.currency,
+                          ),
+                          primaryAction: item == outstanding.first,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                    const SizedBox(height: AppSpacing.md),
+                    const _InfoNotice(
+                      title: 'Already paid?',
+                      message:
+                          'Notify the treasurer for a payment you have already sent. The treasurer will verify and update your record.',
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    FilledButton(
+                      onPressed: () => context.go('/member/payments/select'),
+                      child: const Text('Pay selected dues'),
+                    ),
+                  ],
+                );
+              },
+            ),
     );
   }
 }
 
-class MyProfileScreen extends StatelessWidget {
+class MyProfileScreen extends ConsumerWidget {
   const MyProfileScreen({this.showBackButton = true, super.key});
 
   final bool showBackButton;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authSessionProvider).user;
+    final activeGroup = ref.watch(activeGroupProvider);
+    final displayName = user?.displayName?.trim();
+    final memberName = displayName == null || displayName.isEmpty
+        ? 'Member'
+        : displayName;
+
     return VikoplusScreen(
       title: 'My Profile',
       backRoute: '/member/dashboard',
       showBackButton: showBackButton,
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CenteredHero(
             icon: Icons.person_outline,
-            title: 'Amina Issa',
-            subtitle: 'Member | Sofia Wajukuu',
+            title: memberName,
+            subtitle: '${_roleLabel(activeGroup?.role ?? 'MEMBER')} | ${activeGroup?.name ?? 'No group selected'}',
           ),
-          SizedBox(height: AppSpacing.md),
-          _ProfileField(label: 'Member Number', value: 'SW-002'),
-          SizedBox(height: AppSpacing.sm),
-          _ProfileField(label: 'Phone Number', value: '+255 712 019 284'),
-          SizedBox(height: AppSpacing.sm),
-          _ProfileField(label: 'Group', value: 'Sofia Wajukuu'),
-          SizedBox(height: AppSpacing.sm),
-          _ProfileField(label: 'Status', value: 'Active member'),
+          const SizedBox(height: AppSpacing.md),
+          _ProfileField(label: 'User ID', value: user?.id ?? 'Not signed in'),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileField(
+            label: 'Preferred Language',
+            value: user?.preferredLocale.toUpperCase() ?? 'EN',
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileField(label: 'Group', value: activeGroup?.name ?? 'None'),
+          const SizedBox(height: AppSpacing.sm),
+          _ProfileField(label: 'Status', value: activeGroup?.status ?? 'New user'),
         ],
       ),
     );
@@ -264,10 +369,10 @@ class _SelectContributionScreenState
               message: 'Select a group before making a contribution.',
             ),
             const SizedBox(height: AppSpacing.md),
-            FilledButton(
-              onPressed: () => context.go('/groups/my'),
-              child: const Text('Choose Group'),
-            ),
+                FilledButton(
+                  onPressed: () => context.go('/groups'),
+                  child: const Text('Choose Group'),
+                ),
           ] else
             FutureBuilder<ContributionRegisterResult>(
               future: ref
@@ -1241,4 +1346,14 @@ class _SurfacePanel extends StatelessWidget {
       child: child,
     );
   }
+}
+
+String _roleLabel(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }

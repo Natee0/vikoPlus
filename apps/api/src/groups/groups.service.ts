@@ -6,7 +6,6 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  NotImplementedException,
 } from "@nestjs/common";
 import {
   AuditAction,
@@ -15,12 +14,16 @@ import {
   ContributionObligationStatus,
   ContributionPlanType,
   GroupContributionPaymentStatus,
+  GroupLoanStatus,
   GroupMemberStatus,
   GroupRole,
+  LoanApplicationStatus,
+  LoanRepaymentStatus,
   Locale,
   PaymentAllocationStatus,
   ReceiptStatus,
 } from "@prisma/client";
+import type { GroupMember } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
@@ -28,20 +31,25 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
 import { BriqMessagingService } from "../messaging/briq-messaging.service";
+import { SmtpEmailService } from "../messaging/smtp-email.service";
+import { groupInvitationEmailTemplate } from "./group-invitation-email.template";
 import {
   AddMemberDto,
   AssignRoleDto,
   ContributionSettingsDto,
-  CreateReminderPackageCheckoutDto,
   CreateGroupDto,
+  CreateLoanApplicationDto,
+  CreateReminderPackageCheckoutDto,
   FinancialYearDto,
   HistoricalContributionPaymentDto,
   ImportHistoricalContributionPaymentsDto,
   InviteMembersDto,
   JoinGroupDto,
   RecordContributionPaymentDto,
+  RecordLoanRepaymentDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
+  ReviewLoanApplicationDto,
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
   UpdateLanguageDto,
@@ -73,6 +81,13 @@ type ContributionPeriodSpec = {
   sortOrder: number;
 };
 
+type InvitationDeliveryResult = {
+  channel: "sms" | "email";
+  destination: string;
+  provider: string;
+  delivered: boolean;
+};
+
 @Injectable()
 export class GroupsService {
   constructor(
@@ -80,6 +95,7 @@ export class GroupsService {
     @Inject(SUBSCRIPTION_BILLING_PROVIDER)
     private readonly billingProvider: SubscriptionBillingProvider,
     private readonly briq: BriqMessagingService,
+    private readonly email: SmtpEmailService,
   ) {}
 
   async updateLanguage(user: AuthenticatedUser, input: UpdateLanguageDto) {
@@ -187,7 +203,7 @@ export class GroupsService {
   async joinGroup(user: AuthenticatedUser, input: JoinGroupDto) {
     const invitation = await this.prisma.groupInvitation.findUnique({
       where: { tokenHash: this.hash(input.invitationCode) },
-      include: { group: true },
+      include: { group: true, member: true },
     });
     if (
       !invitation ||
@@ -207,19 +223,27 @@ export class GroupsService {
       throw new ConflictException("You are already a member of this group.");
     }
 
-    const membership = await this.prisma.groupMember.create({
-      data: {
-        groupId: invitation.groupId,
-        userId: user.id,
-        fullName: await this.displayName(user.id),
-        role: invitation.role,
-        status: GroupMemberStatus.ACTIVE,
-        joinedAt: new Date(),
-      },
-    });
+    const now = new Date();
+    const membership = invitation.member
+      ? await this.activateInvitedMember(
+          user,
+          invitation.member,
+          invitation.role,
+          now,
+        )
+      : await this.prisma.groupMember.create({
+          data: {
+            groupId: invitation.groupId,
+            userId: user.id,
+            fullName: await this.displayName(user.id),
+            role: invitation.role,
+            status: GroupMemberStatus.ACTIVE,
+            joinedAt: now,
+          },
+        });
     await this.prisma.groupInvitation.update({
       where: { id: invitation.id },
-      data: { acceptedAt: new Date() },
+      data: { acceptedAt: now },
     });
     await this.generateContributionSchedule(invitation.groupId, membership.id);
     return {
@@ -488,26 +512,87 @@ export class GroupsService {
     input: AddMemberDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    const addMemberInput = input as AddMemberDto & { memberNumber?: string };
-    const rawMemberNumber = addMemberInput.memberNumber;
-    const memberNumber =
-      typeof rawMemberNumber === "string" && rawMemberNumber.trim()
-        ? rawMemberNumber.trim()
-        : null;
-    const member = await this.prisma.groupMember.create({
+    const group = await this.prisma.group.findUniqueOrThrow({
+      where: { id: groupId },
+    });
+    const fullName = input.fullName.trim();
+    const memberNumber = this.optionalTrim(input.memberNumber);
+    const rawPhone = this.optionalTrim(input.phone);
+    const phone = rawPhone ? this.normalizePhone(rawPhone) : null;
+    const email = this.optionalTrim(input.email)?.toLowerCase() ?? null;
+
+    if (!fullName) {
+      throw new BadRequestException("Enter the member full name.");
+    }
+    if (!phone && !email) {
+      throw new BadRequestException(
+        "Provide a phone number or email address so the invitation can be delivered.",
+      );
+    }
+
+    const role = input.role ?? GroupRole.MEMBER;
+    const token = randomBytes(18).toString("base64url");
+    const { member, invitation } = await this.prisma.$transaction(async (tx) => {
+      const createdMember = await tx.groupMember.create({
+        data: {
+          groupId,
+          memberNumber,
+          fullName,
+          phone,
+          email,
+          role,
+          status: GroupMemberStatus.INVITED,
+        },
+      });
+      const createdInvitation = await tx.groupInvitation.create({
+        data: {
+          groupId,
+          groupMemberId: createdMember.id,
+          tokenHash: this.hash(token),
+          role,
+          expiresAt: this.daysFromNow(14),
+        },
+      });
+      return { member: createdMember, invitation: createdInvitation };
+    });
+
+    let deliveries: InvitationDeliveryResult[];
+    try {
+      deliveries = await this.deliverMemberInvitation({
+        groupName: group.name,
+        memberName: member.fullName,
+        phone,
+        email,
+        invitationCode: token,
+        expiresAt: invitation.expiresAt,
+      });
+    } catch (error) {
+      await this.cleanupUndeliveredInvitedMember(member.id);
+      throw error;
+    }
+
+    await this.prisma.auditLog.create({
       data: {
+        actorUserId: user.id,
         groupId,
-        memberNumber,
-        fullName: input.fullName.trim(),
-        phone: input.phone ? this.normalizePhone(input.phone) : null,
-        email: input.email?.trim().toLowerCase(),
-        role: input.role ?? GroupRole.MEMBER,
-        status: GroupMemberStatus.ACTIVE,
-        joinedAt: new Date(),
+        action: AuditAction.MEMBER_CREATED,
+        entityType: "GroupMember",
+        entityId: member.id,
+        newValue: {
+          role: member.role,
+          status: member.status,
+          invitationId: invitation.id,
+          deliveredChannels: deliveries.map((delivery) => delivery.channel),
+        },
       },
     });
-    await this.generateContributionSchedule(groupId, member.id);
-    return member;
+
+    return {
+      ...member,
+      invitationCode: token,
+      invitationExpiresAt: invitation.expiresAt,
+      inviteDeliveries: deliveries,
+    };
   }
 
   async inviteMembers(
@@ -1121,10 +1206,541 @@ export class GroupsService {
     };
   }
 
-  loans(): never {
-    throw new NotImplementedException(
-      "Production loan persistence is not implemented yet.",
+  async loansOverview(user: AuthenticatedUser, groupId: string) {
+    const membership = await this.requireMembership(user, groupId);
+    const [group, savings, obligations, activeLoans, applications] =
+      await Promise.all([
+        this.prisma.group.findUniqueOrThrow({
+          where: { id: groupId },
+          select: { currency: true },
+        }),
+        this.prisma.groupContributionPayment.aggregate({
+          where: {
+            groupId,
+            groupMemberId: membership.id,
+            status: GroupContributionPaymentStatus.APPROVED,
+          },
+          _sum: { amountMinor: true },
+        }),
+        this.prisma.memberContributionObligation.aggregate({
+          where: {
+            groupMemberId: membership.id,
+            status: {
+              in: [
+                ContributionObligationStatus.DUE,
+                ContributionObligationStatus.PARTIALLY_PAID,
+                ContributionObligationStatus.OVERDUE,
+              ],
+            },
+          },
+          _sum: { amountDueMinor: true, amountPaidMinor: true },
+          _count: true,
+        }),
+        this.prisma.groupLoan.findMany({
+          where: {
+            groupId,
+            groupMemberId: membership.id,
+            status: GroupLoanStatus.ACTIVE,
+          },
+          include: { repayments: { orderBy: { createdAt: "desc" } } },
+          orderBy: { createdAt: "desc" },
+        }),
+        this.prisma.loanApplication.findMany({
+          where: {
+            groupId,
+            groupMemberId: membership.id,
+            status: { in: [LoanApplicationStatus.SUBMITTED] },
+          },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+    const totalSavingsMinor = savings._sum.amountMinor ?? 0;
+    const outstandingMinor = Math.max(
+      (obligations._sum.amountDueMinor ?? 0) -
+        (obligations._sum.amountPaidMinor ?? 0),
+      0,
     );
+    const activeLoanBalanceMinor = activeLoans.reduce(
+      (total, loan) => total + Math.max(loan.totalPayableMinor - loan.amountPaidMinor, 0),
+      0,
+    );
+    const creditLimitMinor = totalSavingsMinor * 2;
+    const borrowingPowerMinor = Math.max(
+      creditLimitMinor - activeLoanBalanceMinor,
+      0,
+    );
+
+    return {
+      groupId,
+      currency: group.currency,
+      totalSavingsMinor,
+      outstandingMinor,
+      activeDefaults: obligations._count,
+      creditLimitMinor,
+      borrowingPowerMinor,
+      tierLabel: totalSavingsMinor >= 1000000 ? "Tier 2 Member" : "Starter",
+      pendingApplicationsCount: applications.length,
+      activeLoans: activeLoans.map((loan) => this.loanSummary(loan)),
+      eligibility: [
+        {
+          label: "Active group membership",
+          achieved: membership.status === GroupMemberStatus.ACTIVE,
+        },
+        {
+          label: "No overdue contribution balance",
+          achieved: outstandingMinor === 0,
+        },
+        {
+          label: "Contribution savings available for borrowing limit",
+          achieved: totalSavingsMinor > 0,
+        },
+      ],
+    };
+  }
+
+  async createLoanApplication(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: CreateLoanApplicationDto,
+  ) {
+    const membership = await this.requireMembership(user, groupId);
+    const guarantorIds = [...new Set(input.guarantorMemberIds)];
+    if (guarantorIds.includes(membership.id)) {
+      throw new BadRequestException("You cannot guarantee your own loan.");
+    }
+    const guarantors = await this.prisma.groupMember.findMany({
+      where: {
+        id: { in: guarantorIds },
+        groupId,
+        status: GroupMemberStatus.ACTIVE,
+      },
+      select: { id: true },
+    });
+    if (guarantors.length !== guarantorIds.length) {
+      throw new BadRequestException("Select active guarantors from this group.");
+    }
+
+    const application = await this.prisma.loanApplication.create({
+      data: {
+        groupId,
+        groupMemberId: membership.id,
+        requestedByUserId: user.id,
+        amountMinor: input.amountMinor,
+        purpose: input.purpose.trim(),
+        termMonths: input.termMonths,
+        processingFeeMinor: this.processingFee(input.amountMinor),
+        guarantors: {
+          create: guarantorIds.map((groupMemberId) => ({ groupMemberId })),
+        },
+      },
+      include: { member: true, guarantors: { include: { member: true } } },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.LOAN_APPLICATION_SUBMITTED,
+        entityType: "LoanApplication",
+        entityId: application.id,
+        newValue: {
+          amountMinor: application.amountMinor,
+          purpose: application.purpose,
+          termMonths: application.termMonths,
+          guarantors: guarantorIds.length,
+        },
+      },
+    });
+    return this.loanApplicationSummary(application);
+  }
+
+  async listLoanApplications(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
+    const applications = await this.prisma.loanApplication.findMany({
+      where: { groupId },
+      include: { member: true, guarantors: { include: { member: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return { groupId, applications: applications.map((item) => this.loanApplicationSummary(item)) };
+  }
+
+  async loanApplication(
+    user: AuthenticatedUser,
+    groupId: string,
+    applicationId: string,
+  ) {
+    const membership = await this.requireMembership(user, groupId);
+    const application = await this.prisma.loanApplication.findFirst({
+      where: {
+        id: applicationId,
+        groupId,
+        ...(this.canReviewLoans(membership.role)
+          ? {}
+          : { groupMemberId: membership.id }),
+      },
+      include: { member: true, guarantors: { include: { member: true } } },
+    });
+    if (!application) throw new NotFoundException("Loan application not found.");
+    return this.loanApplicationSummary(application);
+  }
+
+  async approveLoanApplication(
+    user: AuthenticatedUser,
+    groupId: string,
+    applicationId: string,
+    input: ReviewLoanApplicationDto,
+  ) {
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
+    const application = await this.prisma.loanApplication.findFirst({
+      where: { id: applicationId, groupId },
+      include: { member: true, guarantors: { include: { member: true } } },
+    });
+    if (!application) throw new NotFoundException("Loan application not found.");
+    if (application.status !== LoanApplicationStatus.SUBMITTED) {
+      throw new BadRequestException("Only submitted applications can be approved.");
+    }
+    const amountMinor = input.approvedAmountMinor ?? application.amountMinor;
+    const totalPayableMinor = this.loanTotalPayable(
+      amountMinor,
+      application.termMonths,
+      application.monthlyInterestRateBps,
+      application.processingFeeMinor,
+    );
+    const dueAt = this.addMonths(new Date(), application.termMonths);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const savedApplication = await tx.loanApplication.update({
+        where: { id: application.id },
+        data: {
+          status: LoanApplicationStatus.DISBURSED,
+          approvedAmountMinor: amountMinor,
+          reviewedByUserId: user.id,
+          reviewNotes: input.notes,
+          approvedAt: new Date(),
+        },
+        include: { member: true, guarantors: { include: { member: true } } },
+      });
+      await tx.groupLoan.create({
+        data: {
+          applicationId: application.id,
+          groupId,
+          groupMemberId: application.groupMemberId,
+          amountMinor,
+          totalPayableMinor,
+          currency: application.currency,
+          purpose: application.purpose,
+          termMonths: application.termMonths,
+          monthlyInterestRateBps: application.monthlyInterestRateBps,
+          dueAt,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          groupId,
+          action: AuditAction.LOAN_APPLICATION_APPROVED,
+          entityType: "LoanApplication",
+          entityId: application.id,
+          newValue: { amountMinor, totalPayableMinor, dueAt },
+        },
+      });
+      return savedApplication;
+    });
+    return this.loanApplicationSummary(updated);
+  }
+
+  async rejectLoanApplication(
+    user: AuthenticatedUser,
+    groupId: string,
+    applicationId: string,
+    input: ReviewLoanApplicationDto,
+  ) {
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
+    const application = await this.prisma.loanApplication.findFirst({
+      where: { id: applicationId, groupId },
+      select: { id: true, status: true },
+    });
+    if (!application) throw new NotFoundException("Loan application not found.");
+    if (application.status !== LoanApplicationStatus.SUBMITTED) {
+      throw new BadRequestException("Only submitted applications can be rejected.");
+    }
+    const updated = await this.prisma.loanApplication.update({
+      where: { id: application.id },
+      data: {
+        status: LoanApplicationStatus.REJECTED,
+        reviewedByUserId: user.id,
+        rejectionReason: input.reason ?? input.notes,
+        rejectedAt: new Date(),
+      },
+      include: { member: true, guarantors: { include: { member: true } } },
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.LOAN_APPLICATION_REJECTED,
+        entityType: "LoanApplication",
+        entityId: application.id,
+        reason: input.reason ?? input.notes,
+      },
+    });
+    return this.loanApplicationSummary(updated);
+  }
+
+  async loanRepayment(user: AuthenticatedUser, groupId: string, loanId: string) {
+    const membership = await this.requireMembership(user, groupId);
+    const loan = await this.prisma.groupLoan.findFirst({
+      where: {
+        id: loanId,
+        groupId,
+        ...(this.canReviewLoans(membership.role)
+          ? {}
+          : { groupMemberId: membership.id }),
+      },
+      include: {
+        member: true,
+        repayments: { orderBy: { createdAt: "desc" } },
+      },
+    });
+    if (!loan) throw new NotFoundException("Loan not found.");
+    return this.loanRepaymentSummary(loan);
+  }
+
+  async recordLoanRepayment(
+    user: AuthenticatedUser,
+    groupId: string,
+    loanId: string,
+    input: RecordLoanRepaymentDto,
+  ) {
+    const membership = await this.requireMembership(user, groupId);
+    const loan = await this.prisma.groupLoan.findFirst({
+      where: {
+        id: loanId,
+        groupId,
+        ...(this.canReviewLoans(membership.role)
+          ? {}
+          : { groupMemberId: membership.id }),
+      },
+    });
+    if (!loan) throw new NotFoundException("Loan not found.");
+    const approveImmediately = this.canReviewLoans(membership.role);
+    const repayment = await this.prisma.loanRepayment.create({
+      data: {
+        loanId,
+        groupId,
+        groupMemberId: loan.groupMemberId,
+        createdByUserId: user.id,
+        reviewedByUserId: approveImmediately ? user.id : null,
+        amountMinor: input.amountMinor,
+        currency: loan.currency,
+        method: input.method,
+        reference: input.reference,
+        paidAt: input.paidAt ? new Date(input.paidAt) : new Date(),
+        status: approveImmediately
+          ? LoanRepaymentStatus.APPROVED
+          : LoanRepaymentStatus.SUBMITTED,
+        reviewedAt: approveImmediately ? new Date() : null,
+      },
+    });
+    if (approveImmediately) {
+      const amountPaidMinor = loan.amountPaidMinor + input.amountMinor;
+      await this.prisma.groupLoan.update({
+        where: { id: loan.id },
+        data: {
+          amountPaidMinor,
+          status:
+            amountPaidMinor >= loan.totalPayableMinor
+              ? GroupLoanStatus.PAID
+              : GroupLoanStatus.ACTIVE,
+        },
+      });
+    }
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: approveImmediately
+          ? AuditAction.LOAN_REPAYMENT_APPROVED
+          : AuditAction.LOAN_REPAYMENT_SUBMITTED,
+        entityType: "LoanRepayment",
+        entityId: repayment.id,
+        newValue: {
+          loanId,
+          amountMinor: repayment.amountMinor,
+          status: repayment.status,
+        },
+      },
+    });
+    return repayment;
+  }
+
+  private canReviewLoans(role: GroupRole): boolean {
+    return role === GroupRole.GROUP_ADMIN || role === GroupRole.TREASURER;
+  }
+
+  private processingFee(amountMinor: number): number {
+    return Math.ceil(amountMinor * 0.02);
+  }
+
+  private loanTotalPayable(
+    principalMinor: number,
+    termMonths: number,
+    monthlyInterestRateBps: number,
+    processingFeeMinor: number,
+  ): number {
+    const interestMinor = Math.ceil(
+      (principalMinor * monthlyInterestRateBps * termMonths) / 10000,
+    );
+    return principalMinor + interestMinor + processingFeeMinor;
+  }
+
+  private loanSummary(loan: {
+    id: string;
+    amountMinor: number;
+    totalPayableMinor: number;
+    amountPaidMinor: number;
+    currency: string;
+    purpose: string;
+    termMonths: number;
+    monthlyInterestRateBps: number;
+    status: GroupLoanStatus;
+    disbursedAt: Date;
+    dueAt: Date;
+  }) {
+    return {
+      id: loan.id,
+      amountMinor: loan.amountMinor,
+      totalPayableMinor: loan.totalPayableMinor,
+      amountPaidMinor: loan.amountPaidMinor,
+      outstandingMinor: Math.max(
+        loan.totalPayableMinor - loan.amountPaidMinor,
+        0,
+      ),
+      currency: loan.currency,
+      purpose: loan.purpose,
+      termMonths: loan.termMonths,
+      monthlyInterestRateBps: loan.monthlyInterestRateBps,
+      status: loan.status,
+      disbursedAt: loan.disbursedAt,
+      dueAt: loan.dueAt,
+    };
+  }
+
+  private loanApplicationSummary(application: {
+    id: string;
+    amountMinor: number;
+    approvedAmountMinor: number | null;
+    currency: string;
+    purpose: string;
+    termMonths: number;
+    monthlyInterestRateBps: number;
+    processingFeeMinor: number;
+    status: LoanApplicationStatus;
+    reviewNotes: string | null;
+    rejectionReason: string | null;
+    createdAt: Date;
+    approvedAt: Date | null;
+    rejectedAt: Date | null;
+    member: {
+      id: string;
+      fullName: string;
+      memberNumber: string | null;
+      status: GroupMemberStatus;
+      joinedAt: Date | null;
+    };
+    guarantors: {
+      id: string;
+      status: string;
+      confirmedAt: Date | null;
+      member: {
+        id: string;
+        fullName: string;
+        memberNumber: string | null;
+      };
+    }[];
+  }) {
+    const confirmedGuarantors = application.guarantors.filter(
+      (guarantor) => guarantor.status === "CONFIRMED",
+    ).length;
+    return {
+      id: application.id,
+      amountMinor: application.amountMinor,
+      approvedAmountMinor: application.approvedAmountMinor,
+      currency: application.currency,
+      purpose: application.purpose,
+      termMonths: application.termMonths,
+      monthlyInterestRateBps: application.monthlyInterestRateBps,
+      processingFeeMinor: application.processingFeeMinor,
+      estimatedTotalPayableMinor: this.loanTotalPayable(
+        application.approvedAmountMinor ?? application.amountMinor,
+        application.termMonths,
+        application.monthlyInterestRateBps,
+        application.processingFeeMinor,
+      ),
+      status: application.status,
+      reviewNotes: application.reviewNotes,
+      rejectionReason: application.rejectionReason,
+      createdAt: application.createdAt,
+      approvedAt: application.approvedAt,
+      rejectedAt: application.rejectedAt,
+      applicant: application.member,
+      guarantors: application.guarantors.map((guarantor) => ({
+        id: guarantor.id,
+        status: guarantor.status,
+        confirmedAt: guarantor.confirmedAt,
+        member: guarantor.member,
+      })),
+      guarantorSummary: {
+        confirmed: confirmedGuarantors,
+        required: 2,
+        total: application.guarantors.length,
+      },
+    };
+  }
+
+  private loanRepaymentSummary(loan: {
+    id: string;
+    amountMinor: number;
+    totalPayableMinor: number;
+    amountPaidMinor: number;
+    currency: string;
+    purpose: string;
+    termMonths: number;
+    monthlyInterestRateBps: number;
+    status: GroupLoanStatus;
+    disbursedAt: Date;
+    dueAt: Date;
+    repayments: {
+      id: string;
+      amountMinor: number;
+      currency: string;
+      method: string;
+      reference: string | null;
+      status: LoanRepaymentStatus;
+      paidAt: Date | null;
+      createdAt: Date;
+    }[];
+  }) {
+    return {
+      loan: this.loanSummary(loan),
+      repayments: loan.repayments.map((repayment) => ({
+        id: repayment.id,
+        amountMinor: repayment.amountMinor,
+        currency: repayment.currency,
+        method: repayment.method,
+        reference: repayment.reference,
+        status: repayment.status,
+        paidAt: repayment.paidAt,
+        createdAt: repayment.createdAt,
+      })),
+    };
   }
 
   async settings(user: AuthenticatedUser, groupId: string) {
@@ -1862,6 +2478,124 @@ export class GroupsService {
     if (digits.startsWith("0")) return `255${digits.slice(1)}`;
     if (digits.length === 9) return `255${digits}`;
     return digits;
+  }
+
+  private optionalTrim(value?: string | null): string | null {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private async activateInvitedMember(
+    user: AuthenticatedUser,
+    member: GroupMember,
+    role: GroupRole,
+    joinedAt: Date,
+  ) {
+    if (member.status === GroupMemberStatus.ACTIVE) {
+      throw new ConflictException("This invitation has already been accepted.");
+    }
+    if (member.userId && member.userId !== user.id) {
+      throw new ConflictException("This invitation belongs to another user.");
+    }
+
+    const fullName = member.fullName.trim() || (await this.displayName(user.id));
+    return this.prisma.groupMember.update({
+      where: { id: member.id },
+      data: {
+        userId: user.id,
+        fullName,
+        role,
+        status: GroupMemberStatus.ACTIVE,
+        joinedAt,
+      },
+    });
+  }
+
+  private async deliverMemberInvitation(input: {
+    groupName: string;
+    memberName: string;
+    phone: string | null;
+    email: string | null;
+    invitationCode: string;
+    expiresAt: Date;
+  }): Promise<InvitationDeliveryResult[]> {
+    const deliveries: InvitationDeliveryResult[] = [];
+    const failures: string[] = [];
+    const text = this.memberInvitationText(input);
+
+    if (input.phone) {
+      try {
+        const result = await this.briq.sendSms({
+          to: input.phone,
+          content: text,
+        });
+        deliveries.push({
+          channel: "sms",
+          destination: input.phone,
+          provider: result.provider,
+          delivered: result.delivered,
+        });
+      } catch (error) {
+        failures.push(this.deliveryFailure("sms", error));
+      }
+    }
+
+    if (input.email) {
+      try {
+        const message = groupInvitationEmailTemplate(input);
+        const result = await this.email.sendEmail({
+          to: input.email,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+        });
+        deliveries.push({
+          channel: "email",
+          destination: input.email,
+          provider: result.provider,
+          delivered: result.delivered,
+        });
+      } catch (error) {
+        failures.push(this.deliveryFailure("email", error));
+      }
+    }
+
+    if (deliveries.length === 0) {
+      throw new BadGatewayException({
+        message: "Member invitation could not be delivered.",
+        failures,
+      });
+    }
+
+    return deliveries;
+  }
+
+  private memberInvitationText(input: {
+    groupName: string;
+    memberName: string;
+    invitationCode: string;
+    expiresAt: Date;
+  }): string {
+    const expiresOn = input.expiresAt.toISOString().slice(0, 10);
+    return [
+      `Hello ${input.memberName},`,
+      `You have been invited to join ${input.groupName} on Vikoplus.`,
+      `Invitation code: ${input.invitationCode}`,
+      `This code expires on ${expiresOn}.`,
+    ].join(" ");
+  }
+
+  private deliveryFailure(channel: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    return `${channel}: ${message}`;
+  }
+
+  private async cleanupUndeliveredInvitedMember(memberId: string) {
+    try {
+      await this.prisma.groupMember.delete({ where: { id: memberId } });
+    } catch {
+      // Best-effort cleanup only. The original delivery error is returned.
+    }
   }
 
   private async primaryIdentity(

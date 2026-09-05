@@ -1,25 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class MoreMenuScreen extends StatelessWidget {
+class MoreMenuScreen extends ConsumerWidget {
   const MoreMenuScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
+  String _setupRoute(String path, GroupAccessSummary? group) {
+    final route = group == null
+        ? path
+        : '$path?groupId=${Uri.encodeComponent(group.id)}';
+    final separator = route.contains('?') ? '&' : '?';
+    return '$route${separator}returnTo=${Uri.encodeComponent('/more')}';
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+
     return VikoplusScreen(
       title: 'More',
       bottomNavigationIndex: 4,
       showBottomNavigation: showBottomNavigation,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: const [
-          ActionTile(
+        children: [
+          const ActionTile(
             title: 'My groups',
             subtitle: 'Switch, create, or join groups you can access',
             icon: Icons.hub_outlined,
@@ -75,14 +87,14 @@ class MoreMenuScreen extends StatelessWidget {
             title: 'Contribution setup',
             subtitle: 'Joining fee, membership fee and payment rules',
             icon: Icons.price_change_outlined,
-            route: '/groups/contributions',
+            route: _setupRoute('/groups/contributions', activeGroup),
           ),
           SizedBox(height: 12),
           ActionTile(
             title: 'Historical records',
             subtitle: 'Add old records manually or import a CSV',
             icon: Icons.history_edu_outlined,
-            route: '/groups/history',
+            route: _setupRoute('/groups/history', activeGroup),
             color: AppColors.gold,
           ),
           SizedBox(height: 12),

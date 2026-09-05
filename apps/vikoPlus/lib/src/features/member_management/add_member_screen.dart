@@ -69,12 +69,26 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
       setState(() => _errorMessage = 'Open a group before adding members.');
       return;
     }
+    if (activeGroup.role != 'GROUP_ADMIN') {
+      setState(
+        () => _errorMessage =
+            'Only the group admin can add members and send invitations.',
+      );
+      return;
+    }
 
     final fullName = _fullNameController.text.trim();
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     if (fullName.length < 2) {
       setState(() => _errorMessage = 'Enter the member full name.');
+      return;
+    }
+    if (phone.isEmpty && email.isEmpty) {
+      setState(
+        () => _errorMessage =
+            'Enter a phone number or email address to send the invitation.',
+      );
       return;
     }
     try {
@@ -102,6 +116,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
               status: activeGroup.status,
               membersCount: activeGroup.membersCount + 1,
             ),
+          );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Member invitation sent.')),
       );
       context.go('/members');
     } on Object catch (error) {
@@ -116,6 +133,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final canAddMembers = activeGroup?.role == 'GROUP_ADMIN';
+
     return PopScope(
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
@@ -148,6 +168,13 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                       children: [
                         const _PhotoUploader(),
                         const SizedBox(height: AppSpacing.md),
+                        if (!canAddMembers) ...[
+                          const AuthErrorMessage(
+                            message:
+                                'Only the group admin can add members and send invitations.',
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                        ],
                         _FormCard(
                           title: 'Personal Information',
                           children: [
@@ -163,7 +190,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
                               label: 'Phone Number',
-                              requiredField: true,
+                              optionalLabel: '(Required if no email)',
                               hint: '+255 7XX XXX XXX',
                               controller: _phoneController,
                               onChanged: (_) => _clearError(),
@@ -172,7 +199,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
                               label: 'Email Address',
-                              optionalLabel: '(Optional)',
+                              optionalLabel: '(Required if no phone)',
                               hint: 'member@example.com',
                               controller: _emailController,
                               onChanged: (_) => _clearError(),
@@ -226,7 +253,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             ),
                             const Divider(color: AppColors.outlineVariant),
                             Text(
-                              'Use Invite Members when this person needs their own app login and a role-based join code.',
+                              'Saving creates an invited member record, generates a join code, and sends it by SMS or email.',
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: AppColors.onSurfaceVariant,
@@ -242,10 +269,10 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: _isSubmitting ? 'Saving' : 'Save Member',
+                  label: _isSubmitting ? 'Sending' : 'Send Invite',
                   icon: const Icon(Icons.person_add_alt_outlined, size: 18),
                   isLoading: _isSubmitting,
-                  onPressed: _submit,
+                  onPressed: canAddMembers ? _submit : null,
                 ),
               ],
             ),

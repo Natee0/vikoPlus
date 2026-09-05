@@ -85,7 +85,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updatePaymentMethod => 'Update payment method';
 
   @override
-  String get adminDashboardTitle => 'Sofia Wajukuu';
+  String get adminDashboardTitle => 'Admin Dashboard';
 
   @override
   String get totalContributions => 'Total contributions';
@@ -103,11 +103,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get financialYear => 'Financial year';
 
   @override
-  String get financialYearValue => 'July 2026 - June 2027';
+  String get financialYearValue => 'Current financial year';
 
   @override
   String get contributionRule =>
-      'Joining fee TZS 10,000 and monthly dues TZS 5,000';
+      'Contribution rules come from the active group setup.';
 
   @override
   String get billingNotice =>

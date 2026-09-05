@@ -2,21 +2,68 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
+import '../notifications/notification_icon_button.dart';
 
-class MemberDashboardScreen extends ConsumerWidget {
+class MemberDashboardScreen extends ConsumerStatefulWidget {
   const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
 
   final bool showBottomNavigation;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MemberDashboardScreen> createState() =>
+      _MemberDashboardScreenState();
+}
+
+class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
+  String? _loadedSummaryGroupId;
+  Future<ContributionReportResult>? _summaryFuture;
+
+  Future<ContributionReportResult>? _summaryFor(String? groupId) {
+    if (groupId == null || groupId.isEmpty) return null;
+    if (_loadedSummaryGroupId != groupId || _summaryFuture == null) {
+      _setSummaryFuture(groupId);
+    }
+    return _summaryFuture;
+  }
+
+  void _setSummaryFuture(
+    String groupId, [
+    Future<ContributionReportResult>? future,
+  ]) {
+    _loadedSummaryGroupId = groupId;
+    _summaryFuture =
+        future ?? ref.read(groupsRepositoryProvider).contributionReport(groupId);
+  }
+
+  Future<void> _refresh() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+    final future = ref
+        .read(groupsRepositoryProvider)
+        .contributionReport(activeGroup.id);
+    setState(() => _setSummaryFuture(activeGroup.id, future));
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
+    final user = ref.watch(authSessionProvider).user;
+    final displayName = user?.displayName?.trim();
+    final memberName = displayName == null || displayName.isEmpty
+        ? 'Member'
+        : displayName;
+    final groupName = activeGroup?.name ?? 'your group';
+    final firstDueLabel = activeGroup == null
+        ? 'Select a group'
+        : 'Check your current contribution balance';
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -35,14 +82,7 @@ class MemberDashboardScreen extends ConsumerWidget {
               ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () => context.go('/notifications'),
-            icon: const Badge(
-              smallSize: 8,
-              child: Icon(Icons.notifications_outlined),
-            ),
-          ),
+          const NotificationIconButton(),
           IconButton(
             tooltip: 'My groups',
             onPressed: () => context.go('/groups'),
@@ -52,14 +92,17 @@ class MemberDashboardScreen extends ConsumerWidget {
         ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            AppSpacing.screenMobile,
-            AppSpacing.md,
-            AppSpacing.screenMobile,
-            104,
-          ),
-          children: [
+        child: RefreshIndicator(
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenMobile,
+              AppSpacing.md,
+              AppSpacing.screenMobile,
+              104,
+            ),
+            children: [
             Text(
               'Good morning,',
               style: Theme.of(context).textTheme.bodyLarge
@@ -67,14 +110,16 @@ class MemberDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             Text(
-              'Amina Issa',
+              memberName,
               style: Theme.of(context).textTheme.displayLarge?.copyWith(
                 color: AppColors.onSurface,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: AppSpacing.md),
-            _ContributionSummaryCard(groupId: activeGroup?.id),
+            _ContributionSummaryCard(
+              summaryFuture: _summaryFor(activeGroup?.id),
+            ),
             const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
@@ -95,16 +140,16 @@ class MemberDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.xs),
             const _ActivityTile(
-              title: 'Joined Sofia Wajukuu',
+              title: 'Joined group',
               subtitle: 'Membership confirmed',
               value: 'Today',
               icon: Icons.group_add_outlined,
             ),
             const SizedBox(height: AppSpacing.xs),
-            const _ActivityTile(
+            _ActivityTile(
               title: 'First contribution due',
-              subtitle: 'Monthly contribution',
-              value: 'TZS 5,000',
+              subtitle: groupName,
+              value: firstDueLabel,
               icon: Icons.event_available_outlined,
             ),
             const SizedBox(height: AppSpacing.md),
@@ -119,10 +164,11 @@ class MemberDashboardScreen extends ConsumerWidget {
               icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
               label: const Text('Loans'),
             ),
-          ],
+            ],
+          ),
         ),
       ),
-      bottomNavigationBar: showBottomNavigation
+      bottomNavigationBar: widget.showBottomNavigation
           ? NavigationBar(
               selectedIndex: 0,
               onDestinationSelected: (index) {
@@ -169,14 +215,14 @@ class MemberDashboardScreen extends ConsumerWidget {
 }
 
 class _ContributionSummaryCard extends StatelessWidget {
-  const _ContributionSummaryCard({required this.groupId});
+  const _ContributionSummaryCard({required this.summaryFuture});
 
-  final String? groupId;
+  final Future<ContributionReportResult>? summaryFuture;
 
   @override
   Widget build(BuildContext context) {
     return _ContributionSummarySurface(
-      child: groupId == null || groupId!.isEmpty
+      child: summaryFuture == null
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -191,24 +237,24 @@ class _ContributionSummaryCard extends StatelessWidget {
                 ),
               ],
             )
-          : _LiveContributionSummary(groupId: groupId!),
+          : _LiveContributionSummary(summaryFuture: summaryFuture!),
     );
   }
 }
 
-class _LiveContributionSummary extends ConsumerWidget {
-  const _LiveContributionSummary({required this.groupId});
+class _LiveContributionSummary extends StatelessWidget {
+  const _LiveContributionSummary({required this.summaryFuture});
 
-  final String groupId;
+  final Future<ContributionReportResult> summaryFuture;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
 
     return FutureBuilder<ContributionReportResult>(
-      future: ref.read(groupsRepositoryProvider).contributionReport(groupId),
+      future: summaryFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(

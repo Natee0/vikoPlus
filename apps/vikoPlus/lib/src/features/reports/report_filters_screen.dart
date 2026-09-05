@@ -89,11 +89,28 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
 
   Future<GroupFinancialYearsResult> _financialYearsFor(String groupId) {
     if (_loadedGroupId != groupId || _financialYearsFuture == null) {
-      _loadedGroupId = groupId;
-      _financialYearsFuture =
-          ref.read(groupsRepositoryProvider).financialYears(groupId);
+      _setFinancialYearsFuture(groupId);
     }
     return _financialYearsFuture!;
+  }
+
+  void _setFinancialYearsFuture(
+    String groupId, [
+    Future<GroupFinancialYearsResult>? future,
+  ]) {
+    _loadedGroupId = groupId;
+    _financialYearsFuture =
+        future ?? ref.read(groupsRepositoryProvider).financialYears(groupId);
+  }
+
+  Future<void> _refresh() async {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+    final future = ref
+        .read(groupsRepositoryProvider)
+        .financialYears(activeGroup.id);
+    setState(() => _setFinancialYearsFuture(activeGroup.id, future));
+    await future;
   }
 
   @override
@@ -103,6 +120,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
     return VikoplusScreen(
       title: 'Report Filters',
       backRoute: '/reports',
+      onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
           : FutureBuilder<GroupFinancialYearsResult>(

@@ -245,7 +245,7 @@ abstract class AppLocalizations {
   /// No description provided for @adminDashboardTitle.
   ///
   /// In en, this message translates to:
-  /// **'Sofia Wajukuu'**
+  /// **'Admin Dashboard'**
   String get adminDashboardTitle;
 
   /// No description provided for @totalContributions.
@@ -281,13 +281,13 @@ abstract class AppLocalizations {
   /// No description provided for @financialYearValue.
   ///
   /// In en, this message translates to:
-  /// **'July 2026 - June 2027'**
+  /// **'Current financial year'**
   String get financialYearValue;
 
   /// No description provided for @contributionRule.
   ///
   /// In en, this message translates to:
-  /// **'Joining fee TZS 10,000 and monthly dues TZS 5,000'**
+  /// **'Contribution rules come from the active group setup.'**
   String get contributionRule;
 
   /// No description provided for @billingNotice.

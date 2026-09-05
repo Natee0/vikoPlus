@@ -164,12 +164,19 @@ class AuthFailure implements Exception {
       );
     }
     if (error is DioException) {
+      final transportMessage = _messageForDioType(error.type);
+      if (error.response == null && transportMessage != null) {
+        return AuthFailure(transportMessage);
+      }
+
       final data = error.response?.data;
       final message = _messageFromData(data);
       if (message != null) return AuthFailure(message);
 
       final statusMessage = _messageForStatus(error.response?.statusCode);
       if (statusMessage != null) return AuthFailure(statusMessage);
+
+      if (transportMessage != null) return AuthFailure(transportMessage);
 
       return AuthFailure(error.message ?? 'Network request failed.');
     }
@@ -243,6 +250,23 @@ class AuthFailure implements Exception {
       422 => 'Some details are invalid. Please check and try again.',
       429 => 'Too many requests. Please wait and try again.',
       _ => null,
+    };
+  }
+
+  static String? _messageForDioType(DioExceptionType type) {
+    return switch (type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.sendTimeout ||
+      DioExceptionType.transformTimeout ||
+      DioExceptionType.receiveTimeout =>
+        'Connection timed out. Check your internet and try again.',
+      DioExceptionType.connectionError =>
+        'Internet connection problem. Check your connection and try again.',
+      DioExceptionType.cancel =>
+        'Request cancelled. Please try again.',
+      DioExceptionType.badCertificate =>
+        'Secure connection failed. Please try again later.',
+      DioExceptionType.badResponse || DioExceptionType.unknown => null,
     };
   }
 }

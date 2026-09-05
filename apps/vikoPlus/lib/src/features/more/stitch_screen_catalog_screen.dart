@@ -133,12 +133,12 @@ class StitchScreenCatalogScreen extends StatelessWidget {
               ),
               _CatalogLink(
                 'Member profile fully paid',
-                '/members/SW-005/fully-paid',
+                '/members',
                 Icons.verified_user_outlined,
               ),
               _CatalogLink(
                 'Member profile outstanding',
-                '/members/SW-002/outstanding',
+                '/members',
                 Icons.pending_actions_outlined,
               ),
               _CatalogLink(
@@ -169,7 +169,7 @@ class StitchScreenCatalogScreen extends StatelessWidget {
               ),
               _CatalogLink(
                 'Digital receipt admin',
-                '/contributions/receipt/SW-005',
+                '/contributions',
                 Icons.receipt_long_outlined,
               ),
               _CatalogLink(

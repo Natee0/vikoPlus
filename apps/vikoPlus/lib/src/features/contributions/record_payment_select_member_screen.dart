@@ -10,19 +10,56 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class RecordPaymentSelectMemberScreen extends ConsumerWidget {
+class RecordPaymentSelectMemberScreen extends ConsumerStatefulWidget {
   const RecordPaymentSelectMemberScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<RecordPaymentSelectMemberScreen> createState() =>
+      _RecordPaymentSelectMemberScreenState();
+}
+
+class _RecordPaymentSelectMemberScreenState
+    extends ConsumerState<RecordPaymentSelectMemberScreen> {
+  Future<GroupMembersResult>? _membersFuture;
+  String? _loadedMembersGroupId;
+
+  Future<GroupMembersResult> _loadMembers(String groupId) {
+    return ref.read(groupsRepositoryProvider).listMembers(groupId);
+  }
+
+  void _setMembersFuture(String groupId, [Future<GroupMembersResult>? future]) {
+    _loadedMembersGroupId = groupId;
+    _membersFuture = future ?? _loadMembers(groupId);
+  }
+
+  void _ensureMembersFuture(String? groupId) {
+    if (groupId == null) return;
+    if (_loadedMembersGroupId != groupId || _membersFuture == null) {
+      _setMembersFuture(groupId);
+    }
+  }
+
+  Future<void> _refresh() async {
+    final group = ref.read(activeGroupProvider);
+    if (group == null) return;
+
+    final future = _loadMembers(group.id);
+    setState(() => _setMembersFuture(group.id, future));
+    await future;
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final formatter = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
     final activeGroup = ref.watch(activeGroupProvider);
+    _ensureMembersFuture(activeGroup?.id);
 
     return VikoplusScreen(
       title: 'Record Payment',
       backRoute: '/contributions',
+      onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -32,7 +69,7 @@ class RecordPaymentSelectMemberScreen extends ConsumerWidget {
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
-              onPressed: () => context.go('/groups/my'),
+              onPressed: () => context.go('/groups'),
               child: const Text('Choose Group'),
             ),
           ] else ...[
@@ -47,9 +84,7 @@ class RecordPaymentSelectMemberScreen extends ConsumerWidget {
             const SectionHeader(title: 'All Members'),
             const SizedBox(height: AppSpacing.sm),
             FutureBuilder<GroupMembersResult>(
-              future: ref
-                  .read(groupsRepositoryProvider)
-                  .listMembers(activeGroup.id),
+              future: _membersFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(

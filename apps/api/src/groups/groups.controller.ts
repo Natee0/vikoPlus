@@ -18,8 +18,9 @@ import {
   AddMemberDto,
   AssignRoleDto,
   ContributionSettingsDto,
-  CreateReminderPackageCheckoutDto,
   CreateGroupDto,
+  CreateLoanApplicationDto,
+  CreateReminderPackageCheckoutDto,
   FinancialYearDto,
   HistoricalContributionPaymentDto,
   ImportHistoricalContributionPaymentsDto,
@@ -27,8 +28,10 @@ import {
   JoinGroupDto,
   PreviewJoinCodeDto,
   RecordContributionPaymentDto,
+  RecordLoanRepaymentDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
+  ReviewLoanApplicationDto,
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
   UpdateLanguageDto,
@@ -323,47 +326,80 @@ export class GroupsController {
   }
 
   @Get("groups/:groupId/loans/overview")
-  loansOverview() {
-    return this.groups.loans();
+  loansOverview(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.loansOverview(user, groupId);
   }
 
   @Post("groups/:groupId/loans/applications")
   @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
-  createLoanApplication() {
-    return this.groups.loans();
+  createLoanApplication(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: CreateLoanApplicationDto,
+  ) {
+    return this.groups.createLoanApplication(user, groupId, body);
   }
 
   @Get("groups/:groupId/loans/applications")
-  listLoanApplications() {
-    return this.groups.loans();
+  listLoanApplications(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.listLoanApplications(user, groupId);
   }
 
   @Get("groups/:groupId/loans/applications/:applicationId")
-  loanApplication() {
-    return this.groups.loans();
+  loanApplication(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("applicationId") applicationId: string,
+  ) {
+    return this.groups.loanApplication(user, groupId, applicationId);
   }
 
   @Post("groups/:groupId/loans/applications/:applicationId/approve")
   @Throttle({ default: { limit: 30, ttl: 60000, blockDuration: 120000 } })
-  approveLoanApplication() {
-    return this.groups.loans();
+  approveLoanApplication(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("applicationId") applicationId: string,
+    @Body() body: ReviewLoanApplicationDto,
+  ) {
+    return this.groups.approveLoanApplication(user, groupId, applicationId, body);
   }
 
   @Post("groups/:groupId/loans/applications/:applicationId/reject")
   @Throttle({ default: { limit: 30, ttl: 60000, blockDuration: 120000 } })
-  rejectLoanApplication() {
-    return this.groups.loans();
+  rejectLoanApplication(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("applicationId") applicationId: string,
+    @Body() body: ReviewLoanApplicationDto,
+  ) {
+    return this.groups.rejectLoanApplication(user, groupId, applicationId, body);
   }
 
   @Get("groups/:groupId/loans/:loanId/repayment")
-  loanRepayment() {
-    return this.groups.loans();
+  loanRepayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("loanId") loanId: string,
+  ) {
+    return this.groups.loanRepayment(user, groupId, loanId);
   }
 
   @Post("groups/:groupId/loans/:loanId/repayments")
   @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
-  recordLoanRepayment() {
-    return this.groups.loans();
+  recordLoanRepayment(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("loanId") loanId: string,
+    @Body() body: RecordLoanRepaymentDto,
+  ) {
+    return this.groups.recordLoanRepayment(user, groupId, loanId, body);
   }
 
   @Get("notifications")

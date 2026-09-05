@@ -139,6 +139,33 @@ enum BillingTransactionStatus {
   REFUNDED
 }
 
+enum LoanApplicationStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  DISBURSED
+  CANCELLED
+}
+
+enum LoanGuarantorStatus {
+  PENDING
+  CONFIRMED
+  DECLINED
+}
+
+enum GroupLoanStatus {
+  ACTIVE
+  PAID
+  DEFAULTED
+  CANCELLED
+}
+
+enum LoanRepaymentStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 enum AuditAction {
   ACCOUNT_VERIFIED
   PASSWORD_RESET_REQUESTED
@@ -176,6 +203,11 @@ enum AuditAction {
   REPORT_GENERATED
   REMINDER_CREATED
   REMINDER_SENT
+  LOAN_APPLICATION_SUBMITTED
+  LOAN_APPLICATION_APPROVED
+  LOAN_APPLICATION_REJECTED
+  LOAN_REPAYMENT_SUBMITTED
+  LOAN_REPAYMENT_APPROVED
 }
 
 model User {
@@ -199,6 +231,10 @@ model User {
   notifications      Notification[]
   createdPayments    GroupContributionPayment[] @relation("CreatedPayments")
   reviewedPayments   GroupContributionPayment[] @relation("ReviewedPayments")
+  createdLoanApplications LoanApplication[] @relation("LoanApplicationsCreatedBy")
+  reviewedLoanApplications LoanApplication[] @relation("LoanApplicationsReviewedBy")
+  createdLoanRepayments LoanRepayment[] @relation("LoanRepaymentsCreatedBy")
+  reviewedLoanRepayments LoanRepayment[] @relation("LoanRepaymentsReviewedBy")
   reminderPackagePurchases ReminderPackagePurchase[] @relation("ReminderPackagePurchasesCreatedBy")
 }
 
@@ -286,6 +322,9 @@ model Group {
   reminderTemplates   ReminderTemplate[]
   reminderCampaigns   ReminderCampaign[]
   reminderPackagePurchases ReminderPackagePurchase[]
+  loanApplications    LoanApplication[]
+  loans               GroupLoan[]
+  loanRepayments      LoanRepayment[]
 }
 
 model GroupMember {
@@ -306,21 +345,130 @@ model GroupMember {
   user            User?             @relation(fields: [userId], references: [id])
   obligations     MemberContributionObligation[]
   payments        GroupContributionPayment[]
+  loanApplications LoanApplication[]
+  loanGuarantorRequests LoanGuarantor[]
+  loans           GroupLoan[]
+  loanRepayments  LoanRepayment[]
+  invitations     GroupInvitation[]
 
   @@unique([groupId, memberNumber])
   @@index([groupId])
   @@index([userId])
 }
 
+model LoanApplication {
+  id                     String                @id @default(cuid())
+  groupId                String
+  groupMemberId          String
+  requestedByUserId      String?
+  reviewedByUserId       String?
+  amountMinor            Int
+  approvedAmountMinor    Int?
+  currency               String                @default("TZS")
+  purpose                String
+  termMonths             Int
+  monthlyInterestRateBps Int                   @default(150)
+  processingFeeMinor     Int                   @default(0)
+  status                 LoanApplicationStatus @default(SUBMITTED)
+  reviewNotes            String?
+  rejectionReason        String?
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @updatedAt
+  group                  Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member                 GroupMember           @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+  requestedBy            User?                 @relation("LoanApplicationsCreatedBy", fields: [requestedByUserId], references: [id])
+  reviewedBy             User?                 @relation("LoanApplicationsReviewedBy", fields: [reviewedByUserId], references: [id])
+  guarantors             LoanGuarantor[]
+  loan                   GroupLoan?
+
+  @@index([groupId])
+  @@index([groupMemberId])
+  @@index([status])
+}
+
+model LoanGuarantor {
+  id            String              @id @default(cuid())
+  applicationId String
+  groupMemberId String
+  status        LoanGuarantorStatus @default(PENDING)
+  confirmedAt   DateTime?
+  createdAt     DateTime            @default(now())
+  application   LoanApplication     @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  member        GroupMember         @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, groupMemberId])
+  @@index([groupMemberId])
+}
+
+model GroupLoan {
+  id                     String          @id @default(cuid())
+  applicationId          String          @unique
+  groupId                String
+  groupMemberId          String
+  amountMinor            Int
+  totalPayableMinor      Int
+  amountPaidMinor        Int             @default(0)
+  currency               String          @default("TZS")
+  purpose                String
+  termMonths             Int
+  monthlyInterestRateBps Int             @default(150)
+  status                 GroupLoanStatus @default(ACTIVE)
+  disbursedAt            DateTime        @default(now())
+  dueAt                  DateTime
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  application            LoanApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  group                  Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member                 GroupMember     @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+  repayments             LoanRepayment[]
+
+  @@index([groupId])
+  @@index([groupMemberId])
+  @@index([status])
+}
+
+model LoanRepayment {
+  id               String              @id @default(cuid())
+  loanId           String
+  groupId          String
+  groupMemberId    String
+  createdByUserId  String?
+  reviewedByUserId String?
+  amountMinor      Int
+  currency         String              @default("TZS")
+  method           String
+  reference        String?
+  status           LoanRepaymentStatus @default(SUBMITTED)
+  paidAt           DateTime?
+  reviewedAt       DateTime?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  loan             GroupLoan           @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  group            Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member           GroupMember         @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+  createdBy        User?               @relation("LoanRepaymentsCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy       User?               @relation("LoanRepaymentsReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@index([loanId])
+  @@index([groupId])
+  @@index([groupMemberId])
+}
+
 model GroupInvitation {
-  id          String    @id @default(cuid())
-  groupId     String
-  tokenHash   String    @unique
-  role        GroupRole @default(MEMBER)
-  expiresAt   DateTime
-  acceptedAt  DateTime?
-  createdAt   DateTime  @default(now())
-  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  id            String       @id @default(cuid())
+  groupId       String
+  groupMemberId String?
+  tokenHash     String       @unique
+  role          GroupRole    @default(MEMBER)
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  createdAt     DateTime     @default(now())
+  group         Group        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  member        GroupMember? @relation(fields: [groupMemberId], references: [id], onDelete: Cascade)
+
+  @@index([groupMemberId])
 }
 
 model FinancialYear {

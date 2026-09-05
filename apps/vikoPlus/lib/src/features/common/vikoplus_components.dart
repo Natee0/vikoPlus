@@ -56,6 +56,72 @@ class StatusPill extends StatelessWidget {
   }
 }
 
+class EmptyStateCard extends StatelessWidget {
+  const EmptyStateCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+    super.key,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final action = actionLabel;
+
+    return Container(
+      padding: AppInsets.card,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+        boxShadow: AppShadows.level1(),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: AppColors.surfaceContainer,
+            child: Icon(icon, color: AppColors.primary, size: 32),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                ),
+          ),
+          if (action != null && onAction != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            FilledButton(
+              onPressed: onAction,
+              child: Text(action),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class ActionTile extends StatelessWidget {
   const ActionTile({
     required this.title,

@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
-import '../../core/sample/sofia_sample_data.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
+import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class DigitalReceiptScreen extends ConsumerWidget {
@@ -34,70 +34,86 @@ class DigitalReceiptScreen extends ConsumerWidget {
           tooltip: 'More options',
         ),
       ],
-      child: id == null || id == 'latest' || activeGroup == null
-          ? _StaticReceiptContent(formatters: formatters)
-          : FutureBuilder<ReceiptSummary>(
-              future: ref
-                  .read(groupsRepositoryProvider)
-                  .receipt(activeGroup.id, id),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(AppSpacing.lg),
-                      child: CircularProgressIndicator(),
-                    ),
-                  );
-                }
+      child: _body(context, ref, formatters, activeGroup, id),
+    );
+  }
 
-                if (snapshot.hasError || snapshot.data == null) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      const AuthErrorMessage(
-                        message: 'Could not load this receipt. Please try again.',
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      FilledButton(
-                        onPressed: () => context.go(backRoute ?? '/dashboard'),
-                        child: const Text('Go Back'),
-                      ),
-                    ],
-                  );
-                }
+  Widget _body(
+    BuildContext context,
+    WidgetRef ref,
+    AppFormatters formatters,
+    GroupAccessSummary? activeGroup,
+    String? id,
+  ) {
+    if (id == null || id == 'latest') {
+      return _ReceiptUnavailable(backRoute: backRoute);
+    }
+    if (activeGroup == null) {
+      return _ReceiptUnavailable(
+        backRoute: backRoute,
+        title: 'Select a group',
+        message: 'Open a group before viewing receipts.',
+      );
+    }
 
-                return _ReceiptContent(
-                  receipt: snapshot.data!,
-                  groupName: activeGroup.name,
-                  formatters: formatters,
-                );
-              },
+    return FutureBuilder<ReceiptSummary>(
+      future: ref.read(groupsRepositoryProvider).receipt(activeGroup.id, id),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: CircularProgressIndicator(),
             ),
+          );
+        }
+
+        if (snapshot.hasError || snapshot.data == null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const AuthErrorMessage(
+                message: 'Could not load this receipt. Please try again.',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              FilledButton(
+                onPressed: () => context.go(backRoute ?? '/dashboard'),
+                child: const Text('Go Back'),
+              ),
+            ],
+          );
+        }
+
+        return _ReceiptContent(
+          receipt: snapshot.data!,
+          groupName: activeGroup.name,
+          formatters: formatters,
+        );
+      },
     );
   }
 }
 
-class _StaticReceiptContent extends StatelessWidget {
-  const _StaticReceiptContent({required this.formatters});
+class _ReceiptUnavailable extends StatelessWidget {
+  const _ReceiptUnavailable({
+    required this.backRoute,
+    this.title = 'Receipt not available yet',
+    this.message =
+        'A receipt will be created after the treasurer approves this payment.',
+  });
 
-  final AppFormatters formatters;
+  final String? backRoute;
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) {
-    final member = sofiaMembers[4];
-    final amount = formatters.money(10000);
-    return _ReceiptLayout(
-      amount: amount,
-      lines: [
-        const ('Reference No', 'TRX-89234-77'),
-        const ('Date & Time', 'Sep 2, 2026\n10:30 AM'),
-        const ('Payment Method', 'M-Pesa'),
-        const ('Group Name', 'Sofia Wajukuu Group'),
-        const ('Contribution Type', 'Monthly Contribution'),
-        ('Member Name', member.name),
-        ('Amount', amount),
-        const ('Transaction Fee', 'TZS 0'),
-      ],
+    return EmptyStateCard(
+      icon: Icons.receipt_long_outlined,
+      title: title,
+      message: message,
+      actionLabel: 'Go Back',
+      onAction: () => context.go(backRoute ?? '/dashboard'),
     );
   }
 }

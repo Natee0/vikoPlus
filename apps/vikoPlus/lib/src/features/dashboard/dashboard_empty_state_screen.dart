@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_screen.dart';
 
-class DashboardEmptyStateScreen extends StatelessWidget {
+class DashboardEmptyStateScreen extends ConsumerWidget {
   const DashboardEmptyStateScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final groupName = activeGroup?.name ?? 'Your group';
+    final groupId = activeGroup?.id;
+    final hasMembers = (activeGroup?.membersCount ?? 0) > 0;
+    final completedSteps = hasMembers ? 3 : 2;
+    final setupProgress = completedSteps / 5;
+
     return VikoplusScreen(
-      title: 'Sofia Wajukuu',
+      title: groupName,
       bottomNavigationIndex: 0,
       showBackButton: false,
       actions: [
@@ -95,7 +104,7 @@ class DashboardEmptyStateScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'Welcome to Sofia\nWajukuu',
+                  'Welcome to\n$groupName',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: AppColors.onSurface,
@@ -142,15 +151,15 @@ class DashboardEmptyStateScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  '2 of 5 steps completed',
+                  '$completedSteps of 5 steps completed',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadii.pill),
-                  child: const LinearProgressIndicator(
-                    value: 0.4,
+                  child: LinearProgressIndicator(
+                    value: setupProgress,
                     minHeight: 6,
                     backgroundColor: AppColors.surfaceContainerHigh,
                     color: AppColors.primaryContainer,
@@ -162,23 +171,32 @@ class DashboardEmptyStateScreen extends StatelessWidget {
                   completed: true,
                   route: '/groups/create',
                 ),
-                SizedBox(height: AppSpacing.xs),
-                const _SetupStepTile(
+                const SizedBox(height: AppSpacing.xs),
+                _SetupStepTile(
                   title: 'Financial Year Set',
                   completed: true,
-                  route: '/groups/financial-year',
+                  route: _withGroupId(
+                    '/groups/financial-year',
+                    groupId,
+                    returnTo: '/dashboard',
+                  ),
                 ),
-                SizedBox(height: AppSpacing.xs),
-                const _SetupStepTile(
+                const SizedBox(height: AppSpacing.xs),
+                _SetupStepTile(
                   title: 'Add First Member',
+                  completed: hasMembers,
                   route: '/members/add',
                 ),
-                SizedBox(height: AppSpacing.xs),
-                const _SetupStepTile(
+                const SizedBox(height: AppSpacing.xs),
+                _SetupStepTile(
                   title: 'Configure Contributions',
-                  route: '/groups/contributions',
+                  route: _withGroupId(
+                    '/groups/contributions',
+                    groupId,
+                    returnTo: '/dashboard',
+                  ),
                 ),
-                SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.xs),
                 const _SetupStepTile(
                   title: 'Invite Members',
                   route: '/members/invite',
@@ -190,6 +208,15 @@ class DashboardEmptyStateScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String _withGroupId(String route, String? groupId, {String? returnTo}) {
+  final routeWithGroup = groupId == null || groupId.isEmpty
+      ? route
+      : '$route?groupId=${Uri.encodeComponent(groupId)}';
+  if (returnTo == null || returnTo.isEmpty) return routeWithGroup;
+  final separator = routeWithGroup.contains('?') ? '&' : '?';
+  return '$routeWithGroup${separator}returnTo=${Uri.encodeComponent(returnTo)}';
 }
 
 class _SetupStepTile extends StatelessWidget {

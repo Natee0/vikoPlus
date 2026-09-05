@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
-class OnboardingSuccessScreen extends StatelessWidget {
-  const OnboardingSuccessScreen({super.key});
+class OnboardingSuccessScreen extends ConsumerWidget {
+  const OnboardingSuccessScreen({this.groupId, super.key});
+
+  final String? groupId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final groupName = activeGroup?.name ?? 'your group';
+    final billingRoute = groupId == null || groupId!.isEmpty
+        ? '/billing/plans'
+        : '/billing/plans?groupId=${Uri.encodeComponent(groupId!)}';
+
     return VikoplusScreen(
       showBackButton: false,
       child: Column(
@@ -37,7 +47,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Welcome to Sofia Wajukuu Group!',
+            'Welcome to $groupName!',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               color: AppColors.primary,
@@ -87,7 +97,7 @@ class OnboardingSuccessScreen extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
-            onPressed: () => context.go('/billing/plans'),
+            onPressed: () => context.go(billingRoute),
             icon: const Icon(Icons.workspace_premium_outlined, size: 18),
             label: const Text('Choose plan'),
           ),

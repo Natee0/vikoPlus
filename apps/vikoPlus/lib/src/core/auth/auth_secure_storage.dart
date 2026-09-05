@@ -15,6 +15,8 @@ class AuthSecureStorage {
   static const _accessTokenKey = 'vikoplus.accessToken';
   static const _refreshTokenKey = 'vikoplus.refreshToken';
   static const _userKey = 'vikoplus.user';
+  static const _rememberedIdentifierKey = 'vikoplus.rememberedIdentifier';
+  static const _rememberedPasswordKey = 'vikoplus.rememberedPassword';
   static final _storage = FlutterSecureStorage();
 
   Future<AuthSession> readSession() async {
@@ -67,4 +69,51 @@ class AuthSecureStorage {
       _storage.delete(key: _userKey),
     ]);
   }
+
+  Future<RememberedLoginCredentials?> readRememberedLogin() async {
+    final identifier = await _storage.read(key: _rememberedIdentifierKey);
+    final password = await _storage.read(key: _rememberedPasswordKey);
+
+    if (identifier == null ||
+        identifier.trim().isEmpty ||
+        password == null ||
+        password.isEmpty) {
+      return null;
+    }
+
+    return RememberedLoginCredentials(
+      identifier: identifier,
+      password: password,
+    );
+  }
+
+  Future<void> saveRememberedLogin({
+    required String identifier,
+    required String password,
+  }) async {
+    await Future.wait([
+      _storage.write(
+        key: _rememberedIdentifierKey,
+        value: identifier.trim(),
+      ),
+      _storage.write(key: _rememberedPasswordKey, value: password),
+    ]);
+  }
+
+  Future<void> clearRememberedLogin() async {
+    await Future.wait([
+      _storage.delete(key: _rememberedIdentifierKey),
+      _storage.delete(key: _rememberedPasswordKey),
+    ]);
+  }
+}
+
+class RememberedLoginCredentials {
+  const RememberedLoginCredentials({
+    required this.identifier,
+    required this.password,
+  });
+
+  final String identifier;
+  final String password;
 }

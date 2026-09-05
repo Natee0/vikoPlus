@@ -13,9 +13,10 @@ import '../common/info_card.dart';
 import '../common/vikoplus_screen.dart';
 
 class ConfigureContributionsScreen extends ConsumerStatefulWidget {
-  const ConfigureContributionsScreen({this.groupId, super.key});
+  const ConfigureContributionsScreen({this.groupId, this.returnTo, super.key});
 
   final String? groupId;
+  final String? returnTo;
 
   @override
   ConsumerState<ConfigureContributionsScreen> createState() =>
@@ -116,7 +117,37 @@ class _ConfigureContributionsScreenState
     if (widgetGroupId != null && widgetGroupId.isNotEmpty) {
       return widgetGroupId;
     }
-    return ref.read(groupSetupDraftProvider).createdGroupId;
+    final draftGroupId = ref.read(groupSetupDraftProvider).createdGroupId;
+    if (draftGroupId != null && draftGroupId.isNotEmpty) {
+      return draftGroupId;
+    }
+    return ref.read(activeGroupProvider)?.id;
+  }
+
+  String _routeWithReturnTo(String route) {
+    final returnTo = widget.returnTo;
+    if (returnTo == null || returnTo.isEmpty) return route;
+    final separator = route.contains('?') ? '&' : '?';
+    return '$route${separator}returnTo=${Uri.encodeComponent(returnTo)}';
+  }
+
+  String get _backRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
+    if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
+      return '/dashboard';
+    }
+
+    final groupId = _groupId;
+    if (groupId == null || groupId.isEmpty) return '/groups/financial-year';
+    return '/groups/financial-year?groupId=${Uri.encodeComponent(groupId)}';
+  }
+
+  String _groupRoute(String path, String? groupId) {
+    final route = groupId == null || groupId.isEmpty
+        ? path
+        : '$path?groupId=${Uri.encodeComponent(groupId)}';
+    return _routeWithReturnTo(route);
   }
 
   void _persistContributions() {
@@ -202,7 +233,7 @@ class _ConfigureContributionsScreenState
             ),
           );
       if (!mounted) return;
-      context.go('/groups/reminders?groupId=${Uri.encodeComponent(groupId)}');
+      context.go(_groupRoute('/groups/reminders', groupId));
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);
@@ -219,9 +250,8 @@ class _ConfigureContributionsScreenState
 
     return VikoplusScreen(
       title: 'Configure Contributions',
-      backRoute: groupId == null
-          ? '/groups/financial-year'
-          : '/groups/financial-year?groupId=${Uri.encodeComponent(groupId)}',
+      backRoute: _backRoute,
+      preferBackRoute: true,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -393,11 +423,7 @@ class _ConfigureContributionsScreenState
           const SizedBox(height: AppSpacing.sm),
           _HistoricalDataCard(
             onImport: () {
-              context.go(
-                groupId == null
-                    ? '/groups/history'
-                    : '/groups/history?groupId=${Uri.encodeComponent(groupId)}',
-              );
+              context.go(_groupRoute('/groups/history', groupId));
             },
           ),
           const SizedBox(height: AppSpacing.md),

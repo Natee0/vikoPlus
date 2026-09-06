@@ -173,7 +173,12 @@ class AuthFailure implements Exception {
 
       final data = error.response?.data;
       final message = _messageFromData(data);
-      if (message != null) return AuthFailure(message);
+      if (message != null) {
+        if (RegExp(r'\bCannot\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+/', caseSensitive: false).hasMatch(message)) {
+          return const AuthFailure('This action is temporarily unavailable. Please try again later.');
+        }
+        return AuthFailure(message);
+      }
 
       final statusMessage = _messageForStatus(error.response?.statusCode);
       if (statusMessage != null) return AuthFailure(statusMessage);

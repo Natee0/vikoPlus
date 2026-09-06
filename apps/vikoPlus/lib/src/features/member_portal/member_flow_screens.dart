@@ -115,13 +115,13 @@ class MyContributionsScreen extends ConsumerWidget {
                   children: [
                     _MetricPanel(
                       label: 'Total paid',
-                      value: formatter.money(totalPaid),
+                      value: formatter.compactMoney(totalPaid),
                       icon: Icons.account_balance_wallet_outlined,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _MetricPanel(
                       label: 'Outstanding',
-                      value: formatter.money(outstanding),
+                      value: formatter.compactMoney(outstanding),
                       icon: Icons.pending_actions_outlined,
                       color: AppColors.error,
                       backgroundColor: AppColors.errorContainer.withValues(

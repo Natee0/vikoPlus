@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
-import '../../core/auth/auth_session.dart';
+import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -74,7 +74,9 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Hello, ${ref.watch(authSessionProvider).user?.displayName ?? 'Treasurer'}',
+            ref.watch(profileDisplayNameProvider).isEmpty
+                ? 'Welcome'
+                : 'Hello, ${ref.watch(profileDisplayNameProvider)}',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.xxs),
@@ -165,7 +167,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                           runSpacing: AppSpacing.xs,
                           children: [
                             Text(
-                              'Outstanding\n${format.money(metrics.outstandingMinor)}',
+                              'Outstanding\n${format.compactMoney(metrics.outstandingMinor)}',
                               style: const TextStyle(
                                 color: AppColors.onPrimary,
                               ),
@@ -242,7 +244,8 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   const SizedBox(height: AppSpacing.xs),
                   const ActionTile(
                     title: 'Record payment',
-                    subtitle: 'Allocate a contribution across one or more periods',
+                    subtitle:
+                        'Allocate a contribution across one or more periods',
                     icon: Icons.add_card_outlined,
                     route: '/contributions/record',
                   ),

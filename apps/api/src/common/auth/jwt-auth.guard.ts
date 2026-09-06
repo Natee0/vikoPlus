@@ -51,7 +51,10 @@ export class JwtAuthGuard implements CanActivate {
         select: { id: true },
       });
       if (!membership) {
-        throw new ForbiddenException("Group access denied.");
+        throw new ForbiddenException({
+          code: "GROUP_ACCESS_DENIED",
+          message: "You no longer have access to this group.",
+        });
       }
     }
     return true;

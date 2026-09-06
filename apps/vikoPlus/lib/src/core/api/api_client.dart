@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_secure_storage.dart';
 import '../auth/auth_session.dart';
 import '../config/app_config.dart';
+import '../groups/group_access_events.dart';
 
 final apiClientProvider = Provider<Dio>((ref) {
   const configuredBaseUrl = AppConfig.VIKOPLUS_API_BASE_URL;
@@ -34,6 +35,18 @@ final apiClientProvider = Provider<Dio>((ref) {
         handler.next(options);
       },
       onError: (error, handler) async {
+        final body = error.response?.data;
+        if (error.response?.statusCode == 403 &&
+            body is Map &&
+            body['code'] == 'GROUP_ACCESS_DENIED') {
+          final segments = error.requestOptions.uri.pathSegments;
+          final index = segments.indexOf('groups');
+          if (index >= 0 && index + 1 < segments.length) {
+            ref
+                .read(groupAccessEventsProvider.notifier)
+                .denied(segments[index + 1]);
+          }
+        }
         final requestOptions = error.requestOptions;
         final shouldRefresh =
             error.response?.statusCode == 401 &&

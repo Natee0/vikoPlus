@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../core/auth/profile_provider.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_screen.dart';
@@ -51,7 +52,9 @@ class StaffPortalScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '$role Dashboard',
+            ref.watch(profileDisplayNameProvider).isEmpty
+                ? 'Welcome'
+                : 'Hello, ${ref.watch(profileDisplayNameProvider)}',
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: AppSpacing.md),

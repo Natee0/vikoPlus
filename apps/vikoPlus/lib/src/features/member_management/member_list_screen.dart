@@ -155,6 +155,8 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
                 for (final label in [
                   'All',
                   'Active',
+                  'Suspended',
+                  'Removed',
                   'Outstanding',
                   'Fully paid',
                 ])
@@ -279,6 +281,8 @@ class _MemberListBody extends StatelessWidget {
           return matches &&
               switch (filter) {
                 'Active' => member.status == 'ACTIVE',
+                'Suspended' => member.status == 'SUSPENDED',
+                'Removed' => member.status == 'REMOVED',
                 'Outstanding' => member.outstandingMinor > 0,
                 'Fully paid' =>
                   member.status == 'ACTIVE' && member.outstandingMinor == 0,

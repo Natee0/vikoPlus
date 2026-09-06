@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
+import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
 import '../../routing/portal_route_guard.dart';
@@ -1487,18 +1488,27 @@ class _RepaymentHeroCard extends StatelessWidget {
               Expanded(
                 child: _HeroMetric(
                   label: 'Remaining Balance',
-                  value: _money(loan.outstandingMinor, loan.currency),
+                  value:
+                      AppFormatters(
+                        Localizations.localeOf(context).toLanguageTag(),
+                      ).compactMoney(
+                        loan.outstandingMinor,
+                        currency: loan.currency,
+                      ),
                 ),
               ),
               Expanded(
                 child: _HeroMetric(
                   label: 'Next Installment',
-                  value: _money(
-                    loan.termMonths == 0
-                        ? loan.outstandingMinor
-                        : (loan.totalPayableMinor / loan.termMonths).ceil(),
-                    loan.currency,
-                  ),
+                  value:
+                      AppFormatters(
+                        Localizations.localeOf(context).toLanguageTag(),
+                      ).compactMoney(
+                        loan.termMonths == 0
+                            ? loan.outstandingMinor
+                            : (loan.totalPayableMinor / loan.termMonths).ceil(),
+                        currency: loan.currency,
+                      ),
                 ),
               ),
             ],

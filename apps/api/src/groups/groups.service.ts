@@ -40,6 +40,7 @@ import { ReminderDispatchService } from "./reminder-dispatch.service";
 import {
   AddMemberDto,
   AssignRoleDto,
+  UpdateMemberStatusDto,
   ContributionSettingsDto,
   CreateGroupDto,
   CreateLoanApplicationDto,
@@ -934,9 +935,86 @@ export class GroupsService {
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
     return this.prisma.groupMember.update({
-      where: { id: memberId },
+      where: { id: memberId, groupId },
       data: { role: input.role },
     });
+  }
+
+  async updateMemberStatus(
+    user: AuthenticatedUser,
+    groupId: string,
+    memberId: string,
+    input: UpdateMemberStatusDto,
+  ) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    return this.prisma.$transaction(
+      async (tx) => {
+        const actor = await tx.groupMember.findFirst({
+          where: {
+            userId: user.id,
+            groupId,
+            role: GroupRole.GROUP_ADMIN,
+            status: GroupMemberStatus.ACTIVE,
+          },
+        });
+        if (!actor)
+          throw new ForbiddenException(
+            "Only an active group admin can manage member access.",
+          );
+        const member = await tx.groupMember.findFirst({
+          where: { id: memberId, groupId },
+          include: { group: true },
+        });
+        if (!member) throw new NotFoundException("Member not found.");
+        if (
+          member.userId === user.id ||
+          member.role === GroupRole.GROUP_ADMIN ||
+          (member.userId && member.userId === member.group.billingOwnerUserId)
+        ) {
+          throw new ForbiddenException(
+            "Administrator and owner memberships cannot be suspended or removed.",
+          );
+        }
+        if (
+          input.status === "ACTIVE" &&
+          (!member.userId || member.status === GroupMemberStatus.INVITED)
+        ) {
+          throw new BadRequestException(
+            "An invited member must accept an invitation before gaining access.",
+          );
+        }
+        if (member.status === input.status) return member;
+        const updated = await tx.groupMember.update({
+          where: { id: memberId, groupId },
+          data: {
+            status: input.status,
+            deactivatedAt: input.status === "ACTIVE" ? null : new Date(),
+          },
+        });
+        if (input.status !== "ACTIVE") {
+          await tx.groupInvitation.updateMany({
+            where: { groupId, groupMemberId: memberId, acceptedAt: null },
+            data: { expiresAt: new Date() },
+          });
+        }
+        await tx.auditLog.create({
+          data: {
+            actorUserId: user.id,
+            groupId,
+            action:
+              input.status === "ACTIVE"
+                ? AuditAction.GROUP_UPDATED
+                : AuditAction.MEMBER_DEACTIVATED,
+            entityType: "GroupMember",
+            entityId: memberId,
+            previousValue: { status: member.status },
+            newValue: { status: input.status },
+          },
+        });
+        return updated;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async contributionRegister(user: AuthenticatedUser, groupId: string) {

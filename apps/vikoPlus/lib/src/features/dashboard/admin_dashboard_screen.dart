@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
@@ -86,7 +87,9 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Hello, Admin',
+            ref.watch(profileDisplayNameProvider).isEmpty
+                ? 'Welcome'
+                : 'Hello, ${ref.watch(profileDisplayNameProvider)}',
             style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
@@ -205,7 +208,9 @@ class _AdminMetricsBlock extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AuthErrorMessage(message: 'Select a group to load live metrics.'),
+          const AuthErrorMessage(
+            message: 'Select a group to load live metrics.',
+          ),
           const SizedBox(height: 12),
           FilledButton(
             onPressed: () => context.go('/groups'),
@@ -246,7 +251,7 @@ class _AdminMetricsBlock extends StatelessWidget {
                 Expanded(
                   child: InfoCard(
                     title: 'Outstanding',
-                    value: formatters.money(metrics.outstandingMinor),
+                    value: formatters.compactMoney(metrics.outstandingMinor),
                     icon: Icons.pending_actions_outlined,
                     accentColor: AppColors.warning,
                   ),
@@ -283,9 +288,8 @@ class _MonthlyTrendPlaceholder extends StatelessWidget {
             Expanded(
               child: Text(
                 'Monthly trend will appear after approved contribution payments are available.',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
+                style: Theme.of(context).textTheme.bodyMedium
+                    ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
             ),
           ],

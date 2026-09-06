@@ -65,6 +65,54 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
   late Future<GroupMemberSummary> _memberFuture;
   String _errorMessage = '';
   bool _isAssigningRole = false;
+  bool _isUpdatingStatus = false;
+
+  Future<void> _changeStatus(GroupMemberSummary member, String status) async {
+    if (_isUpdatingStatus || _isAssigningRole) return;
+    final action = status == 'ACTIVE'
+        ? 'Restore'
+        : status == 'SUSPENDED'
+        ? 'Suspend'
+        : 'Remove';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('$action ${member.fullName}?'),
+        content: Text(
+          status == 'ACTIVE'
+              ? 'This restores access to this group. Existing history is retained.'
+              : 'Access to this group will be blocked. Contributions and history will remain, and other groups will not be affected.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(action),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted || _isUpdatingStatus) return;
+    setState(() {
+      _isUpdatingStatus = true;
+      _errorMessage = '';
+    });
+    try {
+      await ref
+          .read(groupsRepositoryProvider)
+          .updateMemberStatus(widget.groupId, member.id, status);
+      if (!mounted) return;
+      await _refresh();
+    } on Object catch (error) {
+      if (mounted)
+        setState(() => _errorMessage = AuthFailure.from(error).message);
+    } finally {
+      if (mounted) setState(() => _isUpdatingStatus = false);
+    }
+  }
 
   @override
   void initState() {
@@ -223,38 +271,56 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
               _SurfacePanel(
                 padding: AppInsets.card,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    ProfileAvatar(
-                      name: member.fullName,
-                      url: member.profilePictureUrl,
-                      radius: 36,
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text(
-                      member.fullName,
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    StatusPill(label: _roleLabel(member.role)),
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: AppSpacing.sm,
-                      runSpacing: AppSpacing.xs,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (member.phone != null)
-                          _InlineInfo(
-                            icon: Icons.phone_outlined,
-                            label: member.phone!,
+                        ProfileAvatar(
+                          name: member.fullName,
+                          url: member.profilePictureUrl,
+                          radius: 30,
+                        ),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                member.fullName,
+                                style: Theme.of(context).textTheme.titleLarge
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: AppSpacing.xs),
+                              Wrap(
+                                spacing: AppSpacing.xs,
+                                runSpacing: AppSpacing.xs,
+                                children: [
+                                  StatusPill(label: _roleLabel(member.role)),
+                                  StatusPill(label: _roleLabel(member.status)),
+                                ],
+                              ),
+                            ],
                           ),
-                        if (member.email != null)
-                          _InlineInfo(
-                            icon: Icons.mail_outline,
-                            label: member.email!,
-                          ),
+                        ),
                       ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    const Divider(),
+                    _ProfileDetail(
+                      icon: Icons.badge_outlined,
+                      label: 'Member number',
+                      value: member.memberNumber,
+                    ),
+                    _ProfileDetail(
+                      icon: Icons.phone_outlined,
+                      label: 'Phone number',
+                      value: member.phone,
+                    ),
+                    _ProfileDetail(
+                      icon: Icons.mail_outline,
+                      label: 'Email address',
+                      value: member.email,
                     ),
                   ],
                 ),
@@ -263,9 +329,10 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
               AuthErrorMessage(message: _errorMessage),
               if (_errorMessage.isNotEmpty)
                 const SizedBox(height: AppSpacing.sm),
-              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN')
+              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN' &&
+                  member.status == 'ACTIVE')
                 OutlinedButton.icon(
-                  onPressed: _isAssigningRole
+                  onPressed: _isAssigningRole || _isUpdatingStatus
                       ? null
                       : () => _assignRole(member),
                   icon: _isAssigningRole
@@ -280,15 +347,54 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                   ),
                 ),
               const SizedBox(height: AppSpacing.sm),
-              FilledButton.icon(
-                onPressed: () => context.go(
-                  '/reminders/new?memberId=${Uri.encodeComponent(member.id)}',
+              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN' &&
+                  member.role != 'GROUP_ADMIN') ...[
+                for (final status in [
+                  'SUSPENDED',
+                  'REMOVED',
+                  if (member.userId != null &&
+                      (member.status == 'SUSPENDED' ||
+                          member.status == 'REMOVED' ||
+                          member.status == 'DEACTIVATED'))
+                    'ACTIVE',
+                ])
+                  if (member.status != status)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: OutlinedButton.icon(
+                        onPressed: _isUpdatingStatus || _isAssigningRole
+                            ? null
+                            : () => _changeStatus(member, status),
+                        icon: Icon(
+                          status == 'ACTIVE'
+                              ? Icons.person_add_alt
+                              : status == 'SUSPENDED'
+                              ? Icons.pause_circle_outline
+                              : Icons.person_remove_outlined,
+                        ),
+                        label: Text(
+                          status == 'ACTIVE'
+                              ? 'Restore access'
+                              : status == 'SUSPENDED'
+                              ? 'Suspend member'
+                              : 'Remove member',
+                        ),
+                      ),
+                    ),
+                if (_isUpdatingStatus)
+                  const Center(child: CircularProgressIndicator()),
+              ],
+              if (member.status == 'ACTIVE')
+                FilledButton.icon(
+                  onPressed: () => context.go(
+                    '/reminders/new?memberId=${Uri.encodeComponent(member.id)}',
+                  ),
+                  icon: const Icon(Icons.notifications_active_outlined),
+                  label: const Text('Send Reminder'),
                 ),
-                icon: const Icon(Icons.notifications_active_outlined),
-                label: const Text('Send Reminder'),
-              ),
               const SizedBox(height: AppSpacing.sm),
-              if (ref.watch(activeGroupProvider)?.role == 'TREASURER')
+              if (ref.watch(activeGroupProvider)?.role == 'TREASURER' &&
+                  member.status == 'ACTIVE')
                 OutlinedButton.icon(
                   onPressed: () => context.go(
                     '/contributions/record/details?memberId=${Uri.encodeComponent(member.id)}',
@@ -304,25 +410,47 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
   }
 }
 
-class _InlineInfo extends StatelessWidget {
-  const _InlineInfo({required this.icon, required this.label});
+class _ProfileDetail extends StatelessWidget {
+  const _ProfileDetail({required this.icon, required this.label, this.value});
 
   final IconData icon;
   final String label;
+  final String? value;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 18, color: AppColors.outline),
-        const SizedBox(width: AppSpacing.xxs),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: AppColors.onSurfaceVariant),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Icon(icon, size: 20, color: AppColors.primary),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                const SizedBox(height: 2),
+                SelectableText(
+                  value?.trim().isNotEmpty == true
+                      ? value!.trim()
+                      : 'Not provided',
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:vikoplus/src/core/auth/auth_session.dart';
 import 'package:vikoplus/src/core/groups/groups_repository.dart';
+import 'package:vikoplus/src/core/groups/group_access_events.dart';
 import 'package:vikoplus/src/features/common/vikoplus_screen.dart';
 import 'package:vikoplus/src/routing/portal_route_guard.dart';
 import 'package:vikoplus/src/routing/app_router.dart';
@@ -29,6 +30,17 @@ void signIn(ProviderContainer container, String userId) {
 }
 
 void main() {
+  test('revoking one group preserves login and other selected groups', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    signIn(container, 'user');
+    container.read(activeGroupProvider.notifier).setGroup(memberGroup);
+    container.read(groupAccessEventsProvider.notifier).denied('another-group');
+    expect(container.read(activeGroupProvider)?.id, memberGroup.id);
+    container.read(groupAccessEventsProvider.notifier).denied(memberGroup.id);
+    expect(container.read(activeGroupProvider), isNull);
+    expect(container.read(authSessionProvider).isAuthenticated, isTrue);
+  });
   for (final role in ['GROUP_ADMIN', 'TREASURER', 'SECRETARY', 'MEMBER']) {
     testWidgets('$role More menu has unique role-appropriate entries', (
       tester,

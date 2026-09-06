@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/auth/auth_session.dart';
+import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../theme/app_colors.dart';
@@ -39,7 +39,8 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
   ]) {
     _loadedSummaryGroupId = groupId;
     _summaryFuture =
-        future ?? ref.read(groupsRepositoryProvider).contributionReport(groupId);
+        future ??
+        ref.read(groupsRepositoryProvider).contributionReport(groupId);
   }
 
   Future<void> _refresh() async {
@@ -55,11 +56,8 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
-    final user = ref.watch(authSessionProvider).user;
-    final displayName = user?.displayName?.trim();
-    final memberName = displayName == null || displayName.isEmpty
-        ? 'Member'
-        : displayName;
+    final displayName = ref.watch(profileDisplayNameProvider);
+    final memberName = displayName.isEmpty ? 'Welcome' : displayName;
     final groupName = activeGroup?.name ?? 'your group';
     final firstDueLabel = activeGroup == null
         ? 'Select a group'
@@ -103,67 +101,70 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
               104,
             ),
             children: [
-            Text(
-              'Good morning,',
-              style: Theme.of(context).textTheme.bodyLarge
-                  ?.copyWith(color: AppColors.onSurfaceVariant),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            Text(
-              memberName,
-              style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                color: AppColors.onSurface,
-                fontWeight: FontWeight.w700,
+              Text(
+                'Hello,',
+                style: Theme.of(context).textTheme.bodyLarge
+                    ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            _ContributionSummaryCard(
-              summaryFuture: _summaryFor(activeGroup?.id),
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Recent Activities',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: AppColors.onSurface,
-                      fontWeight: FontWeight.w700,
+              const SizedBox(height: AppSpacing.xs),
+              Text(
+                memberName,
+                style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _ContributionSummaryCard(
+                summaryFuture: _summaryFor(activeGroup?.id),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Recent Activities',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
+                  TextButton(
+                    onPressed: () => context.go('/member/contributions'),
+                    child: const Text('View History'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              const _ActivityTile(
+                title: 'Joined group',
+                subtitle: 'Membership confirmed',
+                value: 'Today',
+                icon: Icons.group_add_outlined,
+              ),
+              const SizedBox(height: AppSpacing.xs),
+              _ActivityTile(
+                title: 'First contribution due',
+                subtitle: groupName,
+                value: firstDueLabel,
+                icon: Icons.event_available_outlined,
+              ),
+              const SizedBox(height: AppSpacing.md),
+              OutlinedButton.icon(
+                onPressed: () => context.go('/groups'),
+                icon: const Icon(Icons.hub_outlined, size: 18),
+                label: const Text('Switch, create or join group'),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton.icon(
+                onPressed: () => context.go('/loans'),
+                icon: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  size: 18,
                 ),
-                TextButton(
-                  onPressed: () => context.go('/member/contributions'),
-                  child: const Text('View History'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            const _ActivityTile(
-              title: 'Joined group',
-              subtitle: 'Membership confirmed',
-              value: 'Today',
-              icon: Icons.group_add_outlined,
-            ),
-            const SizedBox(height: AppSpacing.xs),
-            _ActivityTile(
-              title: 'First contribution due',
-              subtitle: groupName,
-              value: firstDueLabel,
-              icon: Icons.event_available_outlined,
-            ),
-            const SizedBox(height: AppSpacing.md),
-            OutlinedButton.icon(
-              onPressed: () => context.go('/groups'),
-              icon: const Icon(Icons.hub_outlined, size: 18),
-              label: const Text('Switch, create or join group'),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            FilledButton.icon(
-              onPressed: () => context.go('/loans'),
-              icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-              label: const Text('Loans'),
-            ),
+                label: const Text('Loans'),
+              ),
             ],
           ),
         ),
@@ -277,14 +278,13 @@ class _LiveContributionSummary extends StatelessWidget {
         final outstandingMinor =
             member?.outstandingMinor ?? report.totalOutstandingMinor;
         final paidPeriods = member?.paidRecurringPeriods ?? 0;
-        final progress =
-            paidMinor + outstandingMinor == 0
-                ? 0.0
-                : paidMinor / (paidMinor + outstandingMinor);
+        final progress = paidMinor + outstandingMinor == 0
+            ? 0.0
+            : paidMinor / (paidMinor + outstandingMinor);
 
         return _ContributionSummaryContent(
-          paid: formatters.money(paidMinor),
-          outstanding: formatters.money(outstandingMinor),
+          paid: formatters.compactMoney(paidMinor),
+          outstanding: formatters.compactMoney(outstandingMinor),
           nextDue: outstandingMinor > 0 ? 'Pending' : 'Cleared',
           progress: progress,
           progressLabel: '$paidPeriods paid',
@@ -314,101 +314,99 @@ class _ContributionSummaryContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Contribution Summary',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.onSurface,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const Icon(
-                Icons.account_balance_wallet_outlined,
-                color: AppColors.primaryContainer,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            'Total Paid',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.onSurfaceVariant,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            paid,
-            style: Theme.of(context).textTheme.displayLarge?.copyWith(
-              color: AppColors.primary,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          const Divider(color: AppColors.outlineVariant),
-          const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: _MetricBlock(
-                  label: 'Outstanding Balance',
-                  value: outstanding,
-                ),
-              ),
-              Expanded(
-                child: _MetricBlock(
-                  label: 'Next Due',
-                  value: nextDue,
-                  alignEnd: true,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Annual Goal Progress',
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.onSurfaceVariant),
-                ),
-              ),
-              Text(
-                progressLabel,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.primary,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Contribution Summary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: AppColors.onSurface,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppRadii.pill),
-            child: LinearProgressIndicator(
-              minHeight: 8,
-              value: progress.clamp(0, 1),
-              backgroundColor: AppColors.progressTrack,
+            ),
+            const Icon(
+              Icons.account_balance_wallet_outlined,
               color: AppColors.primaryContainer,
             ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Text(
+          'Total Paid',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.onSurfaceVariant,
+            fontWeight: FontWeight.w700,
           ),
-          const SizedBox(height: AppSpacing.md),
-          FilledButton.icon(
-            onPressed: () => context.go('/member/payments/select'),
-            iconAlignment: IconAlignment.end,
-            icon: const Icon(Icons.arrow_forward, size: 18),
-            label: const Text('Make a Payment'),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        Text(
+          paid,
+          style: Theme.of(context).textTheme.displayLarge
+              ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        const Divider(color: AppColors.outlineVariant),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: _MetricBlock(
+                label: 'Outstanding Balance',
+                value: outstanding,
+              ),
+            ),
+            Expanded(
+              child: _MetricBlock(
+                label: 'Next Due',
+                value: nextDue,
+                alignEnd: true,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Annual Goal Progress',
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: AppColors.onSurfaceVariant),
+              ),
+            ),
+            Text(
+              progressLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadii.pill),
+          child: LinearProgressIndicator(
+            minHeight: 8,
+            value: progress.clamp(0, 1),
+            backgroundColor: AppColors.progressTrack,
+            color: AppColors.primaryContainer,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: () => context.go('/member/contributions'),
-            icon: const Icon(Icons.pending_actions_outlined, size: 18),
-            label: const Text('View dues'),
-          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        FilledButton.icon(
+          onPressed: () => context.go('/member/payments/select'),
+          iconAlignment: IconAlignment.end,
+          icon: const Icon(Icons.arrow_forward, size: 18),
+          label: const Text('Make a Payment'),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        OutlinedButton.icon(
+          onPressed: () => context.go('/member/contributions'),
+          icon: const Icon(Icons.pending_actions_outlined, size: 18),
+          label: const Text('View dues'),
+        ),
       ],
     );
   }

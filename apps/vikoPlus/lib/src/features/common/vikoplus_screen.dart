@@ -74,13 +74,11 @@ class VikoplusScreen extends ConsumerWidget {
             if (title != null)
               VikoplusTopBar(
                 title: title!,
-                leading: title == activeGroup?.name
-                    ? Center(
-                        child: ProfileAvatar(
-                          name: activeGroup!.name,
-                          url: activeGroup.logoUrl,
-                          radius: 18,
-                        ),
+                titleIcon: title == activeGroup?.name
+                    ? ProfileAvatar(
+                        name: activeGroup!.name,
+                        url: activeGroup.logoUrl,
+                        radius: 18,
                       )
                     : null,
                 onBack: shouldShowBack

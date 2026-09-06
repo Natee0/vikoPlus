@@ -181,7 +181,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
                 Expanded(
                   child: InfoCard(
                     title: 'Joining',
-                    value: formatters.money(report.joiningFeesPaidMinor),
+                    value: formatters.compactMoney(report.joiningFeesPaidMinor),
                     icon: Icons.person_add_alt_1_outlined,
                   ),
                 ),
@@ -189,7 +189,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
                 Expanded(
                   child: InfoCard(
                     title: 'Recurring',
-                    value: formatters.money(report.recurringPaidMinor),
+                    value: formatters.compactMoney(report.recurringPaidMinor),
                     icon: Icons.event_repeat_outlined,
                     accentColor: AppColors.gold,
                   ),

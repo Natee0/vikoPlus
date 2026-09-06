@@ -25,6 +25,11 @@ export class UpdateLanguageDto {
   locale!: "en" | "sw";
 }
 
+export class UpdateMemberStatusDto {
+  @IsIn(["ACTIVE", "SUSPENDED", "REMOVED"])
+  status!: "ACTIVE" | "SUSPENDED" | "REMOVED";
+}
+
 export class UpdateProfileDto {
   @IsString()
   @Length(2, 100)

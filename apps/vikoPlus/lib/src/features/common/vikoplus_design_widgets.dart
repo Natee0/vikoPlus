@@ -25,6 +25,7 @@ class VikoplusTopBar extends StatelessWidget {
     this.onBack,
     this.trailing,
     this.leading,
+    this.titleIcon,
     this.showBorder = true,
     this.trailingWidth = AppSizes.iconButton,
     super.key,
@@ -34,6 +35,7 @@ class VikoplusTopBar extends StatelessWidget {
   final VoidCallback? onBack;
   final Widget? trailing;
   final Widget? leading;
+  final Widget? titleIcon;
   final bool showBorder;
   final double trailingWidth;
 
@@ -49,25 +51,44 @@ class VikoplusTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: AppSizes.iconButton,
-            height: AppSizes.iconButton,
-            child: onBack == null
-                ? leading
-                : IconButton(
-                    tooltip: 'Back',
-                    onPressed: onBack,
-                    icon: const Icon(Icons.arrow_back),
-                  ),
-          ),
+          if (titleIcon == null || onBack != null)
+            SizedBox(
+              width: AppSizes.iconButton,
+              height: AppSizes.iconButton,
+              child: onBack == null
+                  ? leading
+                  : IconButton(
+                      tooltip: 'Back',
+                      onPressed: onBack,
+                      icon: const Icon(Icons.arrow_back),
+                    ),
+            ),
           Expanded(
-            child: Text(
-              title,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Row(
+              mainAxisAlignment: titleIcon == null
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                if (titleIcon != null) ...[
+                  const SizedBox(width: 12),
+                  titleIcon!,
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: titleIcon == null
+                        ? TextAlign.center
+                        : TextAlign.start,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(

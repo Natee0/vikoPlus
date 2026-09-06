@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../auth/auth_session.dart';
 import 'contribution_report_details.dart';
+import 'group_access_events.dart';
 
 final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
   return GroupsRepository(ref.watch(apiClientProvider));
@@ -24,6 +25,11 @@ class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
   @override
   GroupAccessSummary? build() {
     ref.watch(authSessionProvider.select((session) => session.user?.id));
+    ref.listen(groupAccessEventsProvider, (_, event) {
+      if (event != null && state?.id == event.groupId) {
+        state = null;
+      }
+    });
     return null;
   }
 
@@ -386,6 +392,17 @@ class GroupsRepository {
       data: {'role': role},
     );
     return GroupMemberSummary.fromJson(_responseBody(response.data));
+  }
+
+  Future<void> updateMemberStatus(
+    String groupId,
+    String memberId,
+    String status,
+  ) async {
+    await _dio.patch<Map<String, dynamic>>(
+      '/groups/$groupId/members/$memberId/status',
+      data: {'status': status},
+    );
   }
 
   Future<NotificationsResult> notifications() async {

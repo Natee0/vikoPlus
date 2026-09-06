@@ -33,6 +33,8 @@ enum GroupMemberStatus {
   INVITED
   ACTIVE
   DEACTIVATED
+  SUSPENDED
+  REMOVED
 }
 
 enum ContributionPlanType {

@@ -17,6 +17,7 @@ import { GroupsService } from "./groups.service";
 import {
   AddMemberDto,
   AssignRoleDto,
+  UpdateMemberStatusDto,
   ContributionSettingsDto,
   CreateGroupDto,
   CreateLoanApplicationDto,
@@ -198,6 +199,17 @@ export class GroupsController {
     @Body() body: AssignRoleDto,
   ) {
     return this.groups.assignRole(user, groupId, memberId, body);
+  }
+
+  @Patch("groups/:groupId/members/:memberId/status")
+  @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
+  updateMemberStatus(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("memberId") memberId: string,
+    @Body() body: UpdateMemberStatusDto,
+  ) {
+    return this.groups.updateMemberStatus(user, groupId, memberId, body);
   }
 
   @Get("groups/:groupId/contributions/register")

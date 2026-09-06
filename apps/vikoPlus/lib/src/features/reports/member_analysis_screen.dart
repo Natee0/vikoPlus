@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/contribution_report_filters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -28,10 +29,9 @@ class _MemberAnalysisScreenState extends ConsumerState<MemberAnalysisScreen> {
     String groupId,
     ContributionReportFilters filters,
   ) {
-    return ref.read(groupsRepositoryProvider).contributionReport(
-          groupId,
-          financialYearId: filters.financialYearId,
-        );
+    return ref
+        .read(groupsRepositoryProvider)
+        .contributionReport(groupId, financialYearId: filters.financialYearId);
   }
 
   void _setReportFuture(
@@ -73,20 +73,22 @@ class _MemberAnalysisScreenState extends ConsumerState<MemberAnalysisScreen> {
     _ensureReportFuture(activeGroup?.id, filters);
 
     return VikoplusScreen(
-      title: 'Member analysis',
+      title: context.vt('Member analysis'),
       backRoute: '/reports',
       onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SectionHeader(title: 'Contribution breakdown'),
+          SectionHeader(title: context.vt('Contribution breakdown')),
           const SizedBox(height: 12),
           if (activeGroup == null) ...[
-            const AuthErrorMessage(message: 'Select a group to view reports.'),
+            AuthErrorMessage(
+              message: context.vt('Select a group to view reports.'),
+            ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: () => context.go('/groups'),
-              child: const Text('Choose Group'),
+              child: Text(context.vt('Choose Group')),
             ),
           ] else
             FutureBuilder<ContributionReportResult>(
@@ -101,23 +103,28 @@ class _MemberAnalysisScreenState extends ConsumerState<MemberAnalysisScreen> {
                   );
                 }
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load member analysis.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load member analysis.'),
                   );
                 }
 
                 final report = snapshot.data!;
-                final rankedMembers = [
-                  ..._filterMembers(report.memberAnalysis, filters.memberStatus),
-                ]
-                  ..sort(
-                    (left, right) =>
-                        right.totalPaidMinor.compareTo(left.totalPaidMinor),
-                  );
+                final rankedMembers =
+                    [
+                      ..._filterMembers(
+                        report.memberAnalysis,
+                        filters.memberStatus,
+                      ),
+                    ]..sort(
+                      (left, right) =>
+                          right.totalPaidMinor.compareTo(left.totalPaidMinor),
+                    );
 
                 if (rankedMembers.isEmpty) {
-                  return const _EmptyAnalysisNotice(
-                    message: 'No contribution obligations are available yet.',
+                  return _EmptyAnalysisNotice(
+                    message: context.vt(
+                      'No contribution obligations are available yet.',
+                    ),
                   );
                 }
 
@@ -156,11 +163,13 @@ class _MemberAnalysisCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalDueMinor = member.totalPaidMinor + member.outstandingMinor;
-    final paidProgress =
-        totalDueMinor == 0 ? 0.0 : member.totalPaidMinor / totalDueMinor;
+    final paidProgress = totalDueMinor == 0
+        ? 0.0
+        : member.totalPaidMinor / totalDueMinor;
     final joiningProgress = member.joiningFeePaidMinor == 0 ? 0.0 : 1.0;
-    final recurringProgress =
-        totalDueMinor == 0 ? 0.0 : member.recurringPaidMinor / totalDueMinor;
+    final recurringProgress = totalDueMinor == 0
+        ? 0.0
+        : member.recurringPaidMinor / totalDueMinor;
     final share = groupTotalMinor == 0
         ? 0.0
         : member.totalPaidMinor / groupTotalMinor;
@@ -253,9 +262,8 @@ class _AmountBar extends StatelessWidget {
             Expanded(child: Text(label)),
             Text(
               amount,
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+              style: Theme.of(context).textTheme.labelLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
             ),
           ],
         ),
@@ -290,9 +298,8 @@ class _EmptyAnalysisNotice extends StatelessWidget {
       ),
       child: Text(
         message,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: AppColors.onSurfaceVariant),
       ),
     );
   }

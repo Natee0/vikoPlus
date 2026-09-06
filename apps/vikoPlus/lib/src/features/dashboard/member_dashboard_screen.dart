@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
@@ -10,6 +12,7 @@ import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
 import '../notifications/notification_icon_button.dart';
+import '../groups/member_requirements_notice.dart';
 
 class MemberDashboardScreen extends ConsumerStatefulWidget {
   const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
@@ -46,6 +49,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
   Future<void> _refresh() async {
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) return;
+    ref.invalidate(memberRequirementsProvider(activeGroup.id));
     final future = ref
         .read(groupsRepositoryProvider)
         .contributionReport(activeGroup.id);
@@ -55,13 +59,14 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final activeGroup = ref.watch(activeGroupProvider);
     final displayName = ref.watch(profileDisplayNameProvider);
-    final memberName = displayName.isEmpty ? 'Welcome' : displayName;
+    final memberName = displayName.isEmpty ? loc.welcomeTitle : displayName;
     final groupName = activeGroup?.name ?? 'your group';
     final firstDueLabel = activeGroup == null
-        ? 'Select a group'
-        : 'Check your current contribution balance';
+        ? loc.selectGroup
+        : loc.checkContributionBalance;
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -75,14 +80,14 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
           ),
         ),
         title: Text(
-          'Member Portal',
+          loc.memberPortal,
           style: Theme.of(context).textTheme.headlineMedium
               ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
         ),
         actions: [
           const NotificationIconButton(),
           IconButton(
-            tooltip: 'My groups',
+            tooltip: loc.myGroups,
             onPressed: () => context.go('/groups'),
             icon: const Icon(Icons.groups_2_outlined),
           ),
@@ -102,7 +107,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
             ),
             children: [
               Text(
-                'Hello,',
+                loc.welcomeTitle,
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
@@ -115,6 +120,10 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
+              if (activeGroup != null) ...[
+                MemberRequirementsNotice(groupId: activeGroup.id),
+                const SizedBox(height: AppSpacing.md),
+              ],
               _ContributionSummaryCard(
                 summaryFuture: _summaryFor(activeGroup?.id),
               ),
@@ -123,7 +132,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Recent Activities',
+                      loc.recentActivities,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         color: AppColors.onSurface,
                         fontWeight: FontWeight.w700,
@@ -132,7 +141,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
                   ),
                   TextButton(
                     onPressed: () => context.go('/member/contributions'),
-                    child: const Text('View History'),
+                    child: Text(loc.viewHistory),
                   ),
                 ],
               ),
@@ -154,7 +163,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
               OutlinedButton.icon(
                 onPressed: () => context.go('/groups'),
                 icon: const Icon(Icons.hub_outlined, size: 18),
-                label: const Text('Switch, create or join group'),
+                label: Text(loc.switchCreateJoin),
               ),
               const SizedBox(height: AppSpacing.sm),
               FilledButton.icon(
@@ -163,7 +172,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
                   Icons.account_balance_wallet_outlined,
                   size: 18,
                 ),
-                label: const Text('Loans'),
+                label: Text(loc.loans),
               ),
             ],
           ),

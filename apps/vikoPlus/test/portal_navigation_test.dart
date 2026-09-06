@@ -1,3 +1,4 @@
+import 'package:vikoplus/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +31,83 @@ void signIn(ProviderContainer container, String userId) {
 }
 
 void main() {
+  testWidgets(
+    'staff shell survives repeated exits and re-entry without duplicate keys',
+    (tester) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      signIn(container, 'admin');
+      container
+          .read(activeGroupProvider.notifier)
+          .setGroup(
+            const GroupAccessSummary(
+              id: 'group',
+              name: 'Group',
+              role: 'GROUP_ADMIN',
+              status: 'ACTIVE',
+              membersCount: 1,
+            ),
+          );
+      final shell = appRouter.configuration.routes
+          .whereType<StatefulShellRoute>()
+          .first;
+      final router = GoRouter(
+        initialLocation: '/members',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            pageBuilder: shell.pageBuilder,
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/members',
+                    builder: (_, _) => const Text('Members body'),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/reports',
+                    builder: (_, _) => const Text('Reports body'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/detail',
+            builder: (_, _) => const Scaffold(body: Text('Detail')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (var i = 0; i < 3; i++) {
+        router.push('/detail');
+        await tester.pumpAndSettle();
+        router.go('/reports');
+        await tester.pumpAndSettle();
+        router.go('/detail');
+        await tester.pumpAndSettle();
+        router.go('/members');
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+      }
+      expect(find.text('Members body'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
   test('revoking one group preserves login and other selected groups', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -62,7 +140,11 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: const MaterialApp(home: MoreMenuScreen()),
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MoreMenuScreen(),
+          ),
         ),
       );
       final tiles = tester
@@ -132,7 +214,11 @@ void main() {
       await tester.pumpWidget(
         UncontrolledProviderScope(
           container: container,
-          child: MaterialApp.router(routerConfig: router),
+          child: MaterialApp.router(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -203,7 +289,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(routerConfig: router),
+        child: MaterialApp.router(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
       ),
     );
     await tester.pumpAndSettle();

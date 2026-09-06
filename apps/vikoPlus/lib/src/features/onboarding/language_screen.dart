@@ -19,11 +19,13 @@ class LanguageScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final loc = AppLocalizations.of(context);
     final selected =
-        ref.watch(localeControllerProvider).value?.languageCode ?? 'en';
+        ref.watch(localeControllerProvider).value?.languageCode ?? 'sw';
 
     return VikoplusScreen(
       title: loc.selectLanguage,
-      backRoute: ref.watch(authSessionProvider).isAuthenticated ? portalHomeRoute(ref.watch(activeGroupProvider)) : '/welcome',
+      backRoute: ref.watch(authSessionProvider).isAuthenticated
+          ? portalHomeRoute(ref.watch(activeGroupProvider))
+          : '/welcome',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -47,7 +49,7 @@ class LanguageScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Choose your language',
+            AppLocalizations.of(context).chooseLanguage,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               color: AppColors.primary,
@@ -56,7 +58,7 @@ class LanguageScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'You can change this later from app settings.',
+            AppLocalizations.of(context).changeLanguageLater,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium
                 ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -89,7 +91,11 @@ class LanguageScreen extends ConsumerWidget {
               if (context.canPop()) {
                 context.pop();
               } else {
-                context.go(ref.read(authSessionProvider).isAuthenticated ? portalHomeRoute(ref.read(activeGroupProvider)) : '/welcome');
+                context.go(
+                  ref.read(authSessionProvider).isAuthenticated
+                      ? portalHomeRoute(ref.read(activeGroupProvider))
+                      : '/welcome',
+                );
               }
             },
             child: Text(loc.continueAction),
@@ -104,14 +110,24 @@ class LanguageScreen extends ConsumerWidget {
     WidgetRef ref,
     String? value,
   ) async {
-    if (value == null) return;
-    try {
-      await ref.read(localeControllerProvider.notifier).setLocale(Locale(value));
-    } catch (error) {
-      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AuthFailure.from(error).message)));
+    if (value == null) {
       return;
     }
-    if (!context.mounted) return;
+    try {
+      await ref
+          .read(localeControllerProvider.notifier)
+          .setLocale(Locale(value));
+    } catch (error) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AuthFailure.from(error).message)),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(AppLocalizations.of(context).languageSaved)),
     );

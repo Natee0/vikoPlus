@@ -37,6 +37,14 @@ class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
     state = group;
   }
 
+  void updateGroupLogo(String logoUrl) {
+    final current = state;
+    if (current == null) {
+      return;
+    }
+    state = current.copyWith(logoUrl: logoUrl);
+  }
+
   void clear() {
     state = null;
   }
@@ -546,6 +554,24 @@ class GroupAccessSummary {
     );
   }
 
+  GroupAccessSummary copyWith({
+    String? id,
+    String? name,
+    String? role,
+    String? status,
+    int? membersCount,
+    String? logoUrl,
+  }) {
+    return GroupAccessSummary(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      status: status ?? this.status,
+      membersCount: membersCount ?? this.membersCount,
+      logoUrl: logoUrl ?? this.logoUrl,
+    );
+  }
+
   final String id;
   final String name;
   final String role;
@@ -559,6 +585,8 @@ class JoinGroupPreview {
     required this.invitationCode,
     required this.group,
     required this.roleOnJoin,
+    this.fees = const [],
+    this.currency = 'TZS',
   });
 
   factory JoinGroupPreview.fromJson(Map<String, dynamic> json) {
@@ -571,12 +599,19 @@ class JoinGroupPreview {
       invitationCode: _requiredString(json, 'invitationCode'),
       group: JoinGroupSummary.fromJson(Map<String, dynamic>.from(group)),
       roleOnJoin: json['roleOnJoin'] as String? ?? 'MEMBER',
+      fees: (json['fees'] as List? ?? const [])
+          .whereType<Map>()
+          .map((fee) => Map<String, dynamic>.from(fee))
+          .toList(),
+      currency: json['currency'] as String? ?? 'TZS',
     );
   }
 
   final String invitationCode;
   final JoinGroupSummary group;
   final String roleOnJoin;
+  final List<Map<String, dynamic>> fees;
+  final String currency;
 }
 
 class JoinGroupSummary {

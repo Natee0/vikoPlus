@@ -68,8 +68,7 @@ String portalContributionsRoute(GroupAccessSummary? group) {
 }
 
 String portalReportsRoute(GroupAccessSummary? group) {
-  if (group?.role == 'MEMBER') return '/member/contributions';
-  return '/reports';
+  return group?.role == 'GROUP_ADMIN' ? '/reports' : portalHomeRoute(group);
 }
 
 String portalMoreRoute(GroupAccessSummary? group) {

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
 import '../../core/auth/profile_provider.dart';
@@ -60,13 +62,13 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
       Localizations.localeOf(context).toLanguageTag(),
     );
     return VikoplusScreen(
-      title: group?.name ?? 'Treasurer',
+      title: group?.name ?? AppLocalizations.of(context).treasurerTitle,
       bottomNavigationIndex: 0,
       onRefresh: _refresh,
       actions: [
         const NotificationIconButton(),
         IconButton(
-          tooltip: 'My groups',
+          tooltip: AppLocalizations.of(context).myGroups,
           onPressed: () => context.go('/groups'),
           icon: const Icon(Icons.groups_outlined),
         ),
@@ -77,13 +79,14 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
         children: [
           Text(
             ref.watch(profileDisplayNameProvider).isEmpty
-                ? 'Welcome'
-                : 'Hello, ${ref.watch(profileDisplayNameProvider)}',
+                ? AppLocalizations.of(context).welcomeTitle
+                : AppLocalizations.of(context)
+                      .helloName(ref.watch(profileDisplayNameProvider)),
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: AppSpacing.xxs),
-          const Text(
-            'Track collections and review member payments.',
+          Text(
+            AppLocalizations.of(context).treasurySummary,
             style: TextStyle(color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -99,13 +102,11 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
               if (snapshot.hasError) {
                 return Column(
                   children: [
-                    const Text(
-                      'Unable to load your dashboard. Please try again.',
-                    ),
+                    Text(AppLocalizations.of(context).dashboardLoadError),
                     TextButton.icon(
                       onPressed: _refresh,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
+                      label: Text(AppLocalizations.of(context).retryAction),
                     ),
                   ],
                 );
@@ -139,7 +140,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Row(
+                        Row(
                           children: [
                             Icon(
                               Icons.account_balance_wallet_outlined,
@@ -148,7 +149,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                             SizedBox(width: AppSpacing.xs),
                             Expanded(
                               child: Text(
-                                'TOTAL CONTRIBUTIONS',
+                                AppLocalizations.of(context).totalContributions,
                                 style: TextStyle(color: AppColors.onPrimary),
                               ),
                             ),
@@ -193,12 +194,12 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Urgent treasury queue',
+                    AppLocalizations.of(context).treasuryQueue,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   _ReviewQueue(
-                    title: 'Unreviewed payments',
+                    title: AppLocalizations.of(context).unreviewedPayments,
                     count: pending,
                     icon: Icons.fact_check_outlined,
                     route: '/contributions',
@@ -206,7 +207,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   _ReviewQueue(
-                    title: 'Pending loan applications',
+                    title: AppLocalizations.of(context).pendingLoanApplications,
                     count: snapshot.data!.$3.applications
                         .where((loan) => loan.status == 'SUBMITTED')
                         .length,
@@ -216,7 +217,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Collection overview',
+                    AppLocalizations.of(context).collectionOverview,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.xs),
@@ -240,49 +241,44 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Text(
-                    'Treasury operations',
+                    AppLocalizations.of(context).treasuryOperations,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'Record payment',
-                    subtitle:
-                        'Allocate a contribution across one or more periods',
+                  ActionTile(
+                    title: AppLocalizations.of(context).recordPayment,
+                    subtitle: AppLocalizations.of(context)
+                        .allocatePaymentDescription,
                     icon: Icons.add_card_outlined,
                     route: '/contributions/record',
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'Review payments',
-                    subtitle: 'Verify submitted member payments',
+                  ActionTile(
+                    title: AppLocalizations.of(context).reviewPayments,
+                    subtitle: AppLocalizations.of(context).verifyMemberPayments,
                     icon: Icons.fact_check_outlined,
                     route: '/contributions',
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'Send reminder',
-                    subtitle: 'Contact members about outstanding dues',
+                  ActionTile(
+                    title: AppLocalizations.of(context).sendReminder,
+                    subtitle: AppLocalizations.of(context)
+                        .contactOutstandingMembers,
                     icon: Icons.notifications_active_outlined,
                     route: '/reminders/new',
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'Reports',
-                    subtitle: 'View outstanding dues and member analysis',
-                    icon: Icons.bar_chart_outlined,
-                    route: '/reports',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'My loans',
-                    subtitle: 'View borrowing power and track repayments',
+                  ActionTile(
+                    title: AppLocalizations.of(context).myLoans,
+                    subtitle: AppLocalizations.of(context).trackBorrowing,
                     icon: Icons.account_balance_outlined,
                     route: '/loans',
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  const ActionTile(
-                    title: 'Loan reviews',
-                    subtitle: 'Review applications and guarantor confirmations',
+                  ActionTile(
+                    title: AppLocalizations.of(context).loanReviews,
+                    subtitle: AppLocalizations.of(context)
+                        .reviewLoanDescription,
                     icon: Icons.assignment_outlined,
                     route: '/loans/applications',
                   ),
@@ -291,20 +287,20 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          'Live treasury activity',
+                          AppLocalizations.of(context).treasuryActivity,
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
                       TextButton(
                         onPressed: () => context.go('/contributions'),
-                        child: const Text('View all'),
+                        child: Text(AppLocalizations.of(context).viewAll),
                       ),
                     ],
                   ),
                   if (payments.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
-                      child: Text('No payments recorded yet.'),
+                      child: Text(AppLocalizations.of(context).noPaymentsYet),
                     ),
                   for (final payment in payments.take(5))
                     Material(
@@ -328,7 +324,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                           style: Theme.of(context).textTheme.labelSmall
                               ?.copyWith(color: AppColors.primary),
                         ),
-                        onTap: () => context.push('/contributions'),
+                        onTap: () => context.go('/contributions'),
                       ),
                     ),
                 ],
@@ -362,7 +358,7 @@ class _ReviewQueue extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppRadii.base),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppRadii.base),
-        onTap: () => context.push(route),
+        onTap: () => context.go(route),
         child: Padding(
           padding: const EdgeInsets.all(AppSpacing.sm),
           child: Row(
@@ -380,7 +376,7 @@ class _ReviewQueue extends StatelessWidget {
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
                       count == 0
-                          ? 'Nothing awaiting review'
+                          ? AppLocalizations.of(context).nothingAwaitingReview
                           : '$count awaiting review',
                     ),
                   ],

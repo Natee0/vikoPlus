@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../common/vikoplus_screen.dart';
 
 class ReminderCentreScreen extends ConsumerStatefulWidget {
@@ -17,7 +18,9 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
   Future<List<Map<String, dynamic>>>? _future;
   Future<void> _refresh() async {
     final id = ref.read(activeGroupProvider)?.id;
-    if (id == null) return;
+    if (id == null) {
+      return;
+    }
     final future = ref.read(groupsRepositoryProvider).reminderCampaigns(id);
     setState(() {
       _future = future;
@@ -35,18 +38,25 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
           : ref.read(groupsRepositoryProvider).reminderCampaigns(id);
     }
     return VikoplusScreen(
-      title: widget.campaignId == null ? 'Reminder Centre' : 'Campaign Details',
+      title: widget.campaignId == null
+          ? context.vt('Reminder Centre')
+          : context.vt('Campaign Details'),
       backRoute: widget.campaignId == null ? '/more' : '/reminders',
       onRefresh: _refresh,
       child: FutureBuilder<List<Map<String, dynamic>>>(
         future: _future,
         builder: (context, snapshot) {
-          if (id == null) return const Text('Open a group to view reminders.');
+          if (id == null) {
+            return Text(context.vt('Open a group to view reminders.'));
+          }
           if (snapshot.hasError) {
             return Column(
               children: [
-                const Text('Could not load reminders. Please try again.'),
-                TextButton(onPressed: _refresh, child: const Text('Retry')),
+                Text(context.vt('Could not load reminders. Please try again.')),
+                TextButton(
+                  onPressed: _refresh,
+                  child: Text(context.vt('Retry')),
+                ),
               ],
             );
           }
@@ -59,7 +69,7 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
               (item) => item['id'] == widget.campaignId,
             );
             if (matches.isEmpty) {
-              return const Text('Campaign not found in this group.');
+              return Text(context.vt('Campaign not found in this group.'));
             }
             final campaign = matches.first;
             return Column(
@@ -70,12 +80,24 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 16),
-                Text('Channel: ${campaign['channel']}'),
-                Text('Recipients: ${campaign['recipientCount']}'),
+                Text(
+                  context.vtf('Channel: {value}', {
+                    'value': campaign['channel'],
+                  }),
+                ),
+                Text(
+                  context.vtf('Recipients: {value}', {
+                    'value': campaign['recipientCount'],
+                  }),
+                ),
                 const SizedBox(height: 16),
                 SelectableText('${campaign['body']}'),
                 const SizedBox(height: 16),
-                Text('Sent: ${campaign['sentAt'] ?? 'Not sent'}'),
+                Text(
+                  context.vtf('Sent: {value}', {
+                    'value': campaign['sentAt'] ?? context.vt('Not sent'),
+                  }),
+                ),
               ],
             );
           }
@@ -85,17 +107,17 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
               FilledButton.icon(
                 onPressed: () => context.push('/reminders/new'),
                 icon: const Icon(Icons.sms_outlined),
-                label: const Text('Send reminder'),
+                label: Text(context.vt('Send reminder')),
               ),
               const SizedBox(height: 24),
               Text(
-                'Campaigns (${campaigns.length})',
+                context.vtf('Campaigns ({count})', {'count': campaigns.length}),
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               if (campaigns.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text('No campaigns sent yet.'),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(context.vt('No campaigns sent yet.')),
                 ),
               for (final campaign in campaigns)
                 Material(
@@ -104,7 +126,10 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
                     leading: const Icon(Icons.sms_outlined),
                     title: Text('${campaign['title']}'),
                     subtitle: Text(
-                      '${campaign['channel']} - ${campaign['recipientCount']} recipients',
+                      context.vtf('{channel} - {count} recipients', {
+                        'channel': campaign['channel'],
+                        'count': campaign['recipientCount'],
+                      }),
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.push(

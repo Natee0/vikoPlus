@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -56,13 +57,18 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
 
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) {
-      setState(() => _errorMessage = 'Open a group before inviting members.');
+      setState(
+        () =>
+            _errorMessage = context.vt('Open a group before inviting members.'),
+      );
       return;
     }
 
     final recipient = _recipientController.text.trim();
     if (recipient.length < 4) {
-      setState(() => _errorMessage = 'Enter a phone number or email.');
+      setState(
+        () => _errorMessage = context.vt('Enter a phone number or email.'),
+      );
       return;
     }
 
@@ -123,7 +129,10 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                VikoplusTopBar(title: 'Invite Members', onBack: _goBack),
+                VikoplusTopBar(
+                  title: context.vt('Invite Members'),
+                  onBack: _goBack,
+                ),
                 Expanded(
                   child: VikoplusConstrainedContent(
                     child: ListView(
@@ -137,7 +146,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                         const _InviteHero(),
                         const SizedBox(height: AppSpacing.md),
                         Text(
-                          'Share this code or link with new members. The chairperson/admin chooses the role attached to this invitation.',
+                          context.vt(
+                            'Share this code or link with new members. The chairperson/admin chooses the role attached to this invitation.',
+                          ),
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -151,10 +162,12 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                               setState(() => _errorMessage = '');
                             }
                           },
-                          decoration: const InputDecoration(
-                            labelText: 'Phone number or email',
+                          decoration: InputDecoration(
+                            labelText: context.vt('Phone number or email'),
                             hintText: '+255 7XX XXX XXX',
-                            prefixIcon: Icon(Icons.alternate_email_outlined),
+                            prefixIcon: const Icon(
+                              Icons.alternate_email_outlined,
+                            ),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -195,8 +208,8 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                                 ),
                           label: Text(
                             _isSubmitting
-                                ? 'Generating'
-                                : 'Generate Invitation',
+                                ? context.vt('Generating')
+                                : context.vt('Generate Invitation'),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -205,13 +218,13 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                               ? null
                               : _copyInviteCode,
                           icon: const Icon(Icons.sms_outlined, size: 18),
-                          label: const Text('Copy Code'),
+                          label: Text(context.vt('Copy Code')),
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         TextButton.icon(
                           onPressed: () => context.push('/members/add'),
                           icon: const Icon(Icons.person_add_alt_outlined),
-                          label: const Text('Add member manually'),
+                          label: Text(context.vt('Add member manually')),
                         ),
                       ],
                     ),

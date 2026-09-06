@@ -331,6 +331,12 @@ export class GroupsService {
         membersCount: invitation.group._count.members,
       },
       roleOnJoin: invitation.role,
+      fees: await this.prisma.contributionPlan.findMany({
+        where: { groupId: invitation.groupId, isActive: true },
+        select: { name: true, type: true, amountMinor: true, frequency: true },
+        orderBy: { name: "asc" },
+      }),
+      currency: invitation.group.currency,
     };
   }
 

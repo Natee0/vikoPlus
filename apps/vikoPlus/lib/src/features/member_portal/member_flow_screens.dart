@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -21,18 +22,21 @@ class MemberDashboardNewUserScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final groupName = ref.watch(activeGroupProvider)?.name ?? 'your group';
+    final groupName =
+        ref.watch(activeGroupProvider)?.name ?? context.vt('your group');
 
     return VikoplusScreen(
-      title: 'Member Portal',
+      title: context.vt('Member Portal'),
       actions: [const AuthLogoutIconButton()],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _CenteredHero(
+          _CenteredHero(
             icon: Icons.group_add_outlined,
-            title: 'Welcome to your group',
-            subtitle: 'Your membership is active. Start with your first contribution.',
+            title: context.vt('Welcome to your group'),
+            subtitle: context.vt(
+              'Your membership is active. Start with your first contribution.',
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
@@ -47,13 +51,13 @@ class MemberDashboardNewUserScreen extends ConsumerWidget {
           FilledButton.icon(
             onPressed: () => context.go('/member/payments/select'),
             icon: const Icon(Icons.payments_outlined, size: 18),
-            label: const Text('Make first contribution'),
+            label: Text(context.vt('Make first contribution')),
           ),
           const SizedBox(height: AppSpacing.sm),
           OutlinedButton.icon(
             onPressed: () => context.go('/member/profile'),
             icon: const Icon(Icons.person_outline, size: 18),
-            label: const Text('Review profile'),
+            label: Text(context.vt('Review profile')),
           ),
         ],
       ),
@@ -74,12 +78,12 @@ class MyContributionsScreen extends ConsumerWidget {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'My Contributions',
+      title: context.vt('My Contributions'),
       backRoute: '/member/dashboard',
       showBackButton: showBackButton,
       child: activeGroup == null
-          ? const AuthErrorMessage(
-              message: 'Select a group to view your contributions.',
+          ? AuthErrorMessage(
+              message: context.vt('Select a group to view your contributions.'),
             )
           : FutureBuilder<ContributionRegisterResult>(
               future: ref
@@ -95,8 +99,10 @@ class MyContributionsScreen extends ConsumerWidget {
                   );
                 }
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load contributions. Please try again.',
+                  return AuthErrorMessage(
+                    message: context.vt(
+                      'Could not load contributions. Please try again.',
+                    ),
                   );
                 }
 
@@ -114,13 +120,13 @@ class MyContributionsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _MetricPanel(
-                      label: 'Total paid',
+                      label: context.vt('Total paid'),
                       value: formatter.compactMoney(totalPaid),
                       icon: Icons.account_balance_wallet_outlined,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _MetricPanel(
-                      label: 'Outstanding',
+                      label: context.vt('Outstanding'),
                       value: formatter.compactMoney(outstanding),
                       icon: Icons.pending_actions_outlined,
                       color: AppColors.error,
@@ -129,11 +135,13 @@ class MyContributionsScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    const SectionHeader(title: 'Contribution History'),
+                    SectionHeader(title: context.vt('Contribution History')),
                     const SizedBox(height: AppSpacing.sm),
                     if (obligations.isEmpty)
-                      const AuthErrorMessage(
-                        message: 'No contribution obligations are due.',
+                      AuthErrorMessage(
+                        message: context.vt(
+                          'No contribution obligations are due.',
+                        ),
                       )
                     else
                       for (final obligation in obligations) ...[
@@ -168,18 +176,18 @@ class DuesArrearsScreen extends ConsumerWidget {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'Member Portal',
+      title: context.vt('Member Portal'),
       backRoute: '/member/dashboard',
       actions: [
         IconButton(
           onPressed: () => context.go('/notifications'),
           icon: const Icon(Icons.notifications_outlined),
-          tooltip: 'Notifications',
+          tooltip: context.vt('Notifications'),
         ),
       ],
       child: activeGroup == null
-          ? const AuthErrorMessage(
-              message: 'Select a group to view dues and arrears.',
+          ? AuthErrorMessage(
+              message: context.vt('Select a group to view dues and arrears.'),
             )
           : FutureBuilder<ContributionRegisterResult>(
               future: ref
@@ -195,8 +203,8 @@ class DuesArrearsScreen extends ConsumerWidget {
                   );
                 }
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load outstanding dues.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load outstanding dues.'),
                   );
                 }
 
@@ -212,24 +220,28 @@ class DuesArrearsScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Dues & Arrears',
+                      context.vt('Dues & Arrears'),
                       style: Theme.of(context).textTheme.headlineMedium
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'Manage your outstanding group fees.',
+                      context.vt('Manage your outstanding group fees.'),
                       style: Theme.of(context).textTheme.bodyLarge
                           ?.copyWith(color: AppColors.onSurfaceVariant),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _AmountDueCard(amount: formatter.money(totalOutstanding)),
                     const SizedBox(height: AppSpacing.md),
-                    const SectionHeader(title: 'Outstanding Contributions'),
+                    SectionHeader(
+                      title: context.vt('Outstanding Contributions'),
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     if (outstanding.isEmpty)
-                      const AuthErrorMessage(
-                        message: 'You do not have outstanding dues.',
+                      AuthErrorMessage(
+                        message: context.vt(
+                          'You do not have outstanding dues.',
+                        ),
                       )
                     else
                       for (final item in outstanding) ...[
@@ -244,14 +256,16 @@ class DuesArrearsScreen extends ConsumerWidget {
                         const SizedBox(height: AppSpacing.sm),
                       ],
                     const SizedBox(height: AppSpacing.md),
-                    const _InfoNotice(
-                      title: 'Already paid?',
-                      message: 'Notify the treasurer for a payment you have already sent. The treasurer will verify and update your record.',
+                    _InfoNotice(
+                      title: context.vt('Already paid?'),
+                      message: context.vt(
+                        'Notify the treasurer for a payment you have already sent. The treasurer will verify and update your record.',
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     FilledButton(
                       onPressed: () => context.go('/member/payments/select'),
-                      child: const Text('Pay selected dues'),
+                      child: Text(context.vt('Pay selected dues')),
                     ),
                   ],
                 );
@@ -274,11 +288,11 @@ class MyProfileScreen extends ConsumerWidget {
     final displayName =
         (profile?['displayName'] as String? ?? user?.displayName)?.trim();
     final memberName = displayName == null || displayName.isEmpty
-        ? 'Member'
+        ? context.vt('Member')
         : displayName;
 
     return VikoplusScreen(
-      title: 'My Profile',
+      title: context.vt('My Profile'),
       backRoute: '/member/dashboard',
       showBackButton: showBackButton,
       child: Column(
@@ -304,21 +318,27 @@ class MyProfileScreen extends ConsumerWidget {
           TextButton.icon(
             onPressed: () => context.push('/profile/complete'),
             icon: const Icon(Icons.edit_outlined),
-            label: const Text('Manage profile'),
+            label: Text(context.vt('Manage profile')),
           ),
           const SizedBox(height: AppSpacing.md),
-          _ProfileField(label: 'User ID', value: user?.id ?? 'Not signed in'),
+          _ProfileField(
+            label: context.vt('User ID'),
+            value: user?.id ?? context.vt('Not signed in'),
+          ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileField(
-            label: 'Preferred Language',
+            label: context.vt('Preferred Language'),
             value: user?.preferredLocale.toUpperCase() ?? 'EN',
           ),
           const SizedBox(height: AppSpacing.sm),
-          _ProfileField(label: 'Group', value: activeGroup?.name ?? 'None'),
+          _ProfileField(
+            label: context.vt('Group'),
+            value: activeGroup?.name ?? context.vt('None'),
+          ),
           const SizedBox(height: AppSpacing.sm),
           _ProfileField(
-            label: 'Status',
-            value: activeGroup?.status ?? 'New user',
+            label: context.vt('Status'),
+            value: activeGroup?.status ?? context.vt('New user'),
           ),
         ],
       ),
@@ -358,7 +378,9 @@ class _SelectContributionScreenState
         .where((obligation) => _selectedIds.contains(obligation.id))
         .toList();
     if (selected.isEmpty) {
-      setState(() => _errorMessage = 'Select at least one contribution.');
+      setState(
+        () => _errorMessage = context.vt('Select at least one contribution.'),
+      );
       return;
     }
     ref
@@ -375,26 +397,28 @@ class _SelectContributionScreenState
     );
 
     return VikoplusScreen(
-      title: 'Select Contribution',
+      title: context.vt('Select Contribution'),
       backRoute: '/member/dashboard',
       showBackButton: widget.showBackButton,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Choose what you want to pay.',
+            context.vt('Choose what you want to pay.'),
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.md),
           if (activeGroup == null) ...[
-            const AuthErrorMessage(
-              message: 'Select a group before making a contribution.',
+            AuthErrorMessage(
+              message: context.vt(
+                'Select a group before making a contribution.',
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: () => context.go('/groups'),
-              child: const Text('Choose Group'),
+              child: Text(context.vt('Choose Group')),
             ),
           ] else
             FutureBuilder<ContributionRegisterResult>(
@@ -411,8 +435,8 @@ class _SelectContributionScreenState
                   );
                 }
                 if (snapshot.hasError) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load your contributions.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load your contributions.'),
                   );
                 }
 
@@ -421,10 +445,11 @@ class _SelectContributionScreenState
                     .toList();
                 _initializeSelection(obligations);
                 if (obligations.isEmpty) {
-                  return const _InfoNotice(
-                    title: 'Nothing Due',
-                    message:
-                        'Your current contribution obligations are fully paid.',
+                  return _InfoNotice(
+                    title: context.vt('Nothing Due'),
+                    message: context.vt(
+                      'Your current contribution obligations are fully paid.',
+                    ),
                   );
                 }
 
@@ -464,9 +489,9 @@ class _SelectContributionScreenState
                     const SizedBox(height: AppSpacing.xs),
                     _ReceiptSummary(
                       lines: [
-                        ('Selected items', '${selected.length}'),
+                        (context.vt('Selected items'), '${selected.length}'),
                         (
-                          'Payment purpose',
+                          context.vt('Payment purpose'),
                           selected
                               .map((obligation) => obligation.planName)
                               .toSet()
@@ -482,7 +507,7 @@ class _SelectContributionScreenState
                     FilledButton.icon(
                       onPressed: () => _continue(obligations),
                       icon: const Icon(Icons.arrow_forward, size: 18),
-                      label: const Text('Continue'),
+                      label: Text(context.vt('Continue')),
                     ),
                   ],
                 );
@@ -510,30 +535,30 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
     final payment = ref.watch(selectedContributionPaymentProvider);
 
     return VikoplusScreen(
-      title: 'Payment Method',
+      title: context.vt('Payment Method'),
       backRoute: '/member/payments/select',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PaymentMethodTile(
-            title: 'Mobile money',
-            subtitle: 'M-Pesa, Tigo Pesa, Airtel Money',
+            title: context.vt('Mobile money'),
+            subtitle: context.vt('M-Pesa, Tigo Pesa, Airtel Money'),
             icon: Icons.phone_android_outlined,
             selected: _method == 'Mobile money',
             onTap: () => setState(() => _method = 'Mobile money'),
           ),
           const SizedBox(height: AppSpacing.sm),
           _PaymentMethodTile(
-            title: 'Bank transfer',
-            subtitle: 'Pay from a bank account',
+            title: context.vt('Bank transfer'),
+            subtitle: context.vt('Pay from a bank account'),
             icon: Icons.account_balance_outlined,
             selected: _method == 'Bank transfer',
             onTap: () => setState(() => _method = 'Bank transfer'),
           ),
           const SizedBox(height: AppSpacing.sm),
           _PaymentMethodTile(
-            title: 'Cash to treasurer',
-            subtitle: 'Treasurer records and verifies manually',
+            title: context.vt('Cash to treasurer'),
+            subtitle: context.vt('Treasurer records and verifies manually'),
             icon: Icons.payments_outlined,
             selected: _method == 'Cash to treasurer',
             onTap: () => setState(() => _method = 'Cash to treasurer'),
@@ -551,7 +576,7 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
                         : '/member/payments/review/mobile-money';
                     context.go(route);
                   },
-            child: const Text('Review Payment'),
+            child: Text(context.vt('Review Payment')),
           ),
         ],
       ),
@@ -577,14 +602,18 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) {
       setState(
-        () => _errorMessage = 'Select a group before submitting payment.',
+        () => _errorMessage = context.vt(
+          'Select a group before submitting payment.',
+        ),
       );
       return;
     }
     final selectedPayment = ref.read(selectedContributionPaymentProvider);
     if (selectedPayment == null || selectedPayment.amountMinor <= 0) {
       setState(
-        () => _errorMessage = 'Select contribution items before submitting.',
+        () => _errorMessage = context.vt(
+          'Select contribution items before submitting.',
+        ),
       );
       return;
     }
@@ -615,8 +644,9 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
     } catch (_) {
       if (!mounted) return;
       setState(
-        () => _errorMessage =
-            'Payment request was not submitted. Please try again.',
+        () => _errorMessage = context.vt(
+          'Payment request was not submitted. Please try again.',
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -636,7 +666,7 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
     final obligations = selectedPayment?.obligations ?? const [];
 
     return VikoplusScreen(
-      title: 'Review Payment',
+      title: context.vt('Review Payment'),
       backRoute: '/member/payments/method',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -645,20 +675,27 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
             icon: isCash
                 ? Icons.payments_outlined
                 : Icons.phone_android_outlined,
-            title: isCash ? 'Cash payment' : method,
-            subtitle: 'Submit this contribution for treasurer verification.',
+            title: isCash ? context.vt('Cash payment') : context.vt(method),
+            subtitle: context.vt(
+              'Submit this contribution for treasurer verification.',
+            ),
             compact: true,
           ),
           const SizedBox(height: AppSpacing.md),
           _ReceiptSummary(
             lines: [
               (
-                'Member',
-                obligations.isEmpty ? 'Member' : obligations.first.memberName,
+                context.vt('Member'),
+                obligations.isEmpty
+                    ? context.vt('Member')
+                    : obligations.first.memberName,
               ),
-              ('Group', activeGroup?.name ?? 'Selected group'),
-              ('Payment method', method),
-              const ('Status', 'Pending treasurer review'),
+              (
+                context.vt('Group'),
+                activeGroup?.name ?? context.vt('Selected group'),
+              ),
+              (context.vt('Payment method'), context.vt(method)),
+              (context.vt('Status'), context.vt('Pending treasurer review')),
             ],
             total: formatters.money(amountMinor),
           ),
@@ -675,7 +712,9 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
                   )
                 : const Icon(Icons.fact_check_outlined),
             label: Text(
-              _isSubmitting ? 'Submitting' : 'Submit for verification',
+              _isSubmitting
+                  ? context.vt('Submitting')
+                  : context.vt('Submit for verification'),
             ),
           ),
         ],
@@ -712,7 +751,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           const _SuccessMark(pending: true),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Payment Submitted',
+            context.vt('Payment Submitted'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineLarge?.copyWith(
               color: AppColors.primary,
@@ -721,7 +760,9 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Your contribution request is waiting for treasurer verification. A receipt will be created after approval.',
+            context.vt(
+              'Your contribution request is waiting for treasurer verification. A receipt will be created after approval.',
+            ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -730,23 +771,23 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           _ReceiptSummary(
             lines: [
               (
-                'Member',
+                context.vt('Member'),
                 selectedObligations.isEmpty
-                    ? 'Member'
+                    ? context.vt('Member')
                     : selectedObligations.first.memberName,
               ),
-              ('Request ID', paymentId ?? 'Pending'),
-              const ('Status', 'Pending verification'),
-              ('Payment Method', paymentMethod),
+              (context.vt('Request ID'), paymentId ?? context.vt('Pending')),
+              (context.vt('Status'), context.vt('Pending verification')),
+              (context.vt('Payment Method'), context.vt(paymentMethod)),
             ],
             total: formatters.money(amountMinor),
-            label: 'Total Amount',
+            label: context.vt('Total Amount'),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
             onPressed: () => context.go('/member/contributions'),
             icon: const Icon(Icons.savings_outlined),
-            label: const Text('View Contributions'),
+            label: Text(context.vt('View Contributions')),
           ),
           const SizedBox(height: AppSpacing.sm),
           Row(
@@ -755,7 +796,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share'),
+                  label: Text(context.vt('Share')),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -763,7 +804,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
                 child: OutlinedButton.icon(
                   onPressed: () => context.go('/member/payments/select'),
                   icon: const Icon(Icons.add_circle_outline),
-                  label: const Text('Record New'),
+                  label: Text(context.vt('Record New')),
                 ),
               ),
             ],
@@ -772,7 +813,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           TextButton.icon(
             onPressed: () => context.go('/member/dashboard'),
             icon: const Icon(Icons.arrow_back),
-            label: const Text('Return to Dashboard'),
+            label: Text(context.vt('Return to Dashboard')),
           ),
         ],
       ),
@@ -888,7 +929,7 @@ class _ArrearsMonthTile extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     Text(
-                      'Monthly Club Dues',
+                      context.vt('Monthly Club Dues'),
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: AppColors.onSurfaceVariant),
                     ),
@@ -915,12 +956,12 @@ class _ArrearsMonthTile extends StatelessWidget {
                   ? FilledButton.icon(
                       onPressed: () => context.go('/reminders/new'),
                       icon: const Icon(Icons.campaign_outlined, size: 18),
-                      label: const Text('Send Reminder'),
+                      label: Text(context.vt('Send Reminder')),
                     )
                   : OutlinedButton.icon(
                       onPressed: () => context.go('/reminders/new'),
                       icon: const Icon(Icons.campaign_outlined, size: 18),
-                      label: const Text('Send Reminder'),
+                      label: Text(context.vt('Send Reminder')),
                     ),
             ],
           ),
@@ -1046,7 +1087,7 @@ class _MemberContributionTile extends StatelessWidget {
           Text(amount, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.xxs),
           StatusPill(
-            label: paid ? 'Paid' : 'Due',
+            label: paid ? context.vt('Paid') : context.vt('Due'),
             color: paid ? AppColors.primary : AppColors.error,
           ),
         ],

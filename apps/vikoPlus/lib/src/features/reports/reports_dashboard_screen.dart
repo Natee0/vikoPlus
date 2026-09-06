@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/contribution_report_filters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -22,7 +23,8 @@ class ReportsDashboardScreen extends ConsumerStatefulWidget {
       _ReportsDashboardScreenState();
 }
 
-class _ReportsDashboardScreenState extends ConsumerState<ReportsDashboardScreen> {
+class _ReportsDashboardScreenState
+    extends ConsumerState<ReportsDashboardScreen> {
   Future<ContributionReportResult>? _reportFuture;
   String? _loadedGroupId;
   String? _loadedFinancialYearId;
@@ -31,10 +33,9 @@ class _ReportsDashboardScreenState extends ConsumerState<ReportsDashboardScreen>
     String groupId,
     ContributionReportFilters filters,
   ) {
-    return ref.read(groupsRepositoryProvider).contributionReport(
-          groupId,
-          financialYearId: filters.financialYearId,
-        );
+    return ref
+        .read(groupsRepositoryProvider)
+        .contributionReport(groupId, financialYearId: filters.financialYearId);
   }
 
   void _setReportFuture(
@@ -76,7 +77,7 @@ class _ReportsDashboardScreenState extends ConsumerState<ReportsDashboardScreen>
     _ensureReportFuture(activeGroup?.id, filters);
 
     return VikoplusScreen(
-      title: 'Reports',
+      title: context.vt('Reports'),
       bottomNavigationIndex: 3,
       showBottomNavigation: widget.showBottomNavigation,
       onRefresh: _refresh,
@@ -90,26 +91,30 @@ class _ReportsDashboardScreenState extends ConsumerState<ReportsDashboardScreen>
             exportFormatLabel: filters.exportFormat.label,
           ),
           const SizedBox(height: 16),
-          const SectionHeader(title: 'Available reports'),
+          SectionHeader(title: context.vt('Available reports')),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Outstanding contributions',
-            subtitle: 'Members and periods still due',
+          ActionTile(
+            title: context.vt('Outstanding contributions'),
+            subtitle: context.vt('Members and periods still due'),
             icon: Icons.pending_actions_outlined,
             route: '/reports/outstanding',
             color: AppColors.warning,
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Member contribution analysis',
-            subtitle: 'Joining fee, monthly dues, total and percentage',
+          ActionTile(
+            title: context.vt('Member contribution analysis'),
+            subtitle: context.vt(
+              'Joining fee, monthly dues, total and percentage',
+            ),
             icon: Icons.analytics_outlined,
             route: '/reports/member-analysis',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Export files',
-            subtitle: 'Selected format is managed in report filters',
+          ActionTile(
+            title: context.vt('Export files'),
+            subtitle: context.vt(
+              'Selected format is managed in report filters',
+            ),
             icon: Icons.file_download_outlined,
             route: '/reports/filters',
           ),
@@ -139,11 +144,13 @@ class _ReportSummaryBlock extends ConsumerWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AuthErrorMessage(message: 'Select a group to load reports.'),
+          AuthErrorMessage(
+            message: context.vt('Select a group to load reports.'),
+          ),
           const SizedBox(height: AppSpacing.md),
           FilledButton(
             onPressed: () => context.go('/groups'),
-            child: const Text('Choose Group'),
+            child: Text(context.vt('Choose Group')),
           ),
         ],
       );
@@ -161,8 +168,8 @@ class _ReportSummaryBlock extends ConsumerWidget {
           );
         }
         if (snapshot.hasError || snapshot.data == null) {
-          return const AuthErrorMessage(
-            message: 'Could not load contribution report.',
+          return AuthErrorMessage(
+            message: context.vt('Could not load contribution report.'),
           );
         }
 
@@ -171,7 +178,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             InfoCard(
-              title: 'Total contributions',
+              title: context.vt('Total contributions'),
               value: formatters.money(report.totalPaidMinor),
               icon: Icons.savings_outlined,
             ),
@@ -180,7 +187,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
               children: [
                 Expanded(
                   child: InfoCard(
-                    title: 'Joining',
+                    title: context.vt('Joining'),
                     value: formatters.compactMoney(report.joiningFeesPaidMinor),
                     icon: Icons.person_add_alt_1_outlined,
                   ),
@@ -188,7 +195,7 @@ class _ReportSummaryBlock extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: InfoCard(
-                    title: 'Recurring',
+                    title: context.vt('Recurring'),
                     value: formatters.compactMoney(report.recurringPaidMinor),
                     icon: Icons.event_repeat_outlined,
                     accentColor: AppColors.gold,
@@ -198,15 +205,15 @@ class _ReportSummaryBlock extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             InfoCard(
-              title: 'Outstanding obligations',
+              title: context.vt('Outstanding obligations'),
               value: formatters.money(report.totalOutstandingMinor),
               icon: Icons.warning_amber_outlined,
               accentColor: AppColors.warning,
             ),
             const SizedBox(height: 12),
             InfoCard(
-              title: 'Export format',
-              value: exportFormatLabel,
+              title: context.vt('Export format'),
+              value: context.vt(exportFormatLabel),
               icon: Icons.file_download_outlined,
             ),
           ],

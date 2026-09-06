@@ -20,7 +20,7 @@ class VikoplusApp extends ConsumerWidget {
       onGenerateTitle: (context) => AppLocalizations.of(context).appName,
       theme: AppTheme.light(),
       routerConfig: appRouter,
-      locale: locale,
+      locale: locale ?? const Locale('sw'),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
         AppLocalizations.delegate,

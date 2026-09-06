@@ -4,7 +4,7 @@ class AuthUser {
   const AuthUser({
     required this.id,
     this.displayName,
-    this.preferredLocale = 'en',
+    this.preferredLocale = 'sw',
     this.selectedRole = 'NEW_USER',
     this.isPlatformAdmin = false,
   });
@@ -18,7 +18,7 @@ class AuthUser {
     return AuthUser(
       id: id,
       displayName: json['displayName'] as String?,
-      preferredLocale: json['preferredLocale'] as String? ?? 'en',
+      preferredLocale: json['preferredLocale'] as String? ?? 'sw',
       selectedRole: json['selectedRole'] as String? ?? 'NEW_USER',
       isPlatformAdmin: json['isPlatformAdmin'] as bool? ?? false,
     );

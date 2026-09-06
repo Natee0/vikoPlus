@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -26,7 +27,7 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
       showBackButton: false,
       actions: [
         IconButton(
-          tooltip: 'Notifications',
+          tooltip: context.vt('Notifications'),
           onPressed: () => context.go('/notifications'),
           icon: const Icon(Icons.notifications_none_outlined),
         ),
@@ -104,7 +105,9 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.md),
                 Text(
-                  'Welcome to\n$groupName',
+                  context.vtf('Welcome to\n{groupName}', {
+                    'groupName': groupName,
+                  }),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     color: AppColors.onSurface,
@@ -113,7 +116,9 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'Your group is ready. Complete the setup below to start tracking contributions and managing members.',
+                  context.vt(
+                    'Your group is ready. Complete the setup below to start tracking contributions and managing members.',
+                  ),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -124,7 +129,7 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                   child: FilledButton.icon(
                     onPressed: () => context.go('/members/add'),
                     icon: const Icon(Icons.person_add_alt_outlined, size: 18),
-                    label: const Text('Add First Member'),
+                    label: Text(context.vt('Add First Member')),
                   ),
                 ),
               ],
@@ -143,7 +148,7 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Setup Progress',
+                  context.vt('Setup Progress'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w800,
@@ -151,7 +156,9 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  '$completedSteps of 5 steps completed',
+                  context.vtf('{done} of 5 steps completed', {
+                    'done': completedSteps,
+                  }),
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
@@ -166,14 +173,14 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                const _SetupStepTile(
-                  title: 'Group Created',
+                _SetupStepTile(
+                  title: context.vt('Group Created'),
                   completed: true,
                   route: '/groups/create',
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 _SetupStepTile(
-                  title: 'Financial Year Set',
+                  title: context.vt('Financial Year Set'),
                   completed: true,
                   route: _withGroupId(
                     '/groups/financial-year',
@@ -183,13 +190,13 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 _SetupStepTile(
-                  title: 'Add First Member',
+                  title: context.vt('Add First Member'),
                   completed: hasMembers,
                   route: '/members/add',
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 _SetupStepTile(
-                  title: 'Configure Contributions',
+                  title: context.vt('Configure Contributions'),
                   route: _withGroupId(
                     '/groups/contributions',
                     groupId,
@@ -197,8 +204,8 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: AppSpacing.xs),
-                const _SetupStepTile(
-                  title: 'Invite Members',
+                _SetupStepTile(
+                  title: context.vt('Invite Members'),
                   route: '/members/invite',
                 ),
               ],

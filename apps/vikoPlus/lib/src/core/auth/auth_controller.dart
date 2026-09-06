@@ -31,7 +31,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
       final identifier = email ?? phone ?? '';
       final result = await ref.read(authRepositoryProvider).register(
             fullName: fullName,
-            preferredLocale: ref.read(localeControllerProvider).value?.languageCode ?? 'en',
+            preferredLocale: ref.read(localeControllerProvider).value?.languageCode ?? 'sw',
             phone: phone,
             email: email,
             password: password,

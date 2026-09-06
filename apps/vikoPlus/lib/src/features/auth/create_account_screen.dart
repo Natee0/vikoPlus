@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -77,13 +79,15 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             password: password,
           );
       if (!mounted) return;
-      final query = Uri(queryParameters: {
-        'challengeId': challengeId,
-        'destination': identity,
-        'channel': _useEmail ? 'email' : 'sms',
-        'next': '/create-or-join-group',
-        'back': '/create-account',
-      }).query;
+      final query = Uri(
+        queryParameters: {
+          'challengeId': challengeId,
+          'destination': identity,
+          'channel': _useEmail ? 'email' : 'sms',
+          'next': '/create-or-join-group',
+          'back': '/create-account',
+        },
+      ).query;
       context.push('/verify-account?$query');
     } on AuthFailure catch (error) {
       if (!mounted) return;
@@ -111,7 +115,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Create Account',
+              AppLocalizations.of(context).createAccount,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 color: AppColors.primary,
@@ -120,14 +124,14 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Join the modern financial community.',
+              AppLocalizations.of(context).communityJoin,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.onSurfaceVariant, fontSize: 14),
             ),
             const SizedBox(height: AppSpacing.md),
             AuthField(
-              label: 'Full Name',
+              label: AppLocalizations.of(context).fullName,
               hint: 'John Doe',
               icon: Icons.person_outline,
               keyboardType: TextInputType.name,
@@ -141,7 +145,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    _useEmail ? 'Email Address' : 'Phone Number',
+                    _useEmail
+                        ? AppLocalizations.of(context).emailAddress
+                        : AppLocalizations.of(context).phoneNumber,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: AppColors.onSurface,
                       fontWeight: FontWeight.w700,
@@ -162,7 +168,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                   child: Text(
-                    _useEmail ? 'Use Phone Instead' : 'Use Email Instead',
+                    _useEmail
+                        ? AppLocalizations.of(context).usePhone
+                        : AppLocalizations.of(context).useEmail,
                   ),
                 ),
               ],
@@ -192,22 +200,24 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             const SizedBox(height: AppSpacing.xs),
             Text(
               _useEmail
-                  ? "We'll send a secure verification code to this email."
-                  : "We'll use this for secure verification.",
+                  ? AppLocalizations.of(context).emailVerifyNote
+                  : AppLocalizations.of(context).verifyNote,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
             const SizedBox(height: AppSpacing.sm),
             AuthField(
-              label: 'Password',
-              hint: 'Password',
+              label: AppLocalizations.of(context).password,
+              hint: AppLocalizations.of(context).password,
               icon: Icons.lock_outline,
               controller: _passwordController,
               obscureText: _obscurePassword,
               textInputAction: TextInputAction.next,
               onChanged: (_) => _clearError(),
               suffixIcon: IconButton(
-                tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                tooltip: _obscurePassword
+                    ? AppLocalizations.of(context).showPassword
+                    : AppLocalizations.of(context).hidePassword,
                 onPressed: () {
                   setState(() => _obscurePassword = !_obscurePassword);
                 },
@@ -217,12 +227,12 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                       : Icons.visibility_off_outlined,
                 ),
               ),
-              helperText: 'Must be at least 8 characters long.',
+              helperText: AppLocalizations.of(context).passwordLength,
             ),
             const SizedBox(height: AppSpacing.sm),
             AuthField(
-              label: 'Confirm Password',
-              hint: 'Password',
+              label: AppLocalizations.of(context).confirmPassword,
+              hint: AppLocalizations.of(context).password,
               icon: Icons.lock_outline,
               controller: _confirmPasswordController,
               obscureText: _obscureConfirmPassword,
@@ -233,8 +243,8 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               },
               suffixIcon: IconButton(
                 tooltip: _obscureConfirmPassword
-                    ? 'Show password'
-                    : 'Hide password',
+                    ? AppLocalizations.of(context).showPassword
+                    : AppLocalizations.of(context).hidePassword,
                 onPressed: () {
                   setState(
                     () => _obscureConfirmPassword = !_obscureConfirmPassword,
@@ -268,22 +278,22 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                 Expanded(
                   child: Text.rich(
                     TextSpan(
-                      text: 'I agree to the ',
+                      text: AppLocalizations.of(context).agreeTerms,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceVariant,
                         height: 1.35,
                       ),
-                      children: const [
+                      children: [
                         TextSpan(
-                          text: 'Terms of Service',
+                          text: AppLocalizations.of(context).terms,
                           style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        TextSpan(text: ' and '),
+                        TextSpan(text: AppLocalizations.of(context).andWord),
                         TextSpan(
-                          text: 'Privacy Policy.',
+                          text: AppLocalizations.of(context).privacy,
                           style: TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,
@@ -297,8 +307,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             ),
             const SizedBox(height: AppSpacing.md),
             AuthErrorMessage(message: _errorMessage),
-            if (_errorMessage.isNotEmpty)
-              const SizedBox(height: AppSpacing.sm),
+            if (_errorMessage.isNotEmpty) const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
               onPressed: isLoading ? null : _createAccount,
               iconAlignment: IconAlignment.end,

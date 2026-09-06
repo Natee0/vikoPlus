@@ -18,7 +18,7 @@ class AuthRepository {
     String? phone,
     String? email,
     required String password,
-    String preferredLocale = 'en',
+    String preferredLocale = 'sw',
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',

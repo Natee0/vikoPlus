@@ -57,7 +57,11 @@ class LoansOverviewScreen extends ConsumerWidget {
             _EligibilityCard(items: overview.eligibility),
             const SizedBox(height: AppSpacing.lg),
             FilledButton.icon(
-              onPressed: () => context.go('/loans/apply'),
+              onPressed:
+                  overview.eligibility.every((item) => item.achieved) &&
+                      overview.borrowingPowerMinor > 0
+                  ? () => context.go('/loans/apply')
+                  : null,
               icon: const Icon(Icons.add_circle_outline),
               label: const Text('Apply for New Loan'),
             ),
@@ -666,6 +670,12 @@ class _LoanScaffold extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
+          if (!isMemberPortal &&
+              activeGroup?.role != 'GROUP_ADMIN' &&
+              index == 3) {
+            context.go(portalMoreRoute(activeGroup));
+            return;
+          }
           if (isMemberPortal && index == selectedIndex) return;
           if (isMemberPortal) {
             switch (index) {
@@ -734,7 +744,7 @@ class _LoanScaffold extends ConsumerWidget {
                   label: 'Account',
                 ),
               ]
-            : const [
+            : [
                 NavigationDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
@@ -750,11 +760,12 @@ class _LoanScaffold extends ConsumerWidget {
                   selectedIcon: Icon(Icons.savings),
                   label: 'Register',
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.bar_chart_outlined),
-                  selectedIcon: Icon(Icons.bar_chart),
-                  label: 'Reports',
-                ),
+                if (activeGroup?.role == 'GROUP_ADMIN')
+                  NavigationDestination(
+                    icon: Icon(Icons.bar_chart_outlined),
+                    selectedIcon: Icon(Icons.bar_chart),
+                    label: 'Reports',
+                  ),
                 NavigationDestination(
                   icon: Icon(Icons.more_horiz),
                   selectedIcon: Icon(Icons.more),

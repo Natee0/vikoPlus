@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -24,6 +27,7 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
 
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
+  Timer? _timer;
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -32,6 +36,9 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
     super.initState();
     _controllers = List.generate(_codeLength, (_) => TextEditingController());
     _focusNodes = List.generate(_codeLength, (_) => FocusNode());
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -42,6 +49,7 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
     for (final focusNode in _focusNodes) {
       focusNode.dispose();
     }
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -50,6 +58,19 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
   }
 
   String get _code => _controllers.map((controller) => controller.text).join();
+
+  Duration _remainingFor(PasswordResetFlow flow) {
+    final expiresAt = flow.codeExpiresAt;
+    if (expiresAt == null) return Duration(seconds: flow.expiresInSeconds);
+    final remaining = expiresAt.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  String _formatRemaining(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
   void _clearError() {
     if (_errorMessage.isEmpty) return;
@@ -117,11 +138,23 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
 
     final flow = ref.read(passwordResetFlowProvider);
     if (flow.identifier.isEmpty) {
-      setState(() => _errorMessage = 'Reset session expired. Start again.');
+      setState(
+        () => _errorMessage = context.vt('Reset session expired. Start again.'),
+      );
       return;
     }
     if (!_isComplete) {
-      setState(() => _errorMessage = 'Enter the full verification code.');
+      setState(
+        () => _errorMessage = context.vt('Enter the full verification code.'),
+      );
+      return;
+    }
+    if (_remainingFor(flow) == Duration.zero) {
+      setState(
+        () => _errorMessage = context.vt(
+          'Verification code expired. Request a new code.',
+        ),
+      );
       return;
     }
 
@@ -152,11 +185,13 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
   Widget build(BuildContext context) {
     final flow = ref.watch(passwordResetFlowProvider);
     final destination = flow.destination.isEmpty
-        ? 'your phone or email'
+        ? context.vt('your phone or email')
         : flow.destination;
+    final remaining = _remainingFor(flow);
+    final hasExpired = remaining == Duration.zero;
 
     return PasswordResetScaffold(
-      title: 'Verification',
+      title: context.vt('Verification'),
       onBack: () => context.go('/forgot-password'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -167,21 +202,35 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Enter Security Code',
+            context.vt('Enter Security Code'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'We sent a 6-digit verification code to $destination.',
+            context.vtf(
+              'We sent a 6-digit verification code to {destination}.',
+              {'destination': destination},
+            ),
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  height: 1.45,
-                ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.45),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            hasExpired
+                ? context.vt('Verification code expired. Request a new code.')
+                : context.vtf('Code expires in {time}', {
+                    'time': _formatRemaining(remaining),
+                  }),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: hasExpired ? AppColors.error : AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           AuthCard(
@@ -212,11 +261,11 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
                             counterText: '',
                             contentPadding: EdgeInsets.zero,
                           ),
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w800,
+                              ),
                           onChanged: (value) =>
                               _handleCodeChanged(value, index),
                           onTap: () {
@@ -235,13 +284,15 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
                   onPressed: _isSubmitting
                       ? null
                       : () => context.go('/forgot-password'),
-                  child: const Text('Resend or change destination'),
+                  child: Text(context.vt('Resend or change destination')),
                 ),
                 AuthErrorMessage(message: _errorMessage),
                 if (_errorMessage.isNotEmpty)
                   const SizedBox(height: AppSpacing.sm),
                 FilledButton.icon(
-                  onPressed: _isSubmitting || !_isComplete ? null : _verify,
+                  onPressed: _isSubmitting || !_isComplete || hasExpired
+                      ? null
+                      : _verify,
                   iconAlignment: IconAlignment.end,
                   icon: _isSubmitting
                       ? const SizedBox(
@@ -250,16 +301,22 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.arrow_forward),
-                  label: Text(_isSubmitting ? 'Verifying' : 'Verify & Proceed'),
+                  label: Text(
+                    _isSubmitting
+                        ? context.vt('Verifying')
+                        : context.vt('Verify & Proceed'),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TrustNote(
+          TrustNote(
             icon: Icons.shield_outlined,
-            title: 'Vikoplus Mutual Trust Guarantee',
-            body: 'Your account credentials remain end-to-end protected.',
+            title: context.vt('Vikoplus Mutual Trust Guarantee'),
+            body: context.vt(
+              'Your account credentials remain end-to-end protected.',
+            ),
           ),
         ],
       ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
@@ -16,7 +17,7 @@ class SectionHeader extends StatelessWidget {
       children: [
         Expanded(
           child: Text(
-            title,
+            context.vt(title),
             style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
@@ -47,7 +48,7 @@ class StatusPill extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Text(
-          label,
+          context.vt(label),
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
@@ -94,7 +95,7 @@ class EmptyStateCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            title,
+            context.vt(title),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.onSurface,
@@ -103,7 +104,7 @@ class EmptyStateCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            message,
+            context.vt(message),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: AppColors.onSurfaceVariant,
@@ -113,7 +114,7 @@ class EmptyStateCard extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: onAction,
-              child: Text(action),
+              child: Text(context.vt(action)),
             ),
           ],
         ],
@@ -171,7 +172,7 @@ class ActionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
+                      context.vt(title),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: AppColors.onSurface,
                         fontWeight: FontWeight.w700,
@@ -179,7 +180,7 @@ class ActionTile extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      subtitle,
+                      context.vt(subtitle),
                       style: Theme.of(context).textTheme.bodySmall
                           ?.copyWith(color: AppColors.secondaryText),
                     ),
@@ -222,7 +223,7 @@ class ProgressBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            title,
+            context.vt(title),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
@@ -246,7 +247,7 @@ class ProgressBlock extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            caption,
+            context.vt(caption),
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.secondaryText),
           ),

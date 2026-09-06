@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,7 +40,7 @@ class _MissingMemberProfileState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Member Profile',
+      title: AppLocalizations.of(context).memberProfile,
       backRoute: '/members',
       child: EmptyStateCard(
         icon: Icons.person_search_outlined,
@@ -68,7 +70,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
   bool _isUpdatingStatus = false;
 
   Future<void> _changeStatus(GroupMemberSummary member, String status) async {
-    if (_isUpdatingStatus || _isAssigningRole) return;
+    if (_isUpdatingStatus || _isAssigningRole) {
+      return;
+    }
     final action = status == 'ACTIVE'
         ? 'Restore'
         : status == 'SUSPENDED'
@@ -86,7 +90,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(AppLocalizations.of(context).cancel),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
@@ -95,7 +99,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
         ],
       ),
     );
-    if (confirmed != true || !mounted || _isUpdatingStatus) return;
+    if (confirmed != true || !mounted || _isUpdatingStatus) {
+      return;
+    }
     setState(() {
       _isUpdatingStatus = true;
       _errorMessage = '';
@@ -104,13 +110,18 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       await ref
           .read(groupsRepositoryProvider)
           .updateMemberStatus(widget.groupId, member.id, status);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       await _refresh();
     } on Object catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _errorMessage = AuthFailure.from(error).message);
+      }
     } finally {
-      if (mounted) setState(() => _isUpdatingStatus = false);
+      if (mounted) {
+        setState(() => _isUpdatingStatus = false);
+      }
     }
   }
 
@@ -173,7 +184,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
             ),
             children: [
               Text(
-                'Assign Role',
+                AppLocalizations.of(context).assignRole,
                 style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
@@ -199,7 +210,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
         );
       },
     );
-    if (selected == null || _isAssigningRole) return;
+    if (selected == null || _isAssigningRole) {
+      return;
+    }
 
     try {
       setState(() {
@@ -209,10 +222,14 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       await ref
           .read(groupsRepositoryProvider)
           .assignRole(widget.groupId, member.id, _apiRole(selected));
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(_reload);
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -234,7 +251,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Member Profile',
+      title: AppLocalizations.of(context).memberProfile,
       backRoute: '/members',
       onRefresh: _refresh,
       child: FutureBuilder<GroupMemberSummary>(
@@ -311,17 +328,17 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                     const Divider(),
                     _ProfileDetail(
                       icon: Icons.badge_outlined,
-                      label: 'Member number',
+                      label: AppLocalizations.of(context).memberNumber,
                       value: member.memberNumber,
                     ),
                     _ProfileDetail(
                       icon: Icons.phone_outlined,
-                      label: 'Phone number',
+                      label: AppLocalizations.of(context).phoneNumber,
                       value: member.phone,
                     ),
                     _ProfileDetail(
                       icon: Icons.mail_outline,
-                      label: 'Email address',
+                      label: AppLocalizations.of(context).emailAddress,
                       value: member.email,
                     ),
                   ],
@@ -345,7 +362,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                         )
                       : const Icon(Icons.admin_panel_settings_outlined),
                   label: Text(
-                    _isAssigningRole ? 'Updating role' : 'Assign Role',
+                    _isAssigningRole
+                        ? AppLocalizations.of(context).updatingRole
+                        : AppLocalizations.of(context).assignRole,
                   ),
                 ),
               const SizedBox(height: AppSpacing.sm),
@@ -376,10 +395,10 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                         ),
                         label: Text(
                           status == 'ACTIVE'
-                              ? 'Restore access'
+                              ? AppLocalizations.of(context).restoreAccess
                               : status == 'SUSPENDED'
-                              ? 'Suspend member'
-                              : 'Remove member',
+                              ? AppLocalizations.of(context).suspendMember
+                              : AppLocalizations.of(context).removeMember,
                         ),
                       ),
                     ),
@@ -392,7 +411,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                     '/reminders/new?memberId=${Uri.encodeComponent(member.id)}',
                   ),
                   icon: const Icon(Icons.notifications_active_outlined),
-                  label: const Text('Send Reminder'),
+                  label: Text(AppLocalizations.of(context).sendReminder),
                 ),
               const SizedBox(height: AppSpacing.sm),
               if (ref.watch(activeGroupProvider)?.role == 'TREASURER' &&
@@ -402,7 +421,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                     '/contributions/record/details?memberId=${Uri.encodeComponent(member.id)}',
                   ),
                   icon: const Icon(Icons.payments_outlined),
-                  label: const Text('Record Payment'),
+                  label: Text(AppLocalizations.of(context).recordPayment),
                 ),
             ],
           );
@@ -444,7 +463,7 @@ class _ProfileDetail extends StatelessWidget {
                 SelectableText(
                   value?.trim().isNotEmpty == true
                       ? value!.trim()
-                      : 'Not provided',
+                      : AppLocalizations.of(context).notProvided,
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(fontWeight: FontWeight.w500),
                 ),

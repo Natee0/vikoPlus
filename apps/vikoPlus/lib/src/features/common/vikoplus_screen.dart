@@ -1,8 +1,11 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -73,7 +76,7 @@ class VikoplusScreen extends ConsumerWidget {
           children: [
             if (title != null)
               VikoplusTopBar(
-                title: title!,
+                title: context.vt(title!),
                 titleIcon: title == activeGroup?.name
                     ? ProfileAvatar(
                         name: activeGroup!.name,
@@ -123,8 +126,16 @@ class VikoplusScreen extends ConsumerWidget {
           bottomNavigationIndex == null || !showBottomNavigation
           ? null
           : NavigationBar(
-              selectedIndex: bottomNavigationIndex!,
+              selectedIndex:
+                  activeGroup?.role != 'GROUP_ADMIN' &&
+                      bottomNavigationIndex! >= 3
+                  ? 3
+                  : bottomNavigationIndex!,
               onDestinationSelected: (index) {
+                if (activeGroup?.role != 'GROUP_ADMIN' && index == 3) {
+                  context.go(portalMoreRoute(activeGroup));
+                  return;
+                }
                 if (index == bottomNavigationIndex) return;
 
                 switch (index) {
@@ -145,31 +156,32 @@ class VikoplusScreen extends ConsumerWidget {
                     break;
                 }
               },
-              destinations: const [
+              destinations: [
                 NavigationDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
-                  label: 'Home',
+                  label: AppLocalizations.of(context).home,
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.groups_2_outlined),
                   selectedIcon: Icon(Icons.groups_2),
-                  label: 'Members',
+                  label: AppLocalizations.of(context).members,
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.savings_outlined),
                   selectedIcon: Icon(Icons.savings),
-                  label: 'Register',
+                  label: AppLocalizations.of(context).registerTab,
                 ),
-                NavigationDestination(
-                  icon: Icon(Icons.bar_chart_outlined),
-                  selectedIcon: Icon(Icons.bar_chart),
-                  label: 'Reports',
-                ),
+                if (activeGroup?.role == 'GROUP_ADMIN')
+                  NavigationDestination(
+                    icon: Icon(Icons.bar_chart_outlined),
+                    selectedIcon: Icon(Icons.bar_chart),
+                    label: AppLocalizations.of(context).reports,
+                  ),
                 NavigationDestination(
                   icon: Icon(Icons.more_horiz),
                   selectedIcon: Icon(Icons.more),
-                  label: 'More',
+                  label: AppLocalizations.of(context).more,
                 ),
               ],
             ),

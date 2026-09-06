@@ -70,14 +70,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: activeGroup?.name ?? 'Admin Dashboard',
+      title: activeGroup?.name ?? loc.adminDashboard,
       bottomNavigationIndex: 0,
       showBottomNavigation: widget.showBottomNavigation,
       onRefresh: activeGroup == null ? null : _refresh,
       actions: [
         const NotificationIconButton(),
         IconButton(
-          tooltip: 'My groups',
+          tooltip: loc.myGroups,
           onPressed: () => context.go('/groups'),
           icon: const Icon(Icons.groups_2_outlined),
         ),
@@ -88,16 +88,14 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         children: [
           Text(
             ref.watch(profileDisplayNameProvider).isEmpty
-                ? 'Welcome'
-                : 'Hello, ${ref.watch(profileDisplayNameProvider)}',
+                ? loc.welcomeTitle
+                : loc.helloName(ref.watch(profileDisplayNameProvider)),
             style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            activeGroup == null
-                ? 'Select a group to load live administration tools.'
-                : 'Manage contributions, members, loans and reminders.',
+            activeGroup == null ? loc.selectGroupTools : loc.manageGroupSummary,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.secondaryText),
           ),
@@ -109,75 +107,73 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
             membersTitle: loc.members,
           ),
           const SizedBox(height: 16),
-          const SectionHeader(title: 'Monthly trend'),
+          SectionHeader(title: loc.monthlyTrend),
           const SizedBox(height: 12),
           const _MonthlyTrendPlaceholder(),
           const SizedBox(height: 16),
-          const SectionHeader(title: 'Quick actions'),
+          SectionHeader(title: loc.quickActions),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Record payment',
-            subtitle: 'Allocate a contribution across one or more periods',
+          ActionTile(
+            title: loc.recordPayment,
+            subtitle: loc.allocatePaymentDescription,
             icon: Icons.add_card_outlined,
             route: '/contributions/record',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Members',
-            subtitle: 'Review balances, roles and contact details',
+          ActionTile(
+            title: loc.members,
+            subtitle: loc.memberReviewDescription,
             icon: Icons.groups_2_outlined,
             route: '/members',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Loans',
-            subtitle: 'Borrowing power, active loans and repayment tracking',
+          ActionTile(
+            title: loc.loans,
+            subtitle: loc.loanReviewDescription,
             icon: Icons.account_balance_wallet_outlined,
             route: '/loans',
             color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Reports',
-            subtitle: 'View outstanding dues and member analysis',
+          ActionTile(
+            title: loc.reports,
+            subtitle: loc.reportReviewDescription,
             icon: Icons.analytics_outlined,
             route: '/reports',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Reminder Centre',
-            subtitle: 'Create campaigns, templates and delivery tracking',
+          ActionTile(
+            title: loc.reminderCentre,
+            subtitle: loc.reminderReviewDescription,
             icon: Icons.notifications_active_outlined,
             route: '/reminders',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'Admin settings',
-            subtitle: 'Roles, fees, penalties, security and audit logs',
+          ActionTile(
+            title: loc.adminSettings,
+            subtitle: loc.adminSettingsDescription,
             icon: Icons.tune_outlined,
             route: '/settings/admin',
           ),
           const SizedBox(height: 12),
-          const ActionTile(
-            title: 'My groups',
-            subtitle:
-                'Switch groups, create another group or join by invitation',
+          ActionTile(
+            title: loc.myGroups,
+            subtitle: loc.switchGroupsDescription,
             icon: Icons.hub_outlined,
             route: '/groups',
           ),
           const SizedBox(height: 12),
           ActionTile(
-            title: 'Contribution setup',
-            subtitle:
-                'Set joining fee, membership contribution and payment rules',
+            title: loc.contributionSetup,
+            subtitle: loc.contributionSetupDescription,
             icon: Icons.price_change_outlined,
             route: _setupRoute('/groups/contributions', activeGroup),
             color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: 12),
           ActionTile(
-            title: 'Historical records',
-            subtitle: 'Import old contribution data one by one or in bulk',
+            title: loc.historicalRecords,
+            subtitle: loc.historicalRecordsDescription,
             icon: Icons.history_edu_outlined,
             route: _setupRoute('/groups/history', activeGroup),
             color: AppColors.gold,

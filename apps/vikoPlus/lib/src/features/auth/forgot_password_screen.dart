@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -34,7 +35,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
     final identifier = _identifierController.text.trim();
     if (identifier.isEmpty) {
-      setState(() => _errorMessage = 'Enter your phone number or email.');
+      setState(
+        () => _errorMessage = context.vt('Enter your phone number or email.'),
+      );
       return;
     }
 
@@ -46,10 +49,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       final result = await ref
           .read(authRepositoryProvider)
           .requestPasswordReset(identifier: identifier);
-      ref.read(passwordResetFlowProvider.notifier).setRequested(
+      ref
+          .read(passwordResetFlowProvider.notifier)
+          .setRequested(
             identifier: identifier,
-            destination:
-                result.destination.isEmpty ? identifier : result.destination,
+            destination: result.destination.isEmpty
+                ? identifier
+                : result.destination,
+            expiresInSeconds: result.expiresInSeconds,
           );
       if (!mounted) return;
       context.push('/forgot-password/verify');
@@ -71,7 +78,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return PasswordResetScaffold(
-      title: 'Forgot Password',
+      title: context.vt('Forgot Password'),
       onBack: () => context.go('/sign-in'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -82,21 +89,21 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Forgot Password?',
+            context.vt('Forgot Password?'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            "Enter your registered details and we'll send a secure one-time verification code.",
+            context.vt(
+              "Enter your registered details and we'll send a secure one-time verification code.",
+            ),
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  height: 1.45,
-                ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.45),
           ),
           const SizedBox(height: AppSpacing.md),
           AuthCard(
@@ -104,7 +111,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AuthField(
-                  label: 'Phone number or email',
+                  label: context.vt('Phone number or email'),
                   hint: '+255 712 345 678',
                   icon: Icons.phone_android_outlined,
                   keyboardType: TextInputType.emailAddress,
@@ -116,10 +123,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   },
                 ),
                 const SizedBox(height: AppSpacing.sm),
-                const TrustNote(
+                TrustNote(
                   icon: Icons.groups_2_outlined,
                   title: '',
-                  body: 'Group contributions and account access remain secure.',
+                  body: context.vt(
+                    'Group contributions and account access remain secure.',
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AuthErrorMessage(message: _errorMessage),
@@ -135,15 +144,19 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.arrow_forward),
-                  label: Text(_isSubmitting ? 'Sending' : 'Send Reset Code'),
+                  label: Text(
+                    _isSubmitting
+                        ? context.vt('Sending')
+                        : context.vt('Send Reset Code'),
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           AuthTextLink(
-            text: 'Remember password? ',
-            action: 'Sign in',
+            text: context.vt('Remember password? '),
+            action: context.vt('Sign in'),
             onPressed: () => context.go('/sign-in'),
           ),
         ],

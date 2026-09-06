@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 
 import 'dart:convert';
@@ -10,6 +12,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/contribution_report_filters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
@@ -157,7 +160,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'Report Filters',
+      title: AppLocalizations.of(context).reportFilters,
       backRoute: '/reports',
       onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
@@ -175,8 +178,8 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                 }
 
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load financial years.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load financial years.'),
                   );
                 }
 
@@ -195,8 +198,8 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                       isExpanded: true,
                       key: ValueKey(selectedYear.id),
                       initialValue: selectedYear.id,
-                      decoration: const InputDecoration(
-                        labelText: 'Financial year',
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context).financialYear,
                         prefixIcon: Icon(Icons.calendar_month_outlined),
                       ),
                       items: [
@@ -225,8 +228,8 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     DropdownButtonFormField<ContributionReportMemberStatus>(
                       isExpanded: true,
                       initialValue: _memberStatus,
-                      decoration: const InputDecoration(
-                        labelText: 'Member status',
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context).memberStatus,
                         prefixIcon: Icon(Icons.groups_2_outlined),
                       ),
                       items: [
@@ -235,7 +238,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                           DropdownMenuItem(
                             value: status,
                             child: Text(
-                              status.label,
+                              context.vt(status.label),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -250,8 +253,8 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     DropdownButtonFormField<ContributionReportExportFormat>(
                       isExpanded: true,
                       initialValue: _exportFormat,
-                      decoration: const InputDecoration(
-                        labelText: 'Export format',
+                      decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context).exportFormat,
                         prefixIcon: Icon(Icons.file_download_outlined),
                       ),
                       items: [
@@ -260,7 +263,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                           DropdownMenuItem(
                             value: format,
                             child: Text(
-                              format.label,
+                              context.vt(format.label),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -278,7 +281,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     FilledButton.icon(
                       onPressed: () => _apply(selectedYear),
                       icon: const Icon(Icons.filter_alt_outlined, size: 18),
-                      label: const Text('Apply Filters'),
+                      label: Text(AppLocalizations.of(context).applyFilters),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     FilledButton.icon(
@@ -292,13 +295,17 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.file_download_outlined, size: 18),
-                      label: Text(_isExporting ? 'Preparing' : 'Export report'),
+                      label: Text(
+                        _isExporting
+                            ? AppLocalizations.of(context).preparing
+                            : AppLocalizations.of(context).exportReport,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton.icon(
                       onPressed: _reset,
                       icon: const Icon(Icons.refresh_outlined, size: 18),
-                      label: const Text('Reset Filters'),
+                      label: Text(AppLocalizations.of(context).resetFilters),
                     ),
                   ],
                 );
@@ -334,11 +341,11 @@ class _MissingGroupState extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AuthErrorMessage(message: 'Select a group to filter reports.'),
+        AuthErrorMessage(message: 'Select a group to filter reports.'),
         const SizedBox(height: AppSpacing.md),
         FilledButton(
           onPressed: onChooseGroup,
-          child: const Text('Choose Group'),
+          child: Text(AppLocalizations.of(context).chooseGroup),
         ),
       ],
     );
@@ -355,13 +362,13 @@ class _MissingFinancialYearState extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AuthErrorMessage(
+        AuthErrorMessage(
           message: 'Set up a financial year before filtering reports.',
         ),
         const SizedBox(height: AppSpacing.md),
         FilledButton(
           onPressed: onConfigure,
-          child: const Text('Configure Financial Year'),
+          child: Text(AppLocalizations.of(context).configureFinancialYear),
         ),
       ],
     );

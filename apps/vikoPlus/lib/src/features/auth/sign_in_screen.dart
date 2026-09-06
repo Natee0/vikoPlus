@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,8 +39,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _loadRememberedLogin() async {
-    final credentials =
-        await ref.read(authSecureStorageProvider).readRememberedLogin();
+    final credentials = await ref
+        .read(authSecureStorageProvider)
+        .readRememberedLogin();
     if (!mounted || credentials == null) return;
 
     setState(() {
@@ -63,10 +66,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         _errorMessage = '';
         _isSubmitting = true;
       });
-      final route = await ref.read(authControllerProvider.notifier).login(
-            identifier: identifier,
-            password: password,
-          );
+      final route = await ref
+          .read(authControllerProvider.notifier)
+          .login(identifier: identifier, password: password);
       final storage = ref.read(authSecureStorageProvider);
       if (_rememberMe) {
         await storage.saveRememberedLogin(
@@ -119,7 +121,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Sign in to your account',
+            AppLocalizations.of(context).signInTitle,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -130,8 +132,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AuthField(
-                  label: 'Phone number or email',
-                  hint: 'Enter your detail',
+                  label: AppLocalizations.of(context).identifierLabel,
+                  hint: AppLocalizations.of(context).identifierHint,
                   icon: Icons.person_outline,
                   keyboardType: TextInputType.emailAddress,
                   controller: _identifierController,
@@ -140,8 +142,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AuthField(
-                  label: 'Password',
-                  hint: 'Password',
+                  label: AppLocalizations.of(context).password,
+                  hint: AppLocalizations.of(context).password,
                   icon: Icons.lock_outline,
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -152,8 +154,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   },
                   suffixIcon: IconButton(
                     tooltip: _obscurePassword
-                        ? 'Show password'
-                        : 'Hide password',
+                        ? AppLocalizations.of(context).showPassword
+                        : AppLocalizations.of(context).hidePassword,
                     onPressed: () {
                       setState(() => _obscurePassword = !_obscurePassword);
                     },
@@ -183,7 +185,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Remember me',
+                        AppLocalizations.of(context).rememberMe,
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(fontWeight: FontWeight.w700),
                       ),
@@ -192,7 +194,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       onPressed: isLoading
                           ? null
                           : () => context.push('/forgot-password'),
-                      child: const Text('Forgot password?'),
+                      child: Text(
+                        AppLocalizations.of(context).forgotPasswordLink,
+                      ),
                     ),
                   ],
                 ),
@@ -205,15 +209,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Sign in'),
+                      : Text(AppLocalizations.of(context).signIn),
                 ),
               ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           AuthTextLink(
-            text: "Don't have an account? ",
-            action: 'Create one',
+            text: AppLocalizations.of(context).noAccount,
+            action: AppLocalizations.of(context).createOne,
             onPressed: () => context.push('/create-account'),
           ),
         ],

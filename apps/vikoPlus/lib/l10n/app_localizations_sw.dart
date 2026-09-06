@@ -19,7 +19,8 @@ class AppLocalizationsSw extends AppLocalizations {
   String get continueAction => 'Endelea';
 
   @override
-  String get welcomeTitle => 'Simamia michango ya kikundi kwa uhakika';
+  String get onboardingWelcomeTitle =>
+      'Simamia michango ya kikundi kwa uhakika';
 
   @override
   String get welcomeBody =>
@@ -124,4 +125,337 @@ class AppLocalizationsSw extends AppLocalizations {
 
   @override
   String get accessibilityOpenSettings => 'Fungua mipangilio';
+
+  @override
+  String get home => 'Nyumbani';
+
+  @override
+  String get registerTab => 'Rejesta';
+
+  @override
+  String get reports => 'Ripoti';
+
+  @override
+  String get more => 'Zaidi';
+
+  @override
+  String get history => 'Historia';
+
+  @override
+  String get payments => 'Malipo';
+
+  @override
+  String get account => 'Akaunti';
+
+  @override
+  String get loans => 'Mikopo';
+
+  @override
+  String get signIn => 'Ingia';
+
+  @override
+  String get signInTitle => 'Ingia kwenye akaunti yako';
+
+  @override
+  String get identifierLabel => 'Namba ya simu au barua pepe';
+
+  @override
+  String get identifierHint => 'Weka namba ya simu au barua pepe';
+
+  @override
+  String get password => 'Nenosiri';
+
+  @override
+  String get showPassword => 'Onyesha nenosiri';
+
+  @override
+  String get hidePassword => 'Ficha nenosiri';
+
+  @override
+  String get rememberMe => 'Nikumbuke';
+
+  @override
+  String get forgotPasswordLink => 'Umesahau nenosiri?';
+
+  @override
+  String get createOne => 'Fungua akaunti';
+
+  @override
+  String get noAccount => 'Huna akaunti? ';
+
+  @override
+  String get chooseLanguage => 'Chagua lugha yako';
+
+  @override
+  String get changeLanguageLater =>
+      'Unaweza kubadilisha lugha baadaye kwenye mipangilio.';
+
+  @override
+  String get reportFilters => 'Vichujio vya ripoti';
+
+  @override
+  String get memberStatus => 'Hali ya mwanachama';
+
+  @override
+  String get exportFormat => 'Muundo wa faili';
+
+  @override
+  String get applyFilters => 'Tumia vichujio';
+
+  @override
+  String get resetFilters => 'Weka upya vichujio';
+
+  @override
+  String get exportReport => 'Pakua ripoti';
+
+  @override
+  String get preparing => 'Inaandaliwa';
+
+  @override
+  String get chooseGroup => 'Chagua kikundi';
+
+  @override
+  String get configureFinancialYear => 'Weka mwaka wa fedha';
+
+  @override
+  String get memberProfile => 'Wasifu wa mwanachama';
+
+  @override
+  String get memberNumber => 'Namba ya mwanachama';
+
+  @override
+  String get phoneNumber => 'Namba ya simu';
+
+  @override
+  String get emailAddress => 'Barua pepe';
+
+  @override
+  String get notProvided => 'Haijawekwa';
+
+  @override
+  String get assignRole => 'Weka jukumu';
+
+  @override
+  String get updatingRole => 'Jukumu linasasishwa';
+
+  @override
+  String get suspendMember => 'Simamisha mwanachama';
+
+  @override
+  String get removeMember => 'Ondoa mwanachama';
+
+  @override
+  String get restoreAccess => 'Rudisha ufikiaji';
+
+  @override
+  String get sendReminder => 'Tuma kikumbusho';
+
+  @override
+  String get recordPayment => 'Rekodi malipo';
+
+  @override
+  String get cancel => 'Ghairi';
+
+  @override
+  String get back => 'Rudi';
+
+  @override
+  String get myGroups => 'Vikundi vyangu';
+
+  @override
+  String get createAccount => 'Fungua akaunti';
+
+  @override
+  String get fullName => 'Jina kamili';
+
+  @override
+  String get confirmPassword => 'Thibitisha nenosiri';
+
+  @override
+  String get usePhone => 'Tumia simu badala yake';
+
+  @override
+  String get useEmail => 'Tumia barua pepe badala yake';
+
+  @override
+  String get passwordLength => 'Lazima liwe na angalau herufi 8.';
+
+  @override
+  String get communityJoin => 'Jiunge na jumuiya ya kisasa ya kifedha.';
+
+  @override
+  String get agreeTerms => 'Ninakubali ';
+
+  @override
+  String get terms => 'Masharti ya huduma';
+
+  @override
+  String get andWord => ' na ';
+
+  @override
+  String get privacy => 'Sera ya faragha.';
+
+  @override
+  String get emailVerifyNote =>
+      'Tutatuma msimbo wa uthibitisho kwenye barua pepe hii.';
+
+  @override
+  String get verifyNote => 'Tutaitumia kwa uthibitisho salama.';
+
+  @override
+  String get welcomeTitle => 'Karibu';
+
+  @override
+  String helloName(String name) {
+    return 'Habari, $name';
+  }
+
+  @override
+  String get adminDashboard => 'Dashibodi ya msimamizi';
+
+  @override
+  String get selectGroupTools =>
+      'Chagua kikundi ili kufungua zana za usimamizi.';
+
+  @override
+  String get manageGroupSummary =>
+      'Simamia michango, wanachama, mikopo na vikumbusho.';
+
+  @override
+  String get monthlyTrend => 'Mwenendo wa kila mwezi';
+
+  @override
+  String get quickActions => 'Vitendo vya haraka';
+
+  @override
+  String get allocatePaymentDescription =>
+      'Gawa mchango katika kipindi kimoja au zaidi';
+
+  @override
+  String get memberReviewDescription =>
+      'Angalia salio, majukumu na mawasiliano';
+
+  @override
+  String get loanReviewDescription =>
+      'Kiwango cha kukopa, mikopo hai na ufuatiliaji wa marejesho';
+
+  @override
+  String get reportReviewDescription =>
+      'Angalia madeni na uchambuzi wa wanachama';
+
+  @override
+  String get reminderCentre => 'Kituo cha vikumbusho';
+
+  @override
+  String get reminderReviewDescription =>
+      'Unda kampeni, violezo na ufuatilie utumaji';
+
+  @override
+  String get adminSettings => 'Mipangilio ya msimamizi';
+
+  @override
+  String get adminSettingsDescription =>
+      'Majukumu, ada, faini, usalama na kumbukumbu za ukaguzi';
+
+  @override
+  String get switchGroupsDescription =>
+      'Badili kikundi, unda kingine au jiunge kwa mwaliko';
+
+  @override
+  String get contributionSetup => 'Mipangilio ya michango';
+
+  @override
+  String get contributionSetupDescription =>
+      'Weka ada ya kujiunga, mchango wa uanachama na masharti ya malipo';
+
+  @override
+  String get historicalRecords => 'Kumbukumbu za zamani';
+
+  @override
+  String get historicalRecordsDescription =>
+      'Ingiza michango ya zamani mmoja mmoja au kwa pamoja';
+
+  @override
+  String get recentActivities => 'Shughuli za hivi karibuni';
+
+  @override
+  String get viewHistory => 'Angalia historia';
+
+  @override
+  String get memberPortal => 'Ukurasa wa mwanachama';
+
+  @override
+  String get selectGroup => 'Chagua kikundi';
+
+  @override
+  String get checkContributionBalance => 'Angalia salio lako la michango';
+
+  @override
+  String get switchCreateJoin => 'Badili, unda au jiunge na kikundi';
+
+  @override
+  String get treasurerTitle => 'Mweka hazina';
+
+  @override
+  String get treasurySummary =>
+      'Fuatilia makusanyo na uhakiki malipo ya wanachama.';
+
+  @override
+  String get dashboardLoadError =>
+      'Dashibodi haijapakiwa. Tafadhali jaribu tena.';
+
+  @override
+  String get retryAction => 'Jaribu tena';
+
+  @override
+  String get treasuryQueue => 'Kazi za fedha zinazohitaji hatua';
+
+  @override
+  String get unreviewedPayments => 'Malipo yanayosubiri uhakiki';
+
+  @override
+  String get pendingLoanApplications => 'Maombi ya mikopo yanayosubiri';
+
+  @override
+  String get collectionOverview => 'Muhtasari wa makusanyo';
+
+  @override
+  String get treasuryOperations => 'Shughuli za fedha';
+
+  @override
+  String get reviewPayments => 'Hakiki malipo';
+
+  @override
+  String get verifyMemberPayments =>
+      'Thibitisha malipo yaliyowasilishwa na wanachama';
+
+  @override
+  String get contactOutstandingMembers =>
+      'Wasiliana na wanachama kuhusu madeni';
+
+  @override
+  String get myLoans => 'Mikopo yangu';
+
+  @override
+  String get trackBorrowing =>
+      'Angalia kiwango cha kukopa na ufuatilie marejesho';
+
+  @override
+  String get loanReviews => 'Uhakiki wa mikopo';
+
+  @override
+  String get reviewLoanDescription =>
+      'Hakiki maombi na uthibitisho wa wadhamini';
+
+  @override
+  String get treasuryActivity => 'Shughuli za sasa za fedha';
+
+  @override
+  String get viewAll => 'Angalia zote';
+
+  @override
+  String get noPaymentsYet => 'Hakuna malipo yaliyorekodiwa bado.';
+
+  @override
+  String get nothingAwaitingReview => 'Hakuna kinachosubiri uhakiki';
 }

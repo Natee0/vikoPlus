@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
@@ -46,7 +47,7 @@ class InfoCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  context.vt(title),
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),

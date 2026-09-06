@@ -50,6 +50,7 @@ import '../features/reports/report_filters_screen.dart';
 import '../features/reports/reports_dashboard_screen.dart';
 import '../features/settings/settings_screens.dart';
 import '../features/settings/payment_rules_screen.dart';
+import '../features/settings/group_profile_screen.dart';
 import 'portal_route_guard.dart';
 import '../features/dashboard/staff_portal_screen.dart';
 import '../features/dashboard/treasurer_dashboard_screen.dart';
@@ -212,9 +213,12 @@ final appRouter = GoRouter(
       ),
     ),
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) => PortalRouteGuard(
-        area: PortalArea.staff,
-        child: AdminTabShellScreen(navigationShell: navigationShell),
+      pageBuilder: (context, state, navigationShell) => NoTransitionPage<void>(
+        key: state.pageKey,
+        child: PortalRouteGuard(
+          area: PortalArea.staff,
+          child: AdminTabShellScreen(navigationShell: navigationShell),
+        ),
       ),
       branches: [
         StatefulShellBranch(
@@ -255,7 +259,7 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/reports',
               builder: (context, state) => const PortalRouteGuard(
-                area: PortalArea.staff,
+                area: PortalArea.admin,
                 child: ReportsDashboardScreen(showBottomNavigation: false),
               ),
             ),
@@ -304,9 +308,12 @@ final appRouter = GoRouter(
       ),
     ],
     StatefulShellRoute.indexedStack(
-      builder: (context, state, navigationShell) => PortalRouteGuard(
-        area: PortalArea.member,
-        child: MemberTabShellScreen(navigationShell: navigationShell),
+      pageBuilder: (context, state, navigationShell) => NoTransitionPage<void>(
+        key: state.pageKey,
+        child: PortalRouteGuard(
+          area: PortalArea.member,
+          child: MemberTabShellScreen(navigationShell: navigationShell),
+        ),
       ),
       branches: [
         StatefulShellBranch(
@@ -559,21 +566,21 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/reports/outstanding',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.staff,
+        area: PortalArea.admin,
         child: OutstandingReportScreen(),
       ),
     ),
     GoRoute(
       path: '/reports/member-analysis',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.staff,
+        area: PortalArea.admin,
         child: MemberAnalysisScreen(),
       ),
     ),
     GoRoute(
       path: '/reports/filters',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.staff,
+        area: PortalArea.admin,
         child: ReportFiltersScreen(),
       ),
     ),
@@ -661,6 +668,13 @@ final appRouter = GoRouter(
       builder: (context, state) => const PortalRouteGuard(
         area: PortalArea.admin,
         child: CurrencyFeesScreen(),
+      ),
+    ),
+    GoRoute(
+      path: '/settings/group-profile',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: GroupProfileScreen(),
       ),
     ),
     GoRoute(

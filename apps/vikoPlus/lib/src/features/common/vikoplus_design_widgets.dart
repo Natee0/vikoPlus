@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/app_colors.dart';
@@ -58,7 +60,7 @@ class VikoplusTopBar extends StatelessWidget {
               child: onBack == null
                   ? leading
                   : IconButton(
-                      tooltip: 'Back',
+                      tooltip: AppLocalizations.of(context).back,
                       onPressed: onBack,
                       icon: const Icon(Icons.arrow_back),
                     ),

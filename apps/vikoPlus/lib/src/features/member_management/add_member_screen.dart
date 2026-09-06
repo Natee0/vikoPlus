@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -66,13 +67,16 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
 
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) {
-      setState(() => _errorMessage = 'Open a group before adding members.');
+      setState(
+        () => _errorMessage = context.vt('Open a group before adding members.'),
+      );
       return;
     }
     if (activeGroup.role != 'GROUP_ADMIN') {
       setState(
-        () => _errorMessage =
-            'Only the group admin can add members and send invitations.',
+        () => _errorMessage = context.vt(
+          'Only the group admin can add members and send invitations.',
+        ),
       );
       return;
     }
@@ -81,13 +85,14 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
     final phone = _phoneController.text.trim();
     final email = _emailController.text.trim();
     if (fullName.length < 2) {
-      setState(() => _errorMessage = 'Enter the member full name.');
+      setState(() => _errorMessage = context.vt('Enter the member full name.'));
       return;
     }
     if (phone.isEmpty && email.isEmpty) {
       setState(
-        () => _errorMessage =
-            'Enter a phone number or email address to send the invitation.',
+        () => _errorMessage = context.vt(
+          'Enter a phone number or email address to send the invitation.',
+        ),
       );
       return;
     }
@@ -121,9 +126,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
               membersCount: activeGroup.membersCount + 1,
             ),
           );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Member invitation sent.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.vt('Member invitation sent.'))),
+      );
       context.go('/members');
     } on Object catch (error) {
       if (!mounted) return;
@@ -159,7 +164,10 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                VikoplusTopBar(title: 'Add Member', onBack: _goBack),
+                VikoplusTopBar(
+                  title: context.vt('Add Member'),
+                  onBack: _goBack,
+                ),
                 Expanded(
                   child: VikoplusConstrainedContent(
                     child: ListView(
@@ -173,18 +181,20 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                         const _PhotoUploader(),
                         const SizedBox(height: AppSpacing.md),
                         if (!canAddMembers) ...[
-                          const AuthErrorMessage(
-                            message: 'Only the group admin can add members and send invitations.',
+                          AuthErrorMessage(
+                            message: context.vt(
+                              'Only the group admin can add members and send invitations.',
+                            ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
                         ],
                         _FormCard(
-                          title: 'Personal Information',
+                          title: context.vt('Personal Information'),
                           children: [
                             _MemberTextField(
-                              label: 'Full Name',
+                              label: context.vt('Full Name'),
                               requiredField: true,
-                              hint: 'Enter full name',
+                              hint: context.vt('Enter full name'),
                               controller: _fullNameController,
                               onChanged: (_) => _clearError(),
                               keyboardType: TextInputType.name,
@@ -192,8 +202,10 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
-                              label: 'Phone Number',
-                              optionalLabel: '(Required if no email)',
+                              label: context.vt('Phone Number'),
+                              optionalLabel: context.vt(
+                                '(Required if no email)',
+                              ),
                               hint: '+255 7XX XXX XXX',
                               controller: _phoneController,
                               onChanged: (_) => _clearError(),
@@ -201,8 +213,10 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
-                              label: 'Email Address',
-                              optionalLabel: '(Required if no phone)',
+                              label: context.vt('Email Address'),
+                              optionalLabel: context.vt(
+                                '(Required if no phone)',
+                              ),
                               hint: 'member@example.com',
                               controller: _emailController,
                               onChanged: (_) => _clearError(),
@@ -212,17 +226,21 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _FormCard(
-                          title: 'Membership Details',
+                          title: context.vt('Membership Details'),
                           children: [
                             Text(
-                              'Assign the role this member will use in the group.',
+                              context.vt(
+                                'Assign the role this member will use in the group.',
+                              ),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(color: AppColors.onSurfaceVariant),
                             ),
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
-                              label: 'Member Number',
-                              hint: 'MBR-000001 (automatic if empty)',
+                              label: context.vt('Member Number'),
+                              hint: context.vt(
+                                'MBR-000001 (automatic if empty)',
+                              ),
                               controller: _memberNumberController,
                               onChanged: (_) => _clearError(),
                             ),
@@ -238,7 +256,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _FormCard(
-                          title: 'Settings & Invitations',
+                          title: context.vt('Settings & Invitations'),
                           children: [
                             Material(
                               color: Colors.transparent,
@@ -248,15 +266,19 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                                 onChanged: (value) {
                                   setState(() => _requireJoiningFee = value);
                                 },
-                                title: const Text('Require Joining Fee'),
-                                subtitle: const Text(
-                                  'Create the joining fee obligation for this member.',
+                                title: Text(context.vt('Require Joining Fee')),
+                                subtitle: Text(
+                                  context.vt(
+                                    'Create the joining fee obligation for this member.',
+                                  ),
                                 ),
                               ),
                             ),
                             const Divider(color: AppColors.outlineVariant),
                             Text(
-                              'Saving creates an invited member record, generates a join code, and sends it by SMS or email.',
+                              context.vt(
+                                'Saving creates an invited member record, generates a join code, and sends it by SMS or email.',
+                              ),
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: AppColors.onSurfaceVariant,
@@ -272,7 +294,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: _isSubmitting ? 'Sending' : 'Send Invite',
+                  label: _isSubmitting
+                      ? context.vt('Sending')
+                      : context.vt('Send Invite'),
                   icon: const Icon(Icons.person_add_alt_outlined, size: 18),
                   isLoading: _isSubmitting,
                   onPressed: canAddMembers ? _submit : null,

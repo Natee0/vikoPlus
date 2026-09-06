@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/contribution_report_filters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -19,7 +20,8 @@ class OutstandingReportScreen extends ConsumerStatefulWidget {
       _OutstandingReportScreenState();
 }
 
-class _OutstandingReportScreenState extends ConsumerState<OutstandingReportScreen> {
+class _OutstandingReportScreenState
+    extends ConsumerState<OutstandingReportScreen> {
   Future<ContributionReportResult>? _reportFuture;
   String? _loadedGroupId;
   String? _loadedFinancialYearId;
@@ -28,10 +30,9 @@ class _OutstandingReportScreenState extends ConsumerState<OutstandingReportScree
     String groupId,
     ContributionReportFilters filters,
   ) {
-    return ref.read(groupsRepositoryProvider).contributionReport(
-          groupId,
-          financialYearId: filters.financialYearId,
-        );
+    return ref
+        .read(groupsRepositoryProvider)
+        .contributionReport(groupId, financialYearId: filters.financialYearId);
   }
 
   void _setReportFuture(
@@ -73,18 +74,20 @@ class _OutstandingReportScreenState extends ConsumerState<OutstandingReportScree
     _ensureReportFuture(activeGroup?.id, filters);
 
     return VikoplusScreen(
-      title: 'Outstanding report',
+      title: context.vt('Outstanding report'),
       backRoute: '/reports',
       onRefresh: _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (activeGroup == null) ...[
-            const AuthErrorMessage(message: 'Select a group to view reports.'),
+            AuthErrorMessage(
+              message: context.vt('Select a group to view reports.'),
+            ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: () => context.go('/groups'),
-              child: const Text('Choose Group'),
+              child: Text(context.vt('Choose Group')),
             ),
           ] else
             FutureBuilder<ContributionReportResult>(
@@ -99,35 +102,39 @@ class _OutstandingReportScreenState extends ConsumerState<OutstandingReportScree
                   );
                 }
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load outstanding report.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load outstanding report.'),
                   );
                 }
 
                 final report = snapshot.data!;
-                final outstandingMembers =
-                    _filterMembers(report.memberAnalysis, filters.memberStatus)
-                        .where((member) => member.outstandingMinor > 0)
-                        .toList();
+                final outstandingMembers = _filterMembers(
+                  report.memberAnalysis,
+                  filters.memberStatus,
+                ).where((member) => member.outstandingMinor > 0).toList();
                 final paid = report.totalPaidMinor;
                 final outstanding = report.totalOutstandingMinor;
-                final progress =
-                    paid + outstanding == 0 ? 0.0 : paid / (paid + outstanding);
+                final progress = paid + outstanding == 0
+                    ? 0.0
+                    : paid / (paid + outstanding);
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     ProgressBlock(
-                      title: 'Outstanding obligations',
+                      title: context.vt('Outstanding obligations'),
                       value: formatters.money(outstanding),
-                      caption:
-                          '${outstandingMembers.length} members still have dues',
+                      caption: context.vtf('{count} members still have dues', {
+                        'count': outstandingMembers.length,
+                      }),
                       progress: progress,
                     ),
                     const SizedBox(height: 16),
                     if (outstandingMembers.isEmpty)
-                      const _EmptyReportNotice(
-                        message: 'All current contribution obligations are paid.',
+                      _EmptyReportNotice(
+                        message: context.vt(
+                          'All current contribution obligations are paid.',
+                        ),
                       )
                     else
                       for (final member in outstandingMembers) ...[
@@ -179,16 +186,14 @@ class _OutstandingMemberCard extends StatelessWidget {
                       member.memberName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                      style: Theme.of(context).textTheme.labelLarge
+                          ?.copyWith(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${member.paidRecurringPeriods} recurring periods paid',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.secondaryText,
-                          ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.secondaryText),
                     ),
                   ],
                 ),
@@ -222,9 +227,8 @@ class _EmptyReportNotice extends StatelessWidget {
       ),
       child: Text(
         message,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: AppColors.onSurfaceVariant,
-            ),
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: AppColors.onSurfaceVariant),
       ),
     );
   }

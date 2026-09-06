@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
@@ -51,7 +52,7 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.xs),
                       Text(
-                        'Modern Financial Community',
+                        context.vt('Modern Financial Community'),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppColors.onSurface,
@@ -72,7 +73,9 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       SizedBox(height: sectionGap),
                       Text(
-                        'Manage your group\ncontributions with\ntransparency and ease.',
+                        context.vt(
+                          'Manage your group\ncontributions with\ntransparency and ease.',
+                        ),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(
@@ -82,7 +85,9 @@ class WelcomeScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       Text(
-                        'Join thousands of communities trusting\nVikoplus for their shared financial goals.',
+                        context.vt(
+                          'Join thousands of communities trusting\nVikoplus for their shared financial goals.',
+                        ),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: AppColors.onSurfaceVariant,
@@ -93,7 +98,7 @@ class WelcomeScreen extends StatelessWidget {
                       SizedBox(height: compact ? AppSpacing.md : AppSpacing.xl),
                       FilledButton(
                         onPressed: () => context.push('/create-account'),
-                        child: const Text('Get started'),
+                        child: Text(context.vt('Get started')),
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       OutlinedButton(
@@ -110,7 +115,7 @@ class WelcomeScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(AppRadii.pill),
                           ),
                         ),
-                        child: const Text('Sign in'),
+                        child: Text(context.vt('Sign in')),
                       ),
                     ],
                   ),

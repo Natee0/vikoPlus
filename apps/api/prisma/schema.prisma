@@ -218,7 +218,7 @@ model User {
   id                 String              @id @default(cuid())
   displayName        String?
   profilePictureObjectKey String?
-  preferredLocale    Locale              @default(en)
+  preferredLocale    Locale              @default(sw)
   passwordHash       String
   securityPinHash    String?
   isPlatformAdmin    Boolean             @default(false)

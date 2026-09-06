@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -30,21 +32,54 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
 
   Future<void> _decide(LoanTask task, bool approve) async {
     if (_busy || _groupId == null) return;
-    final confirmed = await showDialog<bool>(context: context, builder: (context) => AlertDialog(
-      title: Text(task.isGuarantee ? 'Confirm guarantee response' : 'Verify repayment'),
-      content: Text(task.isGuarantee
-          ? 'Respond to ${task.memberName}\'s guarantee request for ${task.currency} ${task.amountMinor}?'
-          : 'Confirm that you ${approve ? "received" : "did not receive"} ${task.currency} ${task.amountMinor} from ${task.memberName}.'),
-      actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')), FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm'))],
-    ));
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          task.isGuarantee
+              ? context.vt('Confirm guarantee response')
+              : context.vt('Verify repayment'),
+        ),
+        content: Text(
+          task.isGuarantee
+              ? context.vtf(
+                  'Respond to {name}\'s guarantee request for {amount}?',
+                  {
+                    'name': task.memberName,
+                    'amount': '${task.currency} ${task.amountMinor}',
+                  },
+                )
+              : context.vtf('Confirm repayment from {name}.', {
+                  'name': task.memberName,
+                }),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(context.vt('Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(context.vt('Confirm')),
+          ),
+        ],
+      ),
+    );
     if (!mounted || confirmed != true) return;
-    setState(() { _busy = true; _error = ''; });
+    setState(() {
+      _busy = true;
+      _error = '';
+    });
     try {
-      await ref.read(loansRepositoryProvider).decideTask(_groupId!, task, approve);
+      await ref
+          .read(loansRepositoryProvider)
+          .decideTask(_groupId!, task, approve);
       if (mounted) await _refresh();
     } catch (error) {
       if (mounted) setState(() => _error = AuthFailure.from(error).message);
-    } finally { if (mounted) setState(() => _busy = false); }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -55,20 +90,54 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
       _future = ref.read(loansRepositoryProvider).tasks(group.id);
     }
     return VikoplusScreen(
-      title: 'Loan Requests', backRoute: '/loans', onRefresh: _refresh,
+      title: context.vt('Loan Requests'),
+      backRoute: '/loans',
+      onRefresh: _refresh,
       child: FutureBuilder<List<LoanTask>>(
         future: _future,
-        builder: (context, snapshot) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          AuthErrorMessage(message: _error),
-          if (snapshot.hasError) AuthErrorMessage(message: AuthFailure.from(snapshot.error!).message)
-          else if (snapshot.connectionState == ConnectionState.waiting) const Center(child: CircularProgressIndicator())
-          else if (snapshot.data?.isEmpty ?? true) const Text('No requests awaiting your response.'),
-          for (final task in snapshot.data ?? <LoanTask>[]) ...[
-            ListTile(contentPadding: EdgeInsets.zero, title: Text(task.memberName), subtitle: Text('${task.isGuarantee ? "Guarantee request" : "Repayment verification"} · ${task.currency} ${task.amountMinor}')),
-            Row(children: [Expanded(child: OutlinedButton(onPressed: _busy ? null : () => _decide(task, false), child: const Text('Decline'))), const SizedBox(width: 12), Expanded(child: FilledButton(onPressed: _busy ? null : () => _decide(task, true), child: Text(task.isGuarantee ? 'Accept' : 'Received')))]),
-            const Divider(height: 32),
+        builder: (context, snapshot) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AuthErrorMessage(message: _error),
+            if (snapshot.hasError)
+              AuthErrorMessage(
+                message: AuthFailure.from(snapshot.error!).message,
+              )
+            else if (snapshot.connectionState == ConnectionState.waiting)
+              const Center(child: CircularProgressIndicator())
+            else if (snapshot.data?.isEmpty ?? true)
+              Text(context.vt('No requests awaiting your response.')),
+            for (final task in snapshot.data ?? <LoanTask>[]) ...[
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(task.memberName),
+                subtitle: Text(
+                  '${context.vt(task.isGuarantee ? "Guarantee request" : "Repayment verification")} · ${task.currency} ${task.amountMinor}',
+                ),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : () => _decide(task, false),
+                      child: Text(context.vt('Decline')),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _busy ? null : () => _decide(task, true),
+                      child: Text(
+                        context.vt(task.isGuarantee ? 'Accept' : 'Received'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const Divider(height: 32),
+            ],
           ],
-        ]),
+        ),
       ),
     );
   }

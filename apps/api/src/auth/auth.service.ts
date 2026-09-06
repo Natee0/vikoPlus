@@ -441,7 +441,7 @@ export class AuthService {
   }
 
   private locale(locale?: "en" | "sw"): Locale {
-    return locale === "sw" ? Locale.sw : Locale.en;
+    return locale === "en" ? Locale.en : Locale.sw;
   }
 
   private selectedRole(roles: string[]): string {

@@ -4,12 +4,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
+
+String _feeLabel(BuildContext context, Map<String, dynamic> fee) {
+  if (Localizations.localeOf(context).languageCode != 'sw') {
+    return fee['name'] as String? ?? 'Contribution';
+  }
+  return switch (fee['type']) {
+    'JOINING_FEE' => 'Ada ya kujiunga',
+    'MEMBERSHIP_FEE' => 'Ada ya uanachama',
+    'PENALTY' => 'Faini',
+    _ => 'Mchango',
+  };
+}
+
+String _frequencyLabel(BuildContext context, String frequency) {
+  final sw = Localizations.localeOf(context).languageCode == 'sw';
+  return switch (frequency) {
+    'DAILY' => sw ? 'kila siku' : 'daily',
+    'WEEKLY' => sw ? 'kila wiki' : 'weekly',
+    'MONTHLY' => sw ? 'kila mwezi' : 'monthly',
+    'QUARTERLY' => sw ? 'kila miezi mitatu' : 'quarterly',
+    'ANNUAL' => sw ? 'kila mwaka wa fedha' : 'each financial year',
+    _ => sw ? 'kulingana na ratiba ya kikundi' : 'as scheduled by the group',
+  };
+}
 
 class JoinGroupInvitationScreen extends ConsumerStatefulWidget {
   const JoinGroupInvitationScreen({super.key});
@@ -43,7 +68,9 @@ class _JoinGroupInvitationScreenState
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty) return;
+    if (_errorMessage.isEmpty) {
+      return;
+    }
     setState(() => _errorMessage = '');
   }
 
@@ -59,13 +86,18 @@ class _JoinGroupInvitationScreenState
         _errorMessage = '';
         _isPreviewing = true;
       });
-      final preview =
-          await ref.read(groupsRepositoryProvider).previewJoinCode(trimmed);
-      if (!mounted) return;
+      final preview = await ref
+          .read(groupsRepositoryProvider)
+          .previewJoinCode(trimmed);
+      if (!mounted) {
+        return;
+      }
       _codeController.text = trimmed;
       setState(() => _preview = preview);
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -75,7 +107,9 @@ class _JoinGroupInvitationScreenState
   }
 
   Future<void> _joinGroup() async {
-    if (_isJoining || _isPreviewing) return;
+    if (_isJoining || _isPreviewing) {
+      return;
+    }
 
     final code = (_preview?.invitationCode ?? _codeController.text).trim();
     if (code.length < 4) {
@@ -89,10 +123,14 @@ class _JoinGroupInvitationScreenState
         _isJoining = true;
       });
       final result = await ref.read(groupsRepositoryProvider).joinGroup(code);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final preview = _preview;
       if (preview != null) {
-        ref.read(activeGroupProvider.notifier).setGroup(
+        ref
+            .read(activeGroupProvider.notifier)
+            .setGroup(
               GroupAccessSummary(
                 id: result.groupId,
                 name: preview.group.name,
@@ -106,7 +144,9 @@ class _JoinGroupInvitationScreenState
       }
       context.go(preview == null ? '/groups' : routeForGroupRole(result.role));
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -266,6 +306,23 @@ class _JoinGroupInvitationScreenState
                           ),
                         ),
                         if (preview != null) ...[
+                          for (final fee in preview.fees)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: AppSpacing.sm,
+                              ),
+                              child: Text(
+                                '${_feeLabel(context, fee)}: ${AppFormatters(Localizations.localeOf(context).toLanguageTag()).money(fee['amountMinor'] as int? ?? 0, currency: preview.currency)} (${_frequencyLabel(context, fee['frequency'] as String? ?? '')})',
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          const SizedBox(height: AppSpacing.sm),
+                          Text(
+                            Localizations.localeOf(context).languageCode == 'sw'
+                                ? 'Ukijiunga, angalia ada na michango inayodaiwa. Lipa kwa kiongozi wa kikundi na uwasilishe taarifa za malipo ili mweka hazina athibitishe.'
+                                : 'After joining, review your fees and contributions. Pay your group leader and submit payment details for treasurer approval.',
+                            textAlign: TextAlign.center,
+                          ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
                             'You will join as ${_roleLabel(preview.roleOnJoin)}.',

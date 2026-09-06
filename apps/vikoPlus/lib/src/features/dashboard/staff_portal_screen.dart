@@ -32,7 +32,6 @@ class StaffPortalScreen extends ConsumerWidget {
           'Historical records',
           '/groups/history?groupId=${Uri.encodeComponent(group!.id)}&returnTo=%2Fsecretary%2Fdashboard',
         ),
-      (Icons.bar_chart, 'Reports', '/reports'),
       (Icons.notifications_outlined, 'Send reminders', '/reminders/new'),
       (Icons.account_balance_outlined, 'My loans', '/loans'),
       if (treasurer)
@@ -66,7 +65,13 @@ class StaffPortalScreen extends ConsumerWidget {
                 leading: Icon(link.$1),
                 title: Text(link.$2),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.push(link.$3),
+                onTap: () {
+                  if (link.$3 == '/members' || link.$3 == '/contributions') {
+                    context.go(link.$3);
+                  } else {
+                    context.push(link.$3);
+                  }
+                },
               ),
             ),
         ],

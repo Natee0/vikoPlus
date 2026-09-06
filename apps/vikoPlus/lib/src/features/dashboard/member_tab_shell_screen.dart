@@ -1,3 +1,5 @@
+import '../../../l10n/app_localizations.dart';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -20,26 +22,26 @@ class MemberTabShellScreen extends StatelessWidget {
 
           navigationShell.goBranch(index);
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
             selectedIcon: Icon(Icons.dashboard),
-            label: 'Home',
+            label: AppLocalizations.of(context).home,
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
-            label: 'History',
+            label: AppLocalizations.of(context).history,
           ),
           NavigationDestination(
             icon: Icon(Icons.payments_outlined),
             selectedIcon: Icon(Icons.payments),
-            label: 'Payments',
+            label: AppLocalizations.of(context).payments,
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
             selectedIcon: Icon(Icons.person),
-            label: 'Account',
+            label: AppLocalizations.of(context).account,
           ),
         ],
       ),

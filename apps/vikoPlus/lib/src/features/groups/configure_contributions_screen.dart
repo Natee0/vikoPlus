@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -66,11 +67,13 @@ class _ConfigureContributionsScreenState
   }
 
   String get _dueLabel {
-    if (_memberContributionFrequency == 'Daily') return 'Every day';
+    if (_memberContributionFrequency == 'Daily') return context.vt('Every day');
     if (_memberContributionFrequency == 'Weekly') {
-      return _weeklyDays.map((day) => _weekDays[day - 1]).join(', ');
+      return _weeklyDays
+          .map((day) => context.vt(_weekDays[day - 1]))
+          .join(', ');
     }
-    return '${_ordinal(_monthlyDay)} of each cycle';
+    return context.vtf('{day} of each cycle', {'day': _ordinal(_monthlyDay)});
   }
 
   static const _weekDays = [
@@ -106,10 +109,7 @@ class _ConfigureContributionsScreenState
 
   String _moneyLabel(TextEditingController controller) {
     final amount = _amountFrom(controller) ?? 0;
-    return 'TZS ${amount.toString().replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (match) => ',',
-    )}';
+    return 'TZS ${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
   }
 
   String? get _groupId {
@@ -151,7 +151,9 @@ class _ConfigureContributionsScreenState
   }
 
   void _persistContributions() {
-    ref.read(groupSetupDraftProvider.notifier).updateContributions(
+    ref
+        .read(groupSetupDraftProvider.notifier)
+        .updateContributions(
           ContributionSettingsDraft(
             joiningFee: _joiningFeeController.text,
             membershipFee: _membershipFeeController.text,
@@ -189,8 +191,9 @@ class _ConfigureContributionsScreenState
 
     final membershipFee = _amountFrom(_membershipFeeController);
     final memberContribution = _amountFrom(_memberContributionController);
-    final joiningFee =
-        _joiningFeeEnabled ? _amountFrom(_joiningFeeController) : 0;
+    final joiningFee = _joiningFeeEnabled
+        ? _amountFrom(_joiningFeeController)
+        : 0;
     if (joiningFee == null ||
         membershipFee == null ||
         memberContribution == null ||
@@ -206,24 +209,25 @@ class _ConfigureContributionsScreenState
         _isSubmitting = true;
       });
       _persistContributions();
-      await ref.read(groupsRepositoryProvider).saveContributionSettings(
+      await ref
+          .read(groupsRepositoryProvider)
+          .saveContributionSettings(
             groupId,
             ContributionSettingsInput(
               joiningFeeMinor: joiningFee,
               membershipFeeMinor: membershipFee,
               memberContributionMinor: memberContribution,
               membershipFeeFrequency: _apiFrequency(_membershipFeeFrequency),
-              memberContributionFrequency:
-                  _apiFrequency(_memberContributionFrequency),
+              memberContributionFrequency: _apiFrequency(
+                _memberContributionFrequency,
+              ),
               membershipDueDayOfMonth: _membershipDueDay,
               memberContributionDueDayOfWeek:
                   _memberContributionFrequency == 'Weekly'
                   ? _weeklyDays.first
                   : null,
               memberContributionDueDaysOfWeek:
-                  _memberContributionFrequency == 'Weekly'
-                  ? _weeklyDays
-                  : null,
+                  _memberContributionFrequency == 'Weekly' ? _weeklyDays : null,
               memberContributionDueDayOfMonth:
                   _memberContributionFrequency == 'Daily' ||
                       _memberContributionFrequency == 'Weekly'
@@ -249,7 +253,7 @@ class _ConfigureContributionsScreenState
     final groupId = _groupId;
 
     return VikoplusScreen(
-      title: 'Configure Contributions',
+      title: context.vt('Configure Contributions'),
       backRoute: _backRoute,
       preferBackRoute: true,
       child: Column(
@@ -272,8 +276,8 @@ class _ConfigureContributionsScreenState
           ),
           const SizedBox(height: AppSpacing.md),
           _ContributionSection(
-            title: 'Joining Fee',
-            subtitle: 'Require members to pay a fee upon joining.',
+            title: context.vt('Joining Fee'),
+            subtitle: context.vt('Require members to pay a fee upon joining.'),
             trailing: Switch(
               value: _joiningFeeEnabled,
               onChanged: (value) {
@@ -283,7 +287,7 @@ class _ConfigureContributionsScreenState
             ),
             children: [
               _MoneyField(
-                label: 'Joining Fee Amount',
+                label: context.vt('Joining Fee Amount'),
                 hint: '10000',
                 controller: _joiningFeeController,
                 enabled: _joiningFeeEnabled,
@@ -293,18 +297,20 @@ class _ConfigureContributionsScreenState
           ),
           const SizedBox(height: AppSpacing.sm),
           _ContributionSection(
-            title: 'Membership Fee',
-            subtitle: 'Set the recurring membership fee for every member.',
+            title: context.vt('Membership Fee'),
+            subtitle: context.vt(
+              'Set the recurring membership fee for every member.',
+            ),
             children: [
               _MoneyField(
-                label: 'Membership Fee Amount',
+                label: context.vt('Membership Fee Amount'),
                 hint: '5000',
                 controller: _membershipFeeController,
                 onChanged: _handleAmountChanged,
               ),
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
-                label: 'Membership Fee Cycle',
+                label: context.vt('Membership Fee Cycle'),
                 value: _membershipFeeFrequency,
                 values: const ['Monthly', 'Quarterly', 'Yearly'],
                 onChanged: (value) {
@@ -315,7 +321,7 @@ class _ConfigureContributionsScreenState
               ),
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
-                label: 'Membership Fee Due Day',
+                label: context.vt('Membership Fee Due Day'),
                 value: 'Day $_membershipDueDay',
                 values: List.generate(31, (index) => 'Day ${index + 1}'),
                 onChanged: (value) {
@@ -332,19 +338,20 @@ class _ConfigureContributionsScreenState
           ),
           const SizedBox(height: AppSpacing.sm),
           _ContributionSection(
-            title: 'Member Contributions',
-            subtitle:
-                'Set the normal contribution amount and how often members contribute.',
+            title: context.vt('Member Contributions'),
+            subtitle: context.vt(
+              'Set the normal contribution amount and how often members contribute.',
+            ),
             children: [
               _MoneyField(
-                label: 'Contribution Amount',
+                label: context.vt('Contribution Amount'),
                 hint: '20000',
                 controller: _memberContributionController,
                 onChanged: _handleAmountChanged,
               ),
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
-                label: 'Contribution Cycle',
+                label: context.vt('Contribution Cycle'),
                 value: _memberContributionFrequency,
                 values: const [
                   'Daily',
@@ -381,7 +388,7 @@ class _ConfigureContributionsScreenState
                 )
               else
                 _SelectField(
-                  label: 'Due Day',
+                  label: context.vt('Due Day'),
                   value: 'Day $_monthlyDay',
                   values: List.generate(31, (index) => 'Day ${index + 1}'),
                   onChanged: (value) {
@@ -396,12 +403,16 @@ class _ConfigureContributionsScreenState
           ),
           const SizedBox(height: AppSpacing.sm),
           _ContributionSection(
-            title: 'Payment Rules',
-            subtitle: 'Group payments stay manual. Members submit requests and the treasurer confirms receipt.',
+            title: context.vt('Payment Rules'),
+            subtitle: context.vt(
+              'Group payments stay manual. Members submit requests and the treasurer confirms receipt.',
+            ),
             children: [
               _RuleRow(
-                title: 'Allow Partial Payments',
-                subtitle: 'Members can pay their contribution in installments.',
+                title: context.vt('Allow Partial Payments'),
+                subtitle: context.vt(
+                  'Members can pay their contribution in installments.',
+                ),
                 enabled: _allowPartialPayments,
                 onChanged: (value) {
                   setState(() => _allowPartialPayments = value);
@@ -410,8 +421,10 @@ class _ConfigureContributionsScreenState
               ),
               const Divider(color: AppColors.outlineVariant),
               _RuleRow(
-                title: 'Auto Allocate Payments',
-                subtitle: 'Apply payments to oldest unpaid periods first.',
+                title: context.vt('Auto Allocate Payments'),
+                subtitle: context.vt(
+                  'Apply payments to oldest unpaid periods first.',
+                ),
                 enabled: _autoAllocatePayments,
                 onChanged: (value) {
                   setState(() => _autoAllocatePayments = value);
@@ -428,24 +441,24 @@ class _ConfigureContributionsScreenState
           ),
           const SizedBox(height: AppSpacing.md),
           InfoCard(
-            title: 'Joining fee',
+            title: context.vt('Joining fee'),
             value: _joiningFeeEnabled
-                ? '${_moneyLabel(_joiningFeeController)} / yearly'
-                : 'Disabled',
+                ? '${_moneyLabel(_joiningFeeController)} / ${context.vt('Yearly').toLowerCase()}'
+                : context.vt('Disabled'),
             icon: Icons.person_add_alt_1_outlined,
           ),
           const SizedBox(height: AppSpacing.sm),
           InfoCard(
-            title: 'Membership fee',
+            title: context.vt('Membership fee'),
             value:
-                '${_moneyLabel(_membershipFeeController)} / $_membershipFeeFrequency\nDue ${_ordinal(_membershipDueDay)} of each cycle',
+                '${_moneyLabel(_membershipFeeController)} / ${context.vt(_membershipFeeFrequency)}\n${context.vtf('Due {day} of each cycle', {'day': _ordinal(_membershipDueDay)})}',
             icon: Icons.verified_user_outlined,
           ),
           const SizedBox(height: AppSpacing.sm),
           InfoCard(
-            title: 'Member contribution',
+            title: context.vt('Member contribution'),
             value:
-                '${_moneyLabel(_memberContributionController)} / $_memberContributionFrequency\n$_dueLabel',
+                '${_moneyLabel(_memberContributionController)} / ${context.vt(_memberContributionFrequency)}\n$_dueLabel',
             icon: Icons.event_repeat_outlined,
           ),
           const SizedBox(height: AppSpacing.md),
@@ -459,7 +472,7 @@ class _ConfigureContributionsScreenState
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Continue'),
+                : Text(context.vt('Continue')),
           ),
         ],
       ),
@@ -550,10 +563,8 @@ class _MoneyField extends StatelessWidget {
       onChanged: onChanged,
       keyboardType: TextInputType.number,
       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-            color: AppColors.onSurface,
-            fontWeight: FontWeight.w600,
-          ),
+      style: Theme.of(context).textTheme.bodyLarge
+          ?.copyWith(color: AppColors.onSurface, fontWeight: FontWeight.w600),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
@@ -564,11 +575,11 @@ class _MoneyField extends StatelessWidget {
             child: Text(
               'TZS',
               style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: enabled
-                        ? AppColors.onSurfaceVariant
-                        : AppColors.onSurfaceVariant.withValues(alpha: 0.56),
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: enabled
+                    ? AppColors.onSurfaceVariant
+                    : AppColors.onSurfaceVariant.withValues(alpha: 0.56),
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),
@@ -598,7 +609,10 @@ class _SelectField extends StatelessWidget {
       icon: const Icon(Icons.expand_more),
       decoration: InputDecoration(labelText: label),
       items: values
-          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+          .map(
+            (item) =>
+                DropdownMenuItem(value: item, child: Text(context.vt(item))),
+          )
           .toList(),
       onChanged: onChanged,
     );
@@ -619,9 +633,9 @@ class _WeeklyDaysField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InputDecorator(
-      decoration: const InputDecoration(
-        labelText: 'Weekly Due Days',
-        prefixIcon: Icon(Icons.event_repeat_outlined),
+      decoration: InputDecoration(
+        labelText: context.vt('Weekly Due Days'),
+        prefixIcon: const Icon(Icons.event_repeat_outlined),
       ),
       child: Padding(
         padding: const EdgeInsets.only(top: AppSpacing.xxs),
@@ -631,7 +645,7 @@ class _WeeklyDaysField extends StatelessWidget {
           children: [
             for (var index = 0; index < weekDays.length; index++)
               FilterChip(
-                label: Text(weekDays[index].substring(0, 3)),
+                label: Text(context.vt(weekDays[index]).substring(0, 3)),
                 selected: selectedDays.contains(index + 1),
                 onSelected: (selected) {
                   final day = index + 1;
@@ -662,9 +676,9 @@ class _LockedCycleField extends StatelessWidget {
   Widget build(BuildContext context) {
     return TextField(
       readOnly: true,
-      controller: TextEditingController(text: value),
+      controller: TextEditingController(text: context.vt(value)),
       decoration: InputDecoration(
-        labelText: label,
+        labelText: context.vt(label),
         prefixIcon: const Icon(Icons.today_outlined),
       ),
     );
@@ -744,7 +758,7 @@ class _HistoricalDataCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Historical group data',
+                      context.vt('Historical group data'),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: AppColors.onSurface,
                         fontWeight: FontWeight.w700,
@@ -752,7 +766,9 @@ class _HistoricalDataCard extends StatelessWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      'Admins and secretaries can add previous payments one by one or import them in bulk.',
+                      context.vt(
+                        'Admins and secretaries can add previous payments one by one or import them in bulk.',
+                      ),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceVariant,
                         height: 1.35,
@@ -767,7 +783,7 @@ class _HistoricalDataCard extends StatelessWidget {
           OutlinedButton.icon(
             onPressed: onImport,
             icon: const Icon(Icons.history_outlined, size: 18),
-            label: const Text('Import historical records'),
+            label: Text(context.vt('Import historical records')),
           ),
         ],
       ),

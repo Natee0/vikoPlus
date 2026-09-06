@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_widgets.dart';
 import '../common/info_card.dart';
@@ -82,18 +83,18 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
     _ensureMembersFuture(activeGroup?.id);
 
     return VikoplusScreen(
-      title: 'Members',
+      title: context.vt('Members'),
       bottomNavigationIndex: 1,
       showBottomNavigation: widget.showBottomNavigation,
       actions: [
         if (activeGroup?.role == 'GROUP_ADMIN') ...[
           IconButton(
-            tooltip: 'Invite members',
+            tooltip: context.vt('Invite members'),
             onPressed: () => context.push('/members/invite'),
             icon: const Icon(Icons.person_add_alt_outlined),
           ),
           IconButton(
-            tooltip: 'Add member manually',
+            tooltip: context.vt('Add member manually'),
             onPressed: () => context.push('/members/add'),
             icon: const Icon(Icons.add_circle_outline),
           ),
@@ -104,29 +105,32 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (activeGroup == null) ...[
-            const AuthErrorMessage(
-              message: 'Open a group before managing members.',
+            AuthErrorMessage(
+              message: context.vt('Open a group before managing members.'),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () => context.go('/groups'),
               icon: const Icon(Icons.groups_2_outlined),
-              label: const Text('Choose Group'),
+              label: Text(context.vt('Choose Group')),
             ),
             const SizedBox(height: 16),
           ],
           if (activeGroup?.role == 'GROUP_ADMIN') ...[
-            const ActionTile(
-              title: 'Invite members',
-              subtitle:
-                  'Share a role-based invitation code, link, SMS or WhatsApp',
+            ActionTile(
+              title: context.vt('Invite members'),
+              subtitle: context.vt(
+                'Share a role-based invitation code, link, SMS or WhatsApp',
+              ),
               icon: Icons.person_add_alt_outlined,
               route: '/members/invite',
             ),
             const SizedBox(height: 12),
-            const ActionTile(
-              title: 'Add member manually',
-              subtitle: 'Create a member record and assign their group role',
+            ActionTile(
+              title: context.vt('Add member manually'),
+              subtitle: context.vt(
+                'Create a member record and assign their group role',
+              ),
               icon: Icons.add_circle_outline,
               route: '/members/add',
               color: AppColors.secondaryGreen,
@@ -142,9 +146,9 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
           TextField(
             onChanged: (value) =>
                 setState(() => _query = value.trim().toLowerCase()),
-            decoration: const InputDecoration(
-              hintText: 'Search members...',
-              prefixIcon: Icon(Icons.search),
+            decoration: InputDecoration(
+              hintText: context.vt('Search members...'),
+              prefixIcon: const Icon(Icons.search),
             ),
           ),
           const SizedBox(height: 12),
@@ -161,7 +165,7 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
                   'Fully paid',
                 ])
                   _FilterChip(
-                    label: label,
+                    label: context.vt(label),
                     selected: _filter == label,
                     onSelected: () => setState(() => _filter = label),
                   ),
@@ -203,7 +207,7 @@ class _MemberStatsRow extends StatelessWidget {
           children: [
             Expanded(
               child: InfoCard(
-                title: 'Total members',
+                title: context.vt('Total members'),
                 value: '$membersCount',
                 icon: Icons.groups_2_outlined,
               ),
@@ -211,8 +215,8 @@ class _MemberStatsRow extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: InfoCard(
-                title: 'Current role',
-                value: _roleLabel(role),
+                title: context.vt('Current role'),
+                value: context.vt(_roleLabel(role)),
                 icon: Icons.admin_panel_settings_outlined,
                 accentColor: AppColors.warning,
               ),
@@ -265,7 +269,7 @@ class _MemberListBody extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: onReload,
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try again'),
+                label: Text(context.vt('Try again')),
               ),
             ],
           );
@@ -291,7 +295,7 @@ class _MemberListBody extends StatelessWidget {
         }).toList();
         if (members.isEmpty) {
           return query.isNotEmpty || filter != 'All'
-              ? const Text('No members match these filters.')
+              ? Text(context.vt('No members match these filters.'))
               : const _EmptyMembersCard();
         }
 
@@ -324,13 +328,15 @@ class _EmptyMembersCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'No members yet',
+              context.vt('No members yet'),
               style: Theme.of(context).textTheme.titleSmall
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 4),
             Text(
-              'Add the first member or invite members to join this group.',
+              context.vt(
+                'Add the first member or invite members to join this group.',
+              ),
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.secondaryText),

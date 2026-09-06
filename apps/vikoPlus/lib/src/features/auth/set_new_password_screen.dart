@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -43,9 +44,8 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
   bool get _hasNumber => RegExp(r'\d').hasMatch(_passwordController.text);
 
   bool get _hasSymbol {
-    return RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\[\];]').hasMatch(
-      _passwordController.text,
-    );
+    return RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\[\];]')
+        .hasMatch(_passwordController.text);
   }
 
   bool get _passwordsMatch {
@@ -66,15 +66,20 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
 
     final flow = ref.read(passwordResetFlowProvider);
     if (flow.resetToken.isEmpty) {
-      setState(() => _errorMessage = 'Reset session expired. Start again.');
+      setState(
+        () => _errorMessage = context.vt('Reset session expired. Start again.'),
+      );
       return;
     }
     if (!_hasMinLength || !_hasUpperAndLower || !_hasNumber || !_hasSymbol) {
-      setState(() => _errorMessage = 'Password does not meet requirements.');
+      setState(
+        () =>
+            _errorMessage = context.vt('Password does not meet requirements.'),
+      );
       return;
     }
     if (!_passwordsMatch) {
-      setState(() => _errorMessage = 'Passwords do not match.');
+      setState(() => _errorMessage = context.vt('Passwords do not match.'));
       return;
     }
 
@@ -83,7 +88,9 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
         _errorMessage = '';
         _isSubmitting = true;
       });
-      await ref.read(authRepositoryProvider).completePasswordReset(
+      await ref
+          .read(authRepositoryProvider)
+          .completePasswordReset(
             resetToken: flow.resetToken,
             password: _passwordController.text,
           );
@@ -103,7 +110,7 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     return PasswordResetScaffold(
-      title: 'Reset Password',
+      title: context.vt('Reset Password'),
       onBack: () => context.go('/forgot-password/verify'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -114,21 +121,21 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Create New Password',
+            context.vt('Create New Password'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: AppColors.primaryText,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.primaryText,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Your new password must be unique and satisfy the security requirements below.',
+            context.vt(
+              'Your new password must be unique and satisfy the security requirements below.',
+            ),
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  height: 1.45,
-                ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.45),
           ),
           const SizedBox(height: AppSpacing.md),
           AuthCard(
@@ -136,8 +143,8 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AuthField(
-                  label: 'New Password',
-                  hint: 'Password',
+                  label: context.vt('New Password'),
+                  hint: context.vt('Password'),
                   icon: Icons.lock_outline,
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -146,8 +153,8 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
                   onChanged: (_) => _clearError(),
                   suffixIcon: IconButton(
                     tooltip: _obscurePassword
-                        ? 'Show password'
-                        : 'Hide password',
+                        ? context.vt('Show password')
+                        : context.vt('Hide password'),
                     onPressed: () {
                       setState(() => _obscurePassword = !_obscurePassword);
                     },
@@ -160,8 +167,8 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 AuthField(
-                  label: 'Confirm New Password',
-                  hint: 'Confirm password',
+                  label: context.vt('Confirm New Password'),
+                  hint: context.vt('Confirm password'),
                   icon: Icons.lock_outline,
                   controller: _confirmController,
                   obscureText: _obscureConfirm,
@@ -173,8 +180,8 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
                   },
                   suffixIcon: IconButton(
                     tooltip: _obscureConfirm
-                        ? 'Show password'
-                        : 'Hide password',
+                        ? context.vt('Show password')
+                        : context.vt('Hide password'),
                     onPressed: () {
                       setState(() => _obscureConfirm = !_obscureConfirm);
                     },
@@ -197,23 +204,23 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
                     children: [
                       RequirementRow(
                         passed: _hasMinLength,
-                        text: 'At least 8 characters',
+                        text: context.vt('At least 8 characters'),
                       ),
                       RequirementRow(
                         passed: _hasUpperAndLower,
-                        text: 'Uppercase and lowercase letters',
+                        text: context.vt('Uppercase and lowercase letters'),
                       ),
                       RequirementRow(
                         passed: _hasNumber,
-                        text: 'At least one number',
+                        text: context.vt('At least one number'),
                       ),
                       RequirementRow(
                         passed: _hasSymbol,
-                        text: 'A special symbol',
+                        text: context.vt('A special symbol'),
                       ),
                       RequirementRow(
                         passed: _passwordsMatch,
-                        text: 'Passwords match',
+                        text: context.vt('Passwords match'),
                       ),
                     ],
                   ),
@@ -231,7 +238,11 @@ class _SetNewPasswordScreenState extends ConsumerState<SetNewPasswordScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.lock_outline),
-                  label: Text(_isSubmitting ? 'Updating' : 'Update Password'),
+                  label: Text(
+                    _isSubmitting
+                        ? context.vt('Updating')
+                        : context.vt('Update Password'),
+                  ),
                 ),
               ],
             ),

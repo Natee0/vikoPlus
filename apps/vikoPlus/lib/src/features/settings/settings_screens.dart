@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -27,54 +28,69 @@ class AdminSettingsDashboardScreen extends ConsumerWidget {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'Admin Settings',
+      title: context.vt('Admin Settings'),
       backRoute: '/more',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _SettingsHero(),
           const SizedBox(height: AppSpacing.md),
-          const ActionTile(
-            title: 'Member roles',
-            subtitle:
-                'Assign chairperson, treasurer, secretary and member access',
+          ActionTile(
+            title: context.vt('Group profile'),
+            subtitle: context.vt('Update the group icon and visible identity'),
+            icon: Icons.groups_2_outlined,
+            route: '/settings/group-profile',
+            color: AppColors.primary,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          ActionTile(
+            title: context.vt('Member roles'),
+            subtitle: context.vt(
+              'Assign chairperson, treasurer, secretary and member access',
+            ),
             icon: Icons.admin_panel_settings_outlined,
             route: '/settings/roles',
           ),
           const SizedBox(height: AppSpacing.sm),
-          const ActionTile(
-            title: 'Currency and fees',
-            subtitle: 'TZS defaults, platform access and messaging charges',
+          ActionTile(
+            title: context.vt('Currency and fees'),
+            subtitle: context.vt(
+              'TZS defaults, platform access and messaging charges',
+            ),
             icon: Icons.payments_outlined,
             route: '/settings/currency-fees',
             color: AppColors.gold,
           ),
           const SizedBox(height: AppSpacing.sm),
           ActionTile(
-            title: 'Contribution setup',
-            subtitle: 'Set joining fee, membership fee and payment rules',
+            title: context.vt('Contribution setup'),
+            subtitle: context.vt(
+              'Set joining fee, membership fee and payment rules',
+            ),
             icon: Icons.price_change_outlined,
             route: _setupRoute('/groups/contributions', activeGroup),
           ),
           const SizedBox(height: AppSpacing.sm),
           ActionTile(
-            title: 'Historical records',
-            subtitle: 'Import previous group contributions and old ledgers',
+            title: context.vt('Historical records'),
+            subtitle: context.vt(
+              'Import previous group contributions and old ledgers',
+            ),
             icon: Icons.history_edu_outlined,
             route: _setupRoute('/groups/history', activeGroup),
             color: AppColors.secondaryGreen,
           ),
           const SizedBox(height: AppSpacing.sm),
-          const ActionTile(
-            title: 'Contribution penalties',
-            subtitle: 'Late-fee rules and grace periods',
+          ActionTile(
+            title: context.vt('Contribution penalties'),
+            subtitle: context.vt('Late-fee rules and grace periods'),
             icon: Icons.gavel_outlined,
             route: '/settings/contribution-penalties',
           ),
           const SizedBox(height: AppSpacing.sm),
-          const ActionTile(
-            title: 'Audit logs',
-            subtitle: 'Payment, role and subscription history',
+          ActionTile(
+            title: context.vt('Audit logs'),
+            subtitle: context.vt('Payment, role and subscription history'),
             icon: Icons.manage_search_outlined,
             route: '/settings/audit',
           ),
@@ -90,26 +106,30 @@ class AppSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'App Settings',
+      title: context.vt('App Settings'),
       backRoute: '/more',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: const [
+        children: [
           _SettingSwitch(
-            title: 'Compact dashboard',
-            subtitle: 'Show denser cards for frequent administrators.',
+            title: context.vt('Compact dashboard'),
+            subtitle: context.vt(
+              'Show denser cards for frequent administrators.',
+            ),
             value: true,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _SettingSwitch(
-            title: 'Use device language',
-            subtitle: 'Keep English and Swahili-ready text aligned.',
+            title: context.vt('Use device language'),
+            subtitle: context.vt(
+              'Keep English and Swahili-ready text aligned.',
+            ),
             value: false,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           ActionTile(
-            title: 'Language',
-            subtitle: 'Choose English or Swahili',
+            title: context.vt('Language'),
+            subtitle: context.vt('Choose English or Swahili'),
             icon: Icons.language_outlined,
             route: '/language',
           ),
@@ -125,23 +145,27 @@ class SecuritySettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Security',
+      title: context.vt('Security'),
       backRoute: '/more',
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SecurityCard(),
-          SizedBox(height: AppSpacing.md),
+          const _SecurityCard(),
+          const SizedBox(height: AppSpacing.md),
           ActionTile(
-            title: 'Change security PIN',
-            subtitle: 'Protect approvals and group administration actions',
+            title: context.vt('Change security PIN'),
+            subtitle: context.vt(
+              'Protect approvals and group administration actions',
+            ),
             icon: Icons.pin_outlined,
             route: '/settings/security/pin',
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _SettingSwitch(
-            title: 'Require PIN for payment approvals',
-            subtitle: 'Treasurer and admin actions ask for extra confirmation.',
+            title: context.vt('Require PIN for payment approvals'),
+            subtitle: context.vt(
+              'Treasurer and admin actions ask for extra confirmation.',
+            ),
             value: true,
           ),
         ],
@@ -156,44 +180,44 @@ class ChangeSecurityPinScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Change PIN',
+      title: context.vt('Change PIN'),
       backRoute: '/settings/security',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _IconHero(icon: Icons.lock_reset_outlined),
           const SizedBox(height: AppSpacing.md),
-          const TextField(
+          TextField(
             obscureText: true,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Current PIN',
-              prefixIcon: Icon(Icons.lock_outline),
+              labelText: context.vt('Current PIN'),
+              prefixIcon: const Icon(Icons.lock_outline),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
+          TextField(
             obscureText: true,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'New PIN',
-              prefixIcon: Icon(Icons.pin_outlined),
+              labelText: context.vt('New PIN'),
+              prefixIcon: const Icon(Icons.pin_outlined),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
+          TextField(
             obscureText: true,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: 'Confirm PIN',
-              prefixIcon: Icon(Icons.verified_user_outlined),
+              labelText: context.vt('Confirm PIN'),
+              prefixIcon: const Icon(Icons.verified_user_outlined),
             ),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
             onPressed: () => context.go('/settings/security'),
             icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Update PIN'),
+            label: Text(context.vt('Update PIN')),
           ),
         ],
       ),
@@ -207,26 +231,28 @@ class NotificationPreferencesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Notification Preferences',
+      title: context.vt('Notification Preferences'),
       backRoute: '/more',
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _SettingSwitch(
-            title: 'Payment confirmations',
-            subtitle: 'Notify me when receipts are created.',
+            title: context.vt('Payment confirmations'),
+            subtitle: context.vt('Notify me when receipts are created.'),
             value: true,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _SettingSwitch(
-            title: 'Contribution reminders',
-            subtitle: 'Receive reminders before and after due dates.',
+            title: context.vt('Contribution reminders'),
+            subtitle: context.vt(
+              'Receive reminders before and after due dates.',
+            ),
             value: true,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _SettingSwitch(
-            title: 'Role changes',
-            subtitle: 'Alert members when their access changes.',
+            title: context.vt('Role changes'),
+            subtitle: context.vt('Alert members when their access changes.'),
             value: true,
           ),
         ],
@@ -241,13 +267,15 @@ class MemberRolesPermissionsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Member Roles',
+      title: context.vt('Member Roles'),
       backRoute: '/settings/admin',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'The chairperson/admin assigns these roles when inviting or adding members.',
+            context.vt(
+              'The chairperson/admin assigns these roles when inviting or adding members.',
+            ),
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
@@ -275,14 +303,16 @@ class AuditLogsScreen extends ConsumerWidget {
     );
 
     return VikoplusScreen(
-      title: 'Audit Logs',
+      title: context.vt('Audit Logs'),
       backRoute: '/settings/admin',
       child: activeGroup == null
-          ? const AuthErrorMessage(
-              message: 'Select a group to view audit logs.',
+          ? AuthErrorMessage(
+              message: context.vt('Select a group to view audit logs.'),
             )
           : FutureBuilder<AuditLogResult>(
-              future: ref.read(groupsRepositoryProvider).auditLog(activeGroup.id),
+              future: ref
+                  .read(groupsRepositoryProvider)
+                  .auditLog(activeGroup.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -293,17 +323,19 @@ class AuditLogsScreen extends ConsumerWidget {
                   );
                 }
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load audit logs.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load audit logs.'),
                   );
                 }
 
                 final entries = snapshot.data!.entries;
                 if (entries.isEmpty) {
-                  return const EmptyStateCard(
+                  return EmptyStateCard(
                     icon: Icons.manage_search_outlined,
-                    title: 'No audit logs yet',
-                    message: 'Group administration activity will appear here.',
+                    title: context.vt('No audit logs yet'),
+                    message: context.vt(
+                      'Group administration activity will appear here.',
+                    ),
                   );
                 }
 
@@ -333,31 +365,31 @@ class CurrencyFeesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
-      title: 'Currency & Fees',
+      title: context.vt('Currency & Fees'),
       backRoute: '/settings/admin',
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _FeeTile(
-            title: 'Primary currency',
+            title: context.vt('Primary currency'),
             value: 'TZS - Tanzanian Shilling',
             icon: Icons.account_balance_outlined,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _FeeTile(
-            title: 'Group access',
+            title: context.vt('Group access'),
             value: 'TZS 10,000 / year',
             icon: Icons.workspace_premium_outlined,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _FeeTile(
-            title: 'SMS reminders',
+            title: context.vt('SMS reminders'),
             value: 'TZS 50 per SMS',
             icon: Icons.sms_outlined,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _FeeTile(
-            title: 'WhatsApp reminders',
+            title: context.vt('WhatsApp reminders'),
             value: 'TZS 50 per message',
             icon: Icons.chat_outlined,
           ),
@@ -366,7 +398,6 @@ class CurrencyFeesScreen extends StatelessWidget {
     );
   }
 }
-
 
 class _SettingsHero extends StatelessWidget {
   const _SettingsHero();
@@ -386,7 +417,9 @@ class _SettingsHero extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Manage group rules, billing controls and admin access.',
+              context.vt(
+                'Manage group rules, billing controls and admin access.',
+              ),
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: AppColors.onPrimary,
                 fontWeight: FontWeight.w700,
@@ -411,12 +444,16 @@ class _SecurityCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadii.lg),
         boxShadow: AppShadows.level1(),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          _IconHero(icon: Icons.shield_outlined, small: true),
-          SizedBox(width: AppSpacing.sm),
+          const _IconHero(icon: Icons.shield_outlined, small: true),
+          const SizedBox(width: AppSpacing.sm),
           Expanded(
-            child: Text('Security PIN is enabled for sensitive group actions.'),
+            child: Text(
+              context.vt(
+                'Security PIN is enabled for sensitive group actions.',
+              ),
+            ),
           ),
         ],
       ),

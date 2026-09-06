@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -54,12 +55,12 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'My Groups',
+      title: context.vt('My Groups'),
       backRoute: portalHomeRoute(activeGroup),
       showBackButton: activeGroup != null,
       actions: [
         IconButton(
-          tooltip: 'Refresh groups',
+          tooltip: context.vt('Refresh groups'),
           onPressed: _reload,
           icon: const Icon(Icons.refresh),
         ),
@@ -70,26 +71,28 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Choose a group to open, create a new group, or join one using an invitation.',
+            context.vt(
+              'Choose a group to open, create a new group, or join one using an invitation.',
+            ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpacing.md),
-          const Row(
+          Row(
             children: [
               Expanded(
                 child: _GroupActionButton(
-                  label: 'Create group',
+                  label: context.vt('Create group'),
                   route: '/groups/create',
                   icon: Icons.add_circle_outline,
                   filled: true,
                 ),
               ),
-              SizedBox(width: AppSpacing.sm),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _GroupActionButton(
-                  label: 'Join group',
+                  label: context.vt('Join group'),
                   route: '/groups/join',
                   icon: Icons.group_add_outlined,
                 ),
@@ -97,7 +100,7 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
             ],
           ),
           const SizedBox(height: AppSpacing.md),
-          const SectionHeader(title: 'Groups you can access'),
+          SectionHeader(title: context.vt('Groups you can access')),
           const SizedBox(height: AppSpacing.sm),
           FutureBuilder<MyGroupsResult>(
             future: _groupsFuture,
@@ -122,7 +125,7 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
                     OutlinedButton.icon(
                       onPressed: _reload,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('Try again'),
+                      label: Text(context.vt('Try again')),
                     ),
                   ],
                 );

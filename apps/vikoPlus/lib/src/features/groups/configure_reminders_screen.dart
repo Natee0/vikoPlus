@@ -8,6 +8,7 @@ import '../../core/config/app_config.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -52,17 +53,29 @@ class _ConfigureRemindersScreenState
     final id = _groupId;
     try {
       if (id != null) {
-        final settings = await ref.read(groupsRepositoryProvider).reminderSettings(id);
-        if (!mounted) return;
+        final settings = await ref
+            .read(groupsRepositoryProvider)
+            .reminderSettings(id);
+        if (!mounted) {
+          return;
+        }
         setState(() {
           _enabled = settings['enabled'] == true;
           _settingsLoaded = true;
-          _offsets..clear()..addAll((settings['offsets'] as List? ?? [-3, 0]).cast<int>());
+          _offsets
+            ..clear()
+            ..addAll((settings['offsets'] as List? ?? [-3, 0]).cast<int>());
         });
       }
     } catch (error) {
-      if (mounted) setState(() => _errorMessage = AuthFailure.from(error).message);
-    } finally { if (mounted) setState(() => _loadingSettings = false); }
+      if (mounted) {
+        setState(() => _errorMessage = AuthFailure.from(error).message);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loadingSettings = false);
+      }
+    }
   }
 
   String? get _groupId {
@@ -79,13 +92,17 @@ class _ConfigureRemindersScreenState
 
   String get _backRoute {
     final returnTo = widget.returnTo;
-    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
     if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
       return '/dashboard';
     }
 
     final groupId = _groupId;
-    if (groupId == null || groupId.isEmpty) return '/groups/contributions';
+    if (groupId == null || groupId.isEmpty) {
+      return '/groups/contributions';
+    }
     return '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}';
   }
 
@@ -96,9 +113,15 @@ class _ConfigureRemindersScreenState
 
   Future<void> _startPackageCheckout(ReminderPackageSummary package) async {
     final groupId = _groupId;
-    if (_isStartingCheckout) return;
+    if (_isStartingCheckout) {
+      return;
+    }
     if (groupId == null || groupId.isEmpty) {
-      setState(() => _errorMessage = 'Create a group before buying reminders.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Create a group before buying reminders.',
+        ),
+      );
       return;
     }
 
@@ -120,13 +143,19 @@ class _ConfigureRemindersScreenState
             ),
           );
       await Clipboard.setData(ClipboardData(text: checkout.checkoutUrl));
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _checkoutUrl = checkout.checkoutUrl);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checkout link copied to clipboard.')),
+        SnackBar(
+          content: Text(context.vt('Checkout link copied to clipboard.')),
+        ),
       );
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -139,9 +168,13 @@ class _ConfigureRemindersScreenState
     List<ReminderPackageSummary> packages,
   ) {
     for (final package in packages) {
-      if (package.code == _selectedPackageCode) return package;
+      if (package.code == _selectedPackageCode) {
+        return package;
+      }
     }
-    if (packages.isEmpty) return null;
+    if (packages.isEmpty) {
+      return null;
+    }
     return packages.first;
   }
 
@@ -155,7 +188,9 @@ class _ConfigureRemindersScreenState
   }
 
   Future<ReminderPackagesResult>? _packagesFor(String? groupId) {
-    if (groupId == null || groupId.isEmpty) return null;
+    if (groupId == null || groupId.isEmpty) {
+      return null;
+    }
     if (_loadedPackagesGroupId != groupId || _packagesFuture == null) {
       _setPackagesFuture(groupId);
     }
@@ -164,7 +199,9 @@ class _ConfigureRemindersScreenState
 
   Future<void> _refresh() async {
     final groupId = _groupId;
-    if (groupId == null || groupId.isEmpty) return;
+    if (groupId == null || groupId.isEmpty) {
+      return;
+    }
     final future = ref.read(groupsRepositoryProvider).reminderPackages(groupId);
     setState(() => _setPackagesFuture(groupId, future));
     await future;
@@ -173,13 +210,23 @@ class _ConfigureRemindersScreenState
 
   Future<void> _save({required bool configureLater}) async {
     final groupId = _groupId;
-    if (_isSubmitting || _loadingSettings) return;
+    if (_isSubmitting || _loadingSettings) {
+      return;
+    }
     if (!_settingsLoaded) {
-      setState(() => _errorMessage = 'Refresh to load the current reminder settings before saving.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Refresh to load the current reminder settings before saving.',
+        ),
+      );
       return;
     }
     if (groupId == null || groupId.isEmpty) {
-      setState(() => _errorMessage = 'Create a group before setting reminders.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Create a group before setting reminders.',
+        ),
+      );
       return;
     }
 
@@ -188,21 +235,30 @@ class _ConfigureRemindersScreenState
         _errorMessage = '';
         _isSubmitting = true;
       });
-      await ref.read(groupsRepositoryProvider).saveReminderSettings(
+      await ref
+          .read(groupsRepositoryProvider)
+          .saveReminderSettings(
             groupId,
             ReminderSettingsInput(
-              dueReminderTemplate: configureLater ? null : Localizations.localeOf(context).languageCode == 'sw' ? 'Habari {member_name}, malipo yako ya {amount} yanatakiwa tarehe {due_date}.' : _template,
+              dueReminderTemplate: configureLater
+                  ? null
+                  : Localizations.localeOf(context).languageCode == 'sw'
+                  ? 'Habari {member_name}, malipo yako ya {amount} yanatakiwa tarehe {due_date}.'
+                  : _template,
               enabled: !configureLater && _enabled,
               offsets: _offsets.toList()..sort(),
               locale: Localizations.localeOf(context).languageCode,
             ),
           );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ref.read(groupSetupDraftProvider.notifier).reset();
       final returnTo = widget.returnTo;
       if (returnTo != null && returnTo.isNotEmpty) {
         context.go(returnTo);
-      } else if (widget.groupId == null && ref.read(activeGroupProvider) != null) {
+      } else if (widget.groupId == null &&
+          ref.read(activeGroupProvider) != null) {
         context.go('/dashboard');
       } else {
         context.go(
@@ -210,7 +266,9 @@ class _ConfigureRemindersScreenState
         );
       }
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -227,16 +285,21 @@ class _ConfigureRemindersScreenState
     );
 
     return VikoplusScreen(
-      title: 'Configure Reminders',
+      title: context.vt('Configure Reminders'),
       backRoute: _backRoute,
       preferBackRoute: true,
       onRefresh: groupId == null ? null : _refresh,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ToggleCard(value: _enabled, onChanged: _loadingSettings ? null : (value) => setState(() => _enabled = value)),
+          _ToggleCard(
+            value: _enabled,
+            onChanged: _loadingSettings
+                ? null
+                : (value) => setState(() => _enabled = value),
+          ),
           const SizedBox(height: AppSpacing.md),
-          const _SectionLabel('Reminder Package'),
+          _SectionLabel(context.vt('Reminder Package')),
           const SizedBox(height: AppSpacing.sm),
           _ReminderPackagePicker(
             groupId: groupId,
@@ -260,28 +323,49 @@ class _ConfigureRemindersScreenState
               url: _checkoutUrl,
               onCopy: () async {
                 await Clipboard.setData(ClipboardData(text: _checkoutUrl));
-                if (!context.mounted) return;
+                if (!context.mounted) {
+                  return;
+                }
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Checkout link copied.')),
+                  SnackBar(content: Text(context.vt('Checkout link copied.'))),
                 );
               },
             ),
           ],
           const SizedBox(height: AppSpacing.md),
-          const _SectionLabel('Schedule'),
+          _SectionLabel(context.vt('Schedule')),
           const SizedBox(height: AppSpacing.sm),
-          for (final entry in const {-3: '3 days before due date', 0: 'On due date', 3: '3 days overdue'}.entries)
-            _ScheduleTile(label: entry.value, selected: _offsets.contains(entry.key), onChanged: _loadingSettings ? null : (selected) => setState(() { if (selected == true) { _offsets.add(entry.key); } else { _offsets.remove(entry.key); } })),
+          for (final entry in const {
+            -3: '3 days before due date',
+            0: 'On due date',
+            3: '3 days overdue',
+          }.entries) ...[
+            _ScheduleTile(
+              label: context.vt(entry.value),
+              selected: _offsets.contains(entry.key),
+              onChanged: _loadingSettings
+                  ? null
+                  : (selected) => setState(() {
+                      if (selected == true) {
+                        _offsets.add(entry.key);
+                      } else {
+                        _offsets.remove(entry.key);
+                      }
+                    }),
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
           const SizedBox(height: AppSpacing.md),
-          const _SectionLabel('Message Preview'),
+          _SectionLabel(context.vt('Message Preview')),
           const SizedBox(height: AppSpacing.sm),
           const _MessagePreview(),
           const SizedBox(height: AppSpacing.md),
           AuthErrorMessage(message: _errorMessage),
           const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
-            onPressed:
-                _isSubmitting ? null : () => _save(configureLater: false),
+            onPressed: _isSubmitting
+                ? null
+                : () => _save(configureLater: false),
             icon: _isSubmitting
                 ? const SizedBox(
                     width: 18,
@@ -289,12 +373,22 @@ class _ConfigureRemindersScreenState
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : const Icon(Icons.check_circle_outline, size: 18),
-            label: Text(_isSubmitting ? 'Saving' : 'Save and Continue'),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSizes.inputHeight),
+            ),
+            label: Text(
+              _isSubmitting
+                  ? context.vt('Saving')
+                  : context.vt('Save and Continue'),
+            ),
           ),
-          const SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.md),
           OutlinedButton(
             onPressed: _isSubmitting ? null : () => _save(configureLater: true),
-            child: const Text('Configure Later'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSizes.inputHeight),
+            ),
+            child: Text(context.vt('Configure Later')),
           ),
         ],
       ),
@@ -323,14 +417,16 @@ class _ToggleCard extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           onChanged: onChanged,
           title: Text(
-            'Enable Automatic Reminders',
+            context.vt('Enable Automatic Reminders'),
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
               color: AppColors.onSurface,
               fontWeight: FontWeight.w700,
             ),
           ),
-          subtitle: const Text(
-            'Send automated payment alerts to members. Admin pays messaging costs separately from member contributions.',
+          subtitle: Text(
+            context.vt(
+              'Send automated payment alerts to members. Admin pays messaging costs separately from member contributions.',
+            ),
           ),
         ),
       ),
@@ -359,7 +455,7 @@ class _ReminderPackagePicker extends StatelessWidget {
   final bool isStartingCheckout;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
-      selectedPackage;
+  selectedPackage;
   final ValueChanged<String> onPackageSelected;
   final ValueChanged<int> onQuantityChanged;
   final ValueChanged<ReminderPackageSummary> onStartCheckout;
@@ -368,8 +464,10 @@ class _ReminderPackagePicker extends StatelessWidget {
   Widget build(BuildContext context) {
     final currentGroupId = groupId;
     if (currentGroupId == null || currentGroupId.isEmpty) {
-      return const AuthErrorMessage(
-        message: 'Create a group before choosing reminder packages.',
+      return AuthErrorMessage(
+        message: context.vt(
+          'Create a group before choosing reminder packages.',
+        ),
       );
     }
 
@@ -386,8 +484,8 @@ class _ReminderPackagePicker extends StatelessWidget {
         }
 
         if (snapshot.hasError || snapshot.data == null) {
-          return const AuthErrorMessage(
-            message: 'Could not load reminder packages.',
+          return AuthErrorMessage(
+            message: context.vt('Could not load reminder packages.'),
           );
         }
 
@@ -401,10 +499,9 @@ class _ReminderPackagePicker extends StatelessWidget {
               border: Border.all(color: AppColors.outlineVariant),
             ),
             child: Text(
-              'Reminder package prices are not available yet.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              context.vt('Reminder package prices are not available yet.'),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
           );
         }
@@ -417,11 +514,10 @@ class _ReminderPackagePicker extends StatelessWidget {
             for (final package in packages) ...[
               _ReminderPackageTile(
                 package: package,
-                price: '${formatters.money(
-                  package.amountMinor,
-                  currency: package.currency,
-                )} per message',
-                selected: package.code ==
+                price:
+                    '${formatters.money(package.amountMinor, currency: package.currency)} ${context.vt('per message')}',
+                selected:
+                    package.code ==
                     (selectedPackageCode ?? selected?.code ?? ''),
                 onTap: () => onPackageSelected(package.code),
               ),
@@ -430,18 +526,32 @@ class _ReminderPackagePicker extends StatelessWidget {
             const SizedBox(height: AppSpacing.xs),
             DropdownButtonFormField<int>(
               initialValue: packageQuantity,
-              decoration: const InputDecoration(
-                labelText: 'Message credits',
-                prefixIcon: Icon(Icons.confirmation_number_outlined),
+              decoration: InputDecoration(
+                labelText: context.vt('Message credits'),
+                prefixIcon: const Icon(Icons.confirmation_number_outlined),
               ),
-              items: const [
-                DropdownMenuItem(value: 100, child: Text('100 messages')),
-                DropdownMenuItem(value: 500, child: Text('500 messages')),
-                DropdownMenuItem(value: 1000, child: Text('1,000 messages')),
-                DropdownMenuItem(value: 5000, child: Text('5,000 messages')),
+              items: [
+                DropdownMenuItem(
+                  value: 100,
+                  child: Text(context.vt('100 messages')),
+                ),
+                DropdownMenuItem(
+                  value: 500,
+                  child: Text(context.vt('500 messages')),
+                ),
+                DropdownMenuItem(
+                  value: 1000,
+                  child: Text(context.vt('1,000 messages')),
+                ),
+                DropdownMenuItem(
+                  value: 5000,
+                  child: Text(context.vt('5,000 messages')),
+                ),
               ],
               onChanged: (value) {
-                if (value == null) return;
+                if (value == null) {
+                  return;
+                }
                 onQuantityChanged(value);
               },
             ),
@@ -466,8 +576,8 @@ class _ReminderPackagePicker extends StatelessWidget {
                   : const Icon(Icons.lock_outline, size: 18),
               label: Text(
                 isStartingCheckout
-                    ? 'Creating checkout'
-                    : 'Create checkout link',
+                    ? context.vt('Creating checkout')
+                    : context.vt('Create checkout link'),
               ),
             ),
           ],
@@ -518,26 +628,25 @@ class _CheckoutLinkCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Checkout link ready',
+                  context.vt('Checkout link ready'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: AppColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
                   url,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
               ],
             ),
           ),
           IconButton(
-            tooltip: 'Copy checkout link',
+            tooltip: context.vt('Copy checkout link'),
             onPressed: onCopy,
             icon: const Icon(Icons.copy_outlined),
           ),
@@ -592,25 +701,24 @@ class _ReminderPackageTile extends StatelessWidget {
                     Text(
                       package.name,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: AppColors.onSurface,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     Text(
                       package.description?.isNotEmpty == true
                           ? package.description!
-                          : _channelLabel(package.channel),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: AppColors.onSurfaceVariant,
-                          ),
+                          : _channelLabel(context, package.channel),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.onSurfaceVariant),
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
                       price,
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            color: AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ],
                 ),
@@ -635,12 +743,12 @@ class _ReminderPackageTile extends StatelessWidget {
     };
   }
 
-  String _channelLabel(String? channel) {
+  String _channelLabel(BuildContext context, String? channel) {
     return switch (channel) {
-      'SMS' => 'SMS reminders',
-      'WHATSAPP' => 'WhatsApp reminders',
-      'BOTH' => 'SMS and WhatsApp reminders',
-      _ => 'Reminder messages',
+      'SMS' => context.vt('SMS reminders'),
+      'WHATSAPP' => context.vt('WhatsApp reminders'),
+      'BOTH' => context.vt('SMS and WhatsApp reminders'),
+      _ => context.vt('Reminder messages'),
     };
   }
 }
@@ -667,18 +775,17 @@ class _CheckoutTotalCard extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Estimated checkout total',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppColors.onSurfaceVariant,
-                  ),
+              context.vt('Estimated checkout total'),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
           ),
           Text(
             total,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w700,
-                ),
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -687,7 +794,11 @@ class _CheckoutTotalCard extends StatelessWidget {
 }
 
 class _ScheduleTile extends StatelessWidget {
-  const _ScheduleTile({required this.label, required this.onChanged, this.selected = false});
+  const _ScheduleTile({
+    required this.label,
+    required this.onChanged,
+    this.selected = false,
+  });
   final ValueChanged<bool?>? onChanged;
 
   final String label;
@@ -748,7 +859,9 @@ class _MessagePreview extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.',
+              context.vt(
+                'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.',
+              ),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: AppColors.onSurface,
                 fontStyle: FontStyle.italic,

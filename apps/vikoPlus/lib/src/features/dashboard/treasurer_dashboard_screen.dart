@@ -3,10 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../core/loans/loans_repository.dart';
+import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../theme/app_colors.dart';
+import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_screen.dart';
+import '../common/vikoplus_components.dart';
 import '../notifications/notification_icon_button.dart';
 
 class TreasurerDashboardScreen extends ConsumerStatefulWidget {
@@ -19,15 +23,20 @@ class TreasurerDashboardScreen extends ConsumerStatefulWidget {
 
 class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
   String? _groupId;
-  Future<(GroupDashboardResult, ContributionPaymentsResult)>? _future;
+  Future<
+    (GroupDashboardResult, ContributionPaymentsResult, LoanApplicationsResult)
+  >?
+  _future;
 
-  Future<(GroupDashboardResult, ContributionPaymentsResult)> _load(
-    String id,
-  ) async {
+  Future<
+    (GroupDashboardResult, ContributionPaymentsResult, LoanApplicationsResult)
+  >
+  _load(String id) async {
     final repo = ref.read(groupsRepositoryProvider);
     final dashboard = await repo.dashboard(id);
     final payments = await repo.contributionPayments(id);
-    return (dashboard, payments);
+    final loans = await ref.read(loansRepositoryProvider).applications(id);
+    return (dashboard, payments, loans);
   }
 
   Future<void> _refresh() async {
@@ -65,16 +74,22 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Hello, Treasurer',
+            'Hello, ${ref.watch(authSessionProvider).user?.displayName ?? 'Treasurer'}',
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpacing.xxs),
           const Text(
             'Track collections and review member payments.',
             style: TextStyle(color: AppColors.onSurfaceVariant),
           ),
-          const SizedBox(height: 24),
-          FutureBuilder<(GroupDashboardResult, ContributionPaymentsResult)>(
+          const SizedBox(height: AppSpacing.md),
+          FutureBuilder<
+            (
+              GroupDashboardResult,
+              ContributionPaymentsResult,
+              LoanApplicationsResult,
+            )
+          >(
             future: _future,
             builder: (context, snapshot) {
               if (snapshot.hasError) {
@@ -91,8 +106,9 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ],
                 );
               }
-              if (!snapshot.hasData)
+              if (!snapshot.hasData) {
                 return const Center(child: CircularProgressIndicator());
+              }
               final metrics = snapshot.data!.$1.metrics;
               final payments = [...snapshot.data!.$2.payments]
                 ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -110,121 +126,167 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.maxWidth < 320
-                          ? constraints.maxWidth
-                          : (constraints.maxWidth - 16) / 2;
-                      return Wrap(
-                        spacing: 16,
-                        runSpacing: 16,
-                        children: [
-                          _Metric(
-                            width: width,
-                            label: 'Total contributions',
-                            value: format.money(metrics.collectedMinor),
-                            icon: Icons.account_balance_wallet_outlined,
-                            primary: true,
-                          ),
-                          _Metric(
-                            width: width,
-                            label: 'Outstanding dues',
-                            value: format.money(metrics.outstandingMinor),
-                            icon: Icons.pending_actions_outlined,
-                          ),
-                          _Metric(
-                            width: width,
-                            label: 'Total members',
-                            value: '${metrics.membersCount}',
-                            icon: Icons.groups_outlined,
-                          ),
-                          _Metric(
-                            width: width,
-                            label: 'Payments to review',
-                            value: '$pending',
-                            icon: Icons.fact_check_outlined,
-                          ),
-                        ],
-                      );
-                    },
+                  Container(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryContainer,
+                      borderRadius: BorderRadius.circular(AppRadii.lg),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(
+                              Icons.account_balance_wallet_outlined,
+                              color: AppColors.onPrimaryContainer,
+                            ),
+                            SizedBox(width: AppSpacing.xs),
+                            Expanded(
+                              child: Text(
+                                'TOTAL CONTRIBUTIONS',
+                                style: TextStyle(color: AppColors.onPrimary),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Text(
+                          format.money(metrics.collectedMinor),
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.onPrimary,
+                              ),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        Wrap(
+                          spacing: AppSpacing.md,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            Text(
+                              'Outstanding\n${format.money(metrics.outstandingMinor)}',
+                              style: const TextStyle(
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Members\n${metrics.membersCount}',
+                              style: const TextStyle(
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                            Text(
+                              'Awaiting review\n$pending',
+                              style: const TextStyle(
+                                color: AppColors.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Urgent treasury queue',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  _ReviewQueue(
+                    title: 'Unreviewed payments',
+                    count: pending,
+                    icon: Icons.fact_check_outlined,
+                    route: '/contributions',
+                    color: AppColors.tertiaryFixed,
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  _ReviewQueue(
+                    title: 'Pending loan applications',
+                    count: snapshot.data!.$3.applications
+                        .where((loan) => loan.status == 'SUBMITTED')
+                        .length,
+                    icon: Icons.assignment_outlined,
+                    route: '/loans/applications',
+                    color: AppColors.progressTrack,
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   Text(
                     'Collection overview',
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     format.money(metrics.collectedMinor),
                     style: Theme.of(context).textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     '${format.compactPercent(progress)} collected',
                     style: const TextStyle(color: AppColors.primary),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.xs),
                   LinearProgressIndicator(
                     value: progress,
-                    minHeight: 10,
-                    borderRadius: BorderRadius.circular(8),
+                    minHeight: AppSpacing.xs,
+                    borderRadius: BorderRadius.circular(AppRadii.base),
                     backgroundColor: AppColors.progressTrack,
                     color: AppColors.primaryContainer,
                   ),
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (final action in const <(IconData, String, String)>[
-                        (
-                          Icons.add_card_outlined,
-                          'Record payment',
-                          '/contributions/record',
-                        ),
-                        (
-                          Icons.fact_check_outlined,
-                          'Review payments',
-                          '/contributions',
-                        ),
-                        (
-                          Icons.notifications_active_outlined,
-                          'Send reminder',
-                          '/reminders/new',
-                        ),
-                        (Icons.bar_chart_outlined, 'Reports', '/reports'),
-                        (Icons.account_balance_outlined, 'My loans', '/loans'),
-                        (
-                          Icons.assignment_outlined,
-                          'Loan reviews',
-                          '/loans/applications',
-                        ),
-                      ])
-                        SizedBox(
-                          width: 140,
-                          child: OutlinedButton(
-                            onPressed: () => context.push(action.$3),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              child: Column(
-                                children: [
-                                  Icon(action.$1),
-                                  const SizedBox(height: 8),
-                                  Text(action.$2, textAlign: TextAlign.center),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Treasury operations',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'Record payment',
+                    subtitle: 'Allocate a contribution across one or more periods',
+                    icon: Icons.add_card_outlined,
+                    route: '/contributions/record',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'Review payments',
+                    subtitle: 'Verify submitted member payments',
+                    icon: Icons.fact_check_outlined,
+                    route: '/contributions',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'Send reminder',
+                    subtitle: 'Contact members about outstanding dues',
+                    icon: Icons.notifications_active_outlined,
+                    route: '/reminders/new',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'Reports',
+                    subtitle: 'View outstanding dues and member analysis',
+                    icon: Icons.bar_chart_outlined,
+                    route: '/reports',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'My loans',
+                    subtitle: 'View borrowing power and track repayments',
+                    icon: Icons.account_balance_outlined,
+                    route: '/loans',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  const ActionTile(
+                    title: 'Loan reviews',
+                    subtitle: 'Review applications and guarantor confirmations',
+                    icon: Icons.assignment_outlined,
+                    route: '/loans/applications',
+                  ),
+                  const SizedBox(height: AppSpacing.md),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          'Recent transactions',
+                          'Live treasury activity',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                       ),
@@ -236,7 +298,7 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   if (payments.isEmpty)
                     const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                      padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
                       child: Text('No payments recorded yet.'),
                     ),
                   for (final payment in payments.take(5))
@@ -258,10 +320,8 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                         isThreeLine: true,
                         trailing: Text(
                           payment.status.replaceAll('_', ' ').toLowerCase(),
-                          style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 12,
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: AppColors.primary),
                         ),
                         onTap: () => context.push('/contributions'),
                       ),
@@ -276,56 +336,55 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
   }
 }
 
-class _Metric extends StatelessWidget {
-  const _Metric({
-    required this.width,
-    required this.label,
-    required this.value,
+class _ReviewQueue extends StatelessWidget {
+  const _ReviewQueue({
+    required this.title,
+    required this.count,
     required this.icon,
-    this.primary = false,
+    required this.route,
+    required this.color,
   });
-  final double width;
-  final String label;
-  final String value;
+  final String title;
+  final int count;
   final IconData icon;
-  final bool primary;
+  final String route;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final color = primary ? AppColors.onPrimary : AppColors.onSurface;
-    return Container(
-      width: width,
-      constraints: const BoxConstraints(minHeight: 140),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: primary
-            ? AppColors.primaryContainer
-            : AppColors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(AppRadii.base),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.base),
+        onTap: () => context.push(route),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.sm),
+          child: Row(
             children: [
+              Icon(icon, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
               Expanded(
-                child: Text(label, style: TextStyle(color: color)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: AppSpacing.xxs),
+                    Text(
+                      count == 0
+                          ? 'Nothing awaiting review'
+                          : '$count awaiting review',
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(width: 4),
-              Icon(icon, color: color, size: 20),
+              const Icon(Icons.chevron_right),
             ],
           ),
-          const SizedBox(height: 24),
-          Text(
-            value,
-            style: TextStyle(
-              color: color,
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -97,7 +97,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
         _isSubmitting = true;
       });
       final role = _apiRole(_role);
-      await ref.read(groupsRepositoryProvider).addMember(
+      await ref
+          .read(groupsRepositoryProvider)
+          .addMember(
             activeGroup.id,
             AddMemberInput(
               fullName: fullName,
@@ -108,7 +110,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
             ),
           );
       if (!mounted) return;
-      ref.read(activeGroupProvider.notifier).setGroup(
+      ref
+          .read(activeGroupProvider.notifier)
+          .setGroup(
             GroupAccessSummary(
               id: activeGroup.id,
               name: activeGroup.name,
@@ -117,9 +121,9 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
               membersCount: activeGroup.membersCount + 1,
             ),
           );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Member invitation sent.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Member invitation sent.')));
       context.go('/members');
     } on Object catch (error) {
       if (!mounted) return;
@@ -170,8 +174,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                         const SizedBox(height: AppSpacing.md),
                         if (!canAddMembers) ...[
                           const AuthErrorMessage(
-                            message:
-                                'Only the group admin can add members and send invitations.',
+                            message: 'Only the group admin can add members and send invitations.',
                           ),
                           const SizedBox(height: AppSpacing.sm),
                         ],
@@ -219,7 +222,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
                             const SizedBox(height: AppSpacing.sm),
                             _MemberTextField(
                               label: 'Member Number',
-                              hint: 'Auto-generated if empty',
+                              hint: 'MBR-000001 (automatic if empty)',
                               controller: _memberNumberController,
                               onChanged: (_) => _clearError(),
                             ),

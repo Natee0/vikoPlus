@@ -71,14 +71,20 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
         _errorMessage = '';
         _isSubmitting = true;
       });
-      final result = await ref.read(groupsRepositoryProvider).inviteMembers(
+      final result = await ref
+          .read(groupsRepositoryProvider)
+          .inviteMembers(
             activeGroup.id,
-            InviteMembersInput(recipients: [recipient], role: _apiRole(_defaultRole)),
+            InviteMembersInput(
+              recipients: [recipient],
+              role: _apiRole(_defaultRole),
+            ),
           );
       if (!mounted) return;
       setState(
-        () => _latestInvitation =
-            result.invitations.isEmpty ? null : result.invitations.first,
+        () => _latestInvitation = result.invitations.isEmpty
+            ? null
+            : result.invitations.first,
       );
     } on Object catch (error) {
       if (!mounted) return;
@@ -165,7 +171,9 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                           onCopy: _copyInviteCode,
                         ),
                         const SizedBox(height: AppSpacing.sm),
-                        _InviteLinkCard(code: _latestInvitation?.invitationCode),
+                        _InviteLinkCard(
+                          code: _latestInvitation?.invitationCode,
+                        ),
                         const SizedBox(height: AppSpacing.sm),
                         const _QrCodeCard(),
                         const SizedBox(height: AppSpacing.md),
@@ -177,11 +185,18 @@ class _InviteMembersScreenState extends ConsumerState<InviteMembersScreen> {
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 )
-                              : const Icon(Icons.person_add_alt_outlined, size: 18),
+                              : const Icon(
+                                  Icons.person_add_alt_outlined,
+                                  size: 18,
+                                ),
                           label: Text(
-                            _isSubmitting ? 'Generating' : 'Generate Invitation',
+                            _isSubmitting
+                                ? 'Generating'
+                                : 'Generate Invitation',
                           ),
                         ),
                         const SizedBox(height: AppSpacing.sm),
@@ -379,8 +394,8 @@ class _InviteLinkCard extends StatelessWidget {
             onPressed: code == null
                 ? null
                 : () => Clipboard.setData(
-                      ClipboardData(text: 'https://vikoplus.app/join/$code'),
-                    ),
+                    ClipboardData(text: 'https://vikoplus.app/join/$code'),
+                  ),
             child: const Text('Copy'),
           ),
         ],

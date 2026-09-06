@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import '../../core/auth/profile_provider.dart';
+import '../common/profile_avatar.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -21,26 +25,23 @@ class MemberDashboardNewUserScreen extends ConsumerWidget {
 
     return VikoplusScreen(
       title: 'Member Portal',
-      actions: [
-        const AuthLogoutIconButton(),
-      ],
+      actions: [const AuthLogoutIconButton()],
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _CenteredHero(
             icon: Icons.group_add_outlined,
             title: 'Welcome to your group',
-            subtitle:
-                'Your membership is active. Start with your first contribution.',
+            subtitle: 'Your membership is active. Start with your first contribution.',
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             groupName,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
@@ -123,8 +124,9 @@ class MyContributionsScreen extends ConsumerWidget {
                       value: formatter.money(outstanding),
                       icon: Icons.pending_actions_outlined,
                       color: AppColors.error,
-                      backgroundColor:
-                          AppColors.errorContainer.withValues(alpha: 0.42),
+                      backgroundColor: AppColors.errorContainer.withValues(
+                        alpha: 0.42,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     const SectionHeader(title: 'Contribution History'),
@@ -244,8 +246,7 @@ class DuesArrearsScreen extends ConsumerWidget {
                     const SizedBox(height: AppSpacing.md),
                     const _InfoNotice(
                       title: 'Already paid?',
-                      message:
-                          'Notify the treasurer for a payment you have already sent. The treasurer will verify and update your record.',
+                      message: 'Notify the treasurer for a payment you have already sent. The treasurer will verify and update your record.',
                     ),
                     const SizedBox(height: AppSpacing.md),
                     FilledButton(
@@ -269,7 +270,9 @@ class MyProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authSessionProvider).user;
     final activeGroup = ref.watch(activeGroupProvider);
-    final displayName = user?.displayName?.trim();
+    final profile = ref.watch(profileProvider).asData?.value;
+    final displayName =
+        (profile?['displayName'] as String? ?? user?.displayName)?.trim();
     final memberName = displayName == null || displayName.isEmpty
         ? 'Member'
         : displayName;
@@ -281,10 +284,27 @@ class MyProfileScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _CenteredHero(
-            icon: Icons.person_outline,
-            title: memberName,
-            subtitle: '${_roleLabel(activeGroup?.role ?? 'MEMBER')} | ${activeGroup?.name ?? 'No group selected'}',
+          Center(
+            child: ProfileAvatar(
+              name: memberName,
+              url: profile?['profilePictureUrl'] as String?,
+              radius: 36,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            memberName,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          Text(
+            _roleLabel(activeGroup?.role ?? 'MEMBER'),
+            textAlign: TextAlign.center,
+          ),
+          TextButton.icon(
+            onPressed: () => context.push('/profile/complete'),
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('Manage profile'),
           ),
           const SizedBox(height: AppSpacing.md),
           _ProfileField(label: 'User ID', value: user?.id ?? 'Not signed in'),
@@ -296,7 +316,10 @@ class MyProfileScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.sm),
           _ProfileField(label: 'Group', value: activeGroup?.name ?? 'None'),
           const SizedBox(height: AppSpacing.sm),
-          _ProfileField(label: 'Status', value: activeGroup?.status ?? 'New user'),
+          _ProfileField(
+            label: 'Status',
+            value: activeGroup?.status ?? 'New user',
+          ),
         ],
       ),
     );
@@ -338,9 +361,9 @@ class _SelectContributionScreenState
       setState(() => _errorMessage = 'Select at least one contribution.');
       return;
     }
-    ref.read(selectedContributionPaymentProvider.notifier).set(
-          SelectedContributionPayment(obligations: selected),
-        );
+    ref
+        .read(selectedContributionPaymentProvider.notifier)
+        .set(SelectedContributionPayment(obligations: selected));
     context.go('/member/payments/method');
   }
 
@@ -369,10 +392,10 @@ class _SelectContributionScreenState
               message: 'Select a group before making a contribution.',
             ),
             const SizedBox(height: AppSpacing.md),
-                FilledButton(
-                  onPressed: () => context.go('/groups'),
-                  child: const Text('Choose Group'),
-                ),
+            FilledButton(
+              onPressed: () => context.go('/groups'),
+              child: const Text('Choose Group'),
+            ),
           ] else
             FutureBuilder<ContributionRegisterResult>(
               future: ref
@@ -553,7 +576,9 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
   Future<void> _submit() async {
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) {
-      setState(() => _errorMessage = 'Select a group before submitting payment.');
+      setState(
+        () => _errorMessage = 'Select a group before submitting payment.',
+      );
       return;
     }
     final selectedPayment = ref.read(selectedContributionPaymentProvider);
@@ -570,7 +595,9 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
     });
 
     try {
-      final payment = await ref.read(groupsRepositoryProvider).submitPaymentRequest(
+      final payment = await ref
+          .read(groupsRepositoryProvider)
+          .submitPaymentRequest(
             activeGroup.id,
             SubmitPaymentRequestInput(
               amountMinor: selectedPayment.amountMinor,
@@ -584,9 +611,7 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
       final successRoute = selectedPayment.method.toLowerCase().contains('cash')
           ? '/member/payments/success/cash'
           : '/member/payments/success/mobile-money';
-      context.go(
-        '$successRoute?paymentId=${Uri.encodeComponent(payment.id)}',
-      );
+      context.go('$successRoute?paymentId=${Uri.encodeComponent(payment.id)}');
     } catch (_) {
       if (!mounted) return;
       setState(
@@ -621,8 +646,7 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
                 ? Icons.payments_outlined
                 : Icons.phone_android_outlined,
             title: isCash ? 'Cash payment' : method,
-            subtitle:
-                'Submit this contribution for treasurer verification.',
+            subtitle: 'Submit this contribution for treasurer verification.',
             compact: true,
           ),
           const SizedBox(height: AppSpacing.md),

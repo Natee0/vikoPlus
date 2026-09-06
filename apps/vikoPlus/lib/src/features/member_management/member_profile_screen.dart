@@ -10,6 +10,7 @@ import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
+import '../common/profile_avatar.dart';
 
 class MemberProfileScreen extends ConsumerWidget {
   const MemberProfileScreen({this.memberId, super.key});
@@ -180,29 +181,11 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
         .join(' ');
   }
 
-  String _initials(String fullName) {
-    final initials = fullName
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part[0].toUpperCase())
-        .join();
-    return initials.isEmpty ? 'M' : initials;
-  }
-
   @override
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: 'Member Profile',
       backRoute: '/members',
-      actions: [
-        if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN')
-          IconButton(
-            onPressed: _isAssigningRole ? null : () {},
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit member',
-          ),
-      ],
       onRefresh: _refresh,
       child: FutureBuilder<GroupMemberSummary>(
         future: _memberFuture,
@@ -241,7 +224,11 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                 padding: AppInsets.card,
                 child: Column(
                   children: [
-                    InitialsAvatar(initials: _initials(member.fullName)),
+                    ProfileAvatar(
+                      name: member.fullName,
+                      url: member.profilePictureUrl,
+                      radius: 36,
+                    ),
                     const SizedBox(height: AppSpacing.sm),
                     Text(
                       member.fullName,
@@ -301,13 +288,14 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                 label: const Text('Send Reminder'),
               ),
               const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
-                onPressed: () => context.go(
-                  '/contributions/record/details?memberId=${Uri.encodeComponent(member.id)}',
+              if (ref.watch(activeGroupProvider)?.role == 'TREASURER')
+                OutlinedButton.icon(
+                  onPressed: () => context.go(
+                    '/contributions/record/details?memberId=${Uri.encodeComponent(member.id)}',
+                  ),
+                  icon: const Icon(Icons.payments_outlined),
+                  label: const Text('Record Payment'),
                 ),
-                icon: const Icon(Icons.payments_outlined),
-                label: const Text('Record Payment'),
-              ),
             ],
           );
         },

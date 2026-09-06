@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../common/profile_avatar.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -205,18 +208,16 @@ class _EmptyGroupsCard extends StatelessWidget {
           Text(
             'No groups yet',
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w800,
-                ),
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.w800,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
             'Create a group or join one with an invitation code.',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onSurfaceVariant,
-                  height: 1.35,
-                ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.35),
           ),
         ],
       ),
@@ -262,7 +263,11 @@ class _GroupAccessCard extends StatelessWidget {
                   color: accent.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: accent),
+                child: ProfileAvatar(
+                  name: group.name,
+                  url: group.logoUrl,
+                  radius: 26,
+                ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(

@@ -25,6 +25,12 @@ export class UpdateLanguageDto {
   locale!: "en" | "sw";
 }
 
+export class UpdateProfileDto {
+  @IsString()
+  @Length(2, 100)
+  displayName!: string;
+}
+
 export class CreateGroupDto {
   @IsString()
   @IsNotEmpty()

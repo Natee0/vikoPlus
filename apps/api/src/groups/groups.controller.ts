@@ -37,6 +37,7 @@ import {
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
   UpdateLanguageDto,
+  UpdateProfileDto,
 } from "./dto/group.dto";
 
 @ApiBearerAuth()
@@ -44,6 +45,20 @@ import {
 @Controller({ path: "", version: "1" })
 export class GroupsController {
   constructor(private readonly groups: GroupsService) {}
+
+  @Get("me/profile")
+  profile(@CurrentUser() user: AuthenticatedUser) {
+    return this.groups.profile(user);
+  }
+
+  @Patch("me/profile")
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  updateProfile(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: UpdateProfileDto,
+  ) {
+    return this.groups.updateProfile(user, body.displayName);
+  }
 
   @Patch("me/language")
   @Throttle({ default: { limit: 30, ttl: 60000, blockDuration: 60000 } })

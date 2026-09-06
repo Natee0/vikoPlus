@@ -7,6 +7,7 @@ import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'vikoplus_design_widgets.dart';
+import 'profile_avatar.dart';
 
 class VikoplusScreen extends ConsumerWidget {
   const VikoplusScreen({
@@ -73,6 +74,15 @@ class VikoplusScreen extends ConsumerWidget {
             if (title != null)
               VikoplusTopBar(
                 title: title!,
+                leading: title == activeGroup?.name
+                    ? Center(
+                        child: ProfileAvatar(
+                          name: activeGroup!.name,
+                          url: activeGroup.logoUrl,
+                          radius: 18,
+                        ),
+                      )
+                    : null,
                 onBack: shouldShowBack
                     ? () => _goBack(
                         context,

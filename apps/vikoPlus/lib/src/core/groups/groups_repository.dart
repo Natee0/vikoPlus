@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/api_client.dart';
 import '../auth/auth_session.dart';
+import 'contribution_report_details.dart';
 
 final groupsRepositoryProvider = Provider<GroupsRepository>((ref) {
   return GroupsRepository(ref.watch(apiClientProvider));
@@ -13,10 +14,11 @@ final activeGroupProvider =
       ActiveGroupNotifier.new,
     );
 
-final selectedContributionPaymentProvider = NotifierProvider<
-    SelectedContributionPaymentNotifier, SelectedContributionPayment?>(
-  SelectedContributionPaymentNotifier.new,
-);
+final selectedContributionPaymentProvider =
+    NotifierProvider<
+      SelectedContributionPaymentNotifier,
+      SelectedContributionPayment?
+    >(SelectedContributionPaymentNotifier.new);
 
 class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
   @override
@@ -52,17 +54,47 @@ class SelectedContributionPaymentNotifier
 }
 
 class GroupsRepository {
+  Future<List<Map<String, dynamic>>> reminderCampaigns(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/reminders/campaigns',
+    );
+    final raw = response.data!;
+    final body = raw['data'] is Map
+        ? Map<String, dynamic>.from(raw['data'] as Map)
+        : raw;
+    return (body['campaigns'] as List? ?? [])
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+
   const GroupsRepository(this._dio);
 
   final Dio _dio;
 
   Future<Map<String, dynamic>> paymentRules(String groupId) async {
-    final response = await _dio.get<Map<String, dynamic>>('/groups/$groupId/payment-rules');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/payment-rules',
+    );
     return _responseBody(response.data);
   }
 
-  Future<void> savePaymentRules(String groupId, {required bool allowsPartial, required bool penaltiesEnabled, required int penaltyAmountMinor, required int graceDays}) async {
-    await _dio.put<void>('/groups/$groupId/payment-rules', data: {'allowsPartial': allowsPartial, 'penaltiesEnabled': penaltiesEnabled, 'penaltyAmountMinor': penaltyAmountMinor, 'graceDays': graceDays});
+  Future<void> savePaymentRules(
+    String groupId, {
+    required bool allowsPartial,
+    required bool penaltiesEnabled,
+    required int penaltyAmountMinor,
+    required int graceDays,
+  }) async {
+    await _dio.put<void>(
+      '/groups/$groupId/payment-rules',
+      data: {
+        'allowsPartial': allowsPartial,
+        'penaltiesEnabled': penaltiesEnabled,
+        'penaltyAmountMinor': penaltyAmountMinor,
+        'graceDays': graceDays,
+      },
+    );
   }
 
   Future<CreateGroupResult> createGroup(CreateGroupInput input) async {
@@ -132,7 +164,9 @@ class GroupsRepository {
   }
 
   Future<Map<String, dynamic>> reminderSettings(String groupId) async {
-    final response = await _dio.get<Map<String, dynamic>>('/groups/$groupId/reminder-settings');
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/reminder-settings',
+    );
     return _responseBody(response.data);
   }
 
@@ -151,9 +185,7 @@ class GroupsRepository {
       '/groups/$groupId/reminder-packages/checkout',
       data: input.toJson(),
     );
-    return ReminderPackageCheckoutResult.fromJson(
-      _responseBody(response.data),
-    );
+    return ReminderPackageCheckoutResult.fromJson(_responseBody(response.data));
   }
 
   Future<SendReminderResult> sendReminder(
@@ -462,11 +494,13 @@ class MyGroupsResult {
     return MyGroupsResult(
       groups: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => GroupAccessSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => GroupAccessSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -481,6 +515,7 @@ class GroupAccessSummary {
     required this.role,
     required this.status,
     required this.membersCount,
+    this.logoUrl,
   });
 
   factory GroupAccessSummary.fromJson(Map<String, dynamic> json) {
@@ -490,6 +525,7 @@ class GroupAccessSummary {
       role: json['role'] as String? ?? 'MEMBER',
       status: json['status'] as String? ?? 'ACTIVE',
       membersCount: json['membersCount'] as int? ?? 0,
+      logoUrl: json['logoUrl'] as String?,
     );
   }
 
@@ -498,6 +534,7 @@ class GroupAccessSummary {
   final String role;
   final String status;
   final int membersCount;
+  final String? logoUrl;
 }
 
 class JoinGroupPreview {
@@ -603,11 +640,13 @@ class GroupFinancialYearsResult {
       groupId: _requiredString(json, 'groupId'),
       financialYears: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => GroupFinancialYearSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => GroupFinancialYearSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -687,7 +726,12 @@ class ContributionSettingsInput {
 }
 
 class ReminderSettingsInput {
-  const ReminderSettingsInput({this.dueReminderTemplate, this.enabled = false, this.offsets = const [-3, 0], this.locale = 'en'});
+  const ReminderSettingsInput({
+    this.dueReminderTemplate,
+    this.enabled = false,
+    this.offsets = const [-3, 0],
+    this.locale = 'en',
+  });
 
   final bool enabled;
   final List<int> offsets;
@@ -770,11 +814,13 @@ class ReminderPackagesResult {
     return ReminderPackagesResult(
       packages: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => ReminderPackageSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => ReminderPackageSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -933,11 +979,13 @@ class GroupMembersResult {
     return GroupMembersResult(
       members: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => GroupMemberSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => GroupMemberSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -955,6 +1003,8 @@ class GroupMemberSummary {
     this.phone,
     this.email,
     this.userId,
+    this.profilePictureUrl,
+    this.outstandingMinor = 0,
   });
 
   factory GroupMemberSummary.fromJson(Map<String, dynamic> json) {
@@ -967,6 +1017,8 @@ class GroupMemberSummary {
       phone: json['phone'] as String?,
       email: json['email'] as String?,
       userId: json['userId'] as String?,
+      profilePictureUrl: json['profilePictureUrl'] as String?,
+      outstandingMinor: json['outstandingMinor'] as int? ?? 0,
     );
   }
 
@@ -978,6 +1030,8 @@ class GroupMemberSummary {
   final String? phone;
   final String? email;
   final String? userId;
+  final String? profilePictureUrl;
+  final int outstandingMinor;
 }
 
 class HistoricalPaymentInput {
@@ -1092,11 +1146,13 @@ class ContributionRegisterResult {
       groupId: _requiredString(json, 'groupId'),
       obligations: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => ContributionObligationSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => ContributionObligationSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -1125,8 +1181,7 @@ class ContributionObligationSummary {
     final member = json['member'];
     final plan = json['plan'];
     final period = json['period'];
-    final memberJson =
-        member is Map ? Map<String, dynamic>.from(member) : null;
+    final memberJson = member is Map ? Map<String, dynamic>.from(member) : null;
     final planJson = plan is Map ? Map<String, dynamic>.from(plan) : null;
     final periodJson = period is Map ? Map<String, dynamic>.from(period) : null;
 
@@ -1172,9 +1227,9 @@ class SelectedContributionPayment {
   final String method;
 
   int get amountMinor => obligations.fold(
-        0,
-        (total, obligation) => total + obligation.outstandingMinor,
-      );
+    0,
+    (total, obligation) => total + obligation.outstandingMinor,
+  );
 
   List<String> get obligationIds =>
       obligations.map((obligation) => obligation.id).toList();
@@ -1189,6 +1244,8 @@ class SelectedContributionPayment {
 
 class ContributionReportResult {
   const ContributionReportResult({
+    this.register = const [],
+    this.rates = const [],
     required this.membersCount,
     required this.totalPaidMinor,
     required this.totalOutstandingMinor,
@@ -1202,6 +1259,20 @@ class ContributionReportResult {
     final periodItems = json['periodTotals'];
     final memberItems = json['memberAnalysis'];
     return ContributionReportResult(
+      register: (json['register'] as List? ?? [])
+          .map(
+            (item) => ContributionRegisterCell.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(),
+      rates: (json['rates'] as List? ?? [])
+          .map(
+            (item) => ContributionReportRate.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ),
+          )
+          .toList(),
       membersCount: json['membersCount'] as int? ?? 0,
       totalPaidMinor: json['totalPaidMinor'] as int? ?? 0,
       totalOutstandingMinor: json['totalOutstandingMinor'] as int? ?? 0,
@@ -1209,19 +1280,23 @@ class ContributionReportResult {
       recurringPaidMinor: json['recurringPaidMinor'] as int? ?? 0,
       periodTotals: periodItems is List
           ? periodItems
-              .whereType<Map>()
-              .map((item) => ContributionPeriodTotal.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => ContributionPeriodTotal.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
       memberAnalysis: memberItems is List
           ? memberItems
-              .whereType<Map>()
-              .map((item) => MemberContributionAnalysis.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => MemberContributionAnalysis.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -1233,6 +1308,8 @@ class ContributionReportResult {
   final int recurringPaidMinor;
   final List<ContributionPeriodTotal> periodTotals;
   final List<MemberContributionAnalysis> memberAnalysis;
+  final List<ContributionRegisterCell> register;
+  final List<ContributionReportRate> rates;
 }
 
 class ContributionReportExportResult {
@@ -1325,11 +1402,13 @@ class ContributionPaymentsResult {
     return ContributionPaymentsResult(
       payments: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => ContributionPaymentSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => ContributionPaymentSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -1360,10 +1439,10 @@ class ContributionPaymentSummary {
   factory ContributionPaymentSummary.fromJson(Map<String, dynamic> json) {
     final member = json['member'];
     final receipt = json['receipt'];
-    final memberJson =
-        member is Map ? Map<String, dynamic>.from(member) : null;
-    final receiptJson =
-        receipt is Map ? Map<String, dynamic>.from(receipt) : null;
+    final memberJson = member is Map ? Map<String, dynamic>.from(member) : null;
+    final receiptJson = receipt is Map
+        ? Map<String, dynamic>.from(receipt)
+        : null;
 
     return ContributionPaymentSummary(
       id: _requiredString(json, 'id'),
@@ -1381,8 +1460,9 @@ class ContributionPaymentSummary {
       createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
       correctionMessage: json['correctionMessage'] as String?,
       reversalReason: json['reversalReason'] as String?,
-      receipt:
-          receiptJson == null ? null : ReceiptSummary.fromJson(receiptJson),
+      receipt: receiptJson == null
+          ? null
+          : ReceiptSummary.fromJson(receiptJson),
     );
   }
 
@@ -1418,8 +1498,9 @@ class ReceiptSummary {
 
   factory ReceiptSummary.fromJson(Map<String, dynamic> json) {
     final payment = json['payment'];
-    final paymentJson =
-        payment is Map ? Map<String, dynamic>.from(payment) : null;
+    final paymentJson = payment is Map
+        ? Map<String, dynamic>.from(payment)
+        : null;
 
     return ReceiptSummary(
       id: _requiredString(json, 'id'),
@@ -1464,10 +1545,7 @@ class AddMemberInput {
     final memberNumberValue = _nonEmpty(memberNumber);
     final phoneValue = _nonEmpty(phone);
     final emailValue = _nonEmpty(email);
-    final json = <String, dynamic>{
-      'fullName': fullName.trim(),
-      'role': role,
-    };
+    final json = <String, dynamic>{'fullName': fullName.trim(), 'role': role};
     if (memberNumberValue != null) json['memberNumber'] = memberNumberValue;
     if (phoneValue != null) json['phone'] = phoneValue;
     if (emailValue != null) json['email'] = emailValue;
@@ -1493,10 +1571,7 @@ class InviteMembersInput {
 }
 
 class InviteMembersResult {
-  const InviteMembersResult({
-    required this.groupId,
-    required this.invitations,
-  });
+  const InviteMembersResult({required this.groupId, required this.invitations});
 
   factory InviteMembersResult.fromJson(Map<String, dynamic> json) {
     final items = json['invitations'];
@@ -1504,11 +1579,13 @@ class InviteMembersResult {
       groupId: _requiredString(json, 'groupId'),
       invitations: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => MemberInvitation.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => MemberInvitation.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -1551,11 +1628,13 @@ class NotificationsResult {
     return NotificationsResult(
       notifications: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => NotificationSummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => NotificationSummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }
@@ -1599,11 +1678,13 @@ class AuditLogResult {
     return AuditLogResult(
       entries: items is List
           ? items
-              .whereType<Map>()
-              .map((item) => AuditLogEntrySummary.fromJson(
+                .whereType<Map>()
+                .map(
+                  (item) => AuditLogEntrySummary.fromJson(
                     Map<String, dynamic>.from(item),
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : const [],
     );
   }

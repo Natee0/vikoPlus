@@ -40,7 +40,28 @@ export class MemberContributionAnalysisDto {
   percentageOfGroupTotal!: number;
 }
 
+export class ContributionRegisterCellDto {
+  @ApiProperty() memberId!: string;
+  @ApiProperty() periodKey!: string;
+  @ApiProperty() label!: string;
+  @ApiProperty() sortOrder!: number;
+  @ApiProperty() paidMinor!: number;
+}
+
+export class ContributionRateDto {
+  @ApiProperty() name!: string;
+  @ApiProperty() type!: string;
+  @ApiProperty() frequency!: string;
+  @ApiProperty() amountMinor!: number;
+  @ApiProperty() currency!: string;
+}
+
 export class ContributionReportDto {
+  @ApiProperty({ type: [ContributionRegisterCellDto] })
+  register!: ContributionRegisterCellDto[];
+
+  @ApiProperty({ type: [ContributionRateDto] })
+  rates!: ContributionRateDto[];
   @ApiProperty()
   membersCount!: number;
 

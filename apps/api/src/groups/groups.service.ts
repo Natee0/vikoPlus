@@ -27,6 +27,7 @@ import {
 } from "@prisma/client";
 import type { GroupMember, Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
+import { ConfigService } from "@nestjs/config";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
@@ -102,7 +103,44 @@ export class GroupsService {
     private readonly briq: BriqMessagingService,
     private readonly email: SmtpEmailService,
     private readonly reminderDispatch: ReminderDispatchService,
+    private readonly config: ConfigService = new ConfigService(),
   ) {}
+
+  private imageUrl(key: string | null): string | null {
+    const cloud = this.config.get<string>("CLOUDINARY_CLOUD_NAME");
+    return key && cloud
+      ? `https://res.cloudinary.com/${encodeURIComponent(cloud)}/image/upload/${key.split("/").map(encodeURIComponent).join("/")}`
+      : null;
+  }
+
+  async profile(user: AuthenticatedUser) {
+    const profile = await this.prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: {
+        id: true,
+        displayName: true,
+        profilePictureObjectKey: true,
+        identities: {
+          where: { isVerified: true },
+          select: { type: true, value: true },
+        },
+      },
+    });
+    return {
+      ...profile,
+      profilePictureUrl: this.imageUrl(profile.profilePictureObjectKey),
+    };
+  }
+
+  async updateProfile(user: AuthenticatedUser, name: string) {
+    if (name.trim().length < 2)
+      throw new BadRequestException("Enter your full name.");
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { displayName: name.trim() },
+    });
+    return this.profile(user);
+  }
 
   async updateLanguage(user: AuthenticatedUser, input: UpdateLanguageDto) {
     const updated = await this.prisma.user.update({
@@ -215,6 +253,7 @@ export class GroupsService {
         role: membership.role,
         status: membership.status,
         membersCount: membership.group._count.members,
+        logoUrl: this.imageUrl(membership.group.logoObjectKey),
       })),
     };
   }
@@ -686,8 +725,28 @@ export class GroupsService {
     const members = await this.prisma.groupMember.findMany({
       where: { groupId },
       orderBy: [{ fullName: "asc" }],
+      include: {
+        user: { select: { displayName: true, profilePictureObjectKey: true } },
+        obligations: {
+          where: { status: { not: "WAIVED" } },
+          select: { amountDueMinor: true, amountPaidMinor: true },
+        },
+      },
     });
-    return { members };
+    return {
+      members: members.map((member) => ({
+        ...member,
+        fullName: member.user?.displayName ?? member.fullName,
+        profilePictureUrl: this.imageUrl(
+          member.user?.profilePictureObjectKey ?? null,
+        ),
+        outstandingMinor: member.obligations.reduce(
+          (sum, due) =>
+            sum + Math.max(0, due.amountDueMinor - due.amountPaidMinor),
+          0,
+        ),
+      })),
+    };
   }
 
   async addMember(
@@ -702,7 +761,14 @@ export class GroupsService {
       where: { id: groupId },
     });
     const fullName = input.fullName.trim();
-    const memberNumber = this.optionalTrim(input.memberNumber);
+    const requestedNumber = this.optionalTrim(
+      input.memberNumber,
+    )?.toUpperCase();
+    if (requestedNumber && !/^MBR-[0-9]{6}$/.test(requestedNumber)) {
+      throw new BadRequestException(
+        "Use member number format MBR-000001, or leave it empty.",
+      );
+    }
     const rawPhone = this.optionalTrim(input.phone);
     const phone = rawPhone ? this.normalizePhone(rawPhone) : null;
     const email = this.optionalTrim(input.email)?.toLowerCase() ?? null;
@@ -720,6 +786,28 @@ export class GroupsService {
     const token = randomBytes(18).toString("base64url");
     const { member, invitation } = await this.prisma.$transaction(
       async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${groupId}))`;
+        const numbers = await tx.groupMember.findMany({
+          where: { groupId },
+          select: { memberNumber: true },
+        });
+        const next =
+          numbers.reduce(
+            (max, item) =>
+              /^MBR-[0-9]{6}$/.test(item.memberNumber ?? "")
+                ? Math.max(max, Number(item.memberNumber!.slice(4)))
+                : max,
+            0,
+          ) + 1;
+        if (!requestedNumber && next > 999999)
+          throw new BadRequestException("Member number range exhausted.");
+        const memberNumber =
+          requestedNumber ?? `MBR-${String(next).padStart(6, "0")}`;
+        if (numbers.some((item) => item.memberNumber === memberNumber)) {
+          throw new ConflictException(
+            "This member number is already used in the group.",
+          );
+        }
         const createdMember = await tx.groupMember.create({
           data: {
             groupId,
@@ -823,12 +911,19 @@ export class GroupsService {
     const member = await this.prisma.groupMember.findFirst({
       where: { id: memberId, groupId },
       include: {
+        user: { select: { displayName: true, profilePictureObjectKey: true } },
         obligations: true,
         payments: { orderBy: { createdAt: "desc" } },
       },
     });
     if (!member) throw new NotFoundException("Member not found.");
-    return member;
+    return {
+      ...member,
+      fullName: member.user?.displayName ?? member.fullName,
+      profilePictureUrl: this.imageUrl(
+        member.user?.profilePictureObjectKey ?? null,
+      ),
+    };
   }
 
   async assignRole(

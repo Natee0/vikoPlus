@@ -6,6 +6,13 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/auth/profile_provider.dart';
+import '../../core/auth/auth_session.dart';
+import '../../core/auth/auth_secure_storage.dart';
+import '../common/profile_avatar.dart';
+import '../../core/api/api_client.dart';
+import '../../routing/portal_route_guard.dart';
+import '../../core/groups/groups_repository.dart';
 import '../../core/uploads/uploads_repository.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -20,6 +27,54 @@ class CompleteProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
+  final _name = TextEditingController();
+  bool _loaded = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() {
+      _saving = true;
+      _errorMessage = '';
+    });
+    try {
+      await ref
+          .read(apiClientProvider)
+          .patch<void>('/me/profile', data: {'displayName': _name.text.trim()});
+      final session = ref.read(authSessionProvider);
+      if (session.user != null) {
+        final user = AuthUser.fromJson({
+          ...session.user!.toJson(),
+          'displayName': _name.text.trim(),
+        });
+        ref
+            .read(authSessionProvider.notifier)
+            .setAuthenticated(
+              accessToken: session.accessToken!,
+              refreshToken: session.refreshToken!,
+              user: user,
+            );
+        await ref
+            .read(authSecureStorageProvider)
+            .saveSession(ref.read(authSessionProvider));
+      }
+      ref.invalidate(profileProvider);
+      if (mounted) context.go(portalMoreRoute(ref.read(activeGroupProvider)));
+    } catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = AuthFailure.from(error).message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   String? _localImagePath;
   String? _profileImageUrl;
   String _errorMessage = '';
@@ -41,10 +96,12 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       _isUploading = true;
     });
     try {
-      final uploaded =
-          await ref.read(uploadsRepositoryProvider).uploadProfilePicture(image);
+      final uploaded = await ref
+          .read(uploadsRepositoryProvider)
+          .uploadProfilePicture(image);
       if (!mounted) return;
       setState(() => _profileImageUrl = uploaded.url);
+      ref.invalidate(profileProvider);
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = AuthFailure.from(error).message);
@@ -57,6 +114,13 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final profile = ref.watch(profileProvider);
+    final data = profile.asData?.value;
+    if (!_loaded && data != null) {
+      _name.text = data['displayName'] as String? ?? '';
+      _profileImageUrl = data['profilePictureUrl'] as String?;
+      _loaded = true;
+    }
     return VikoplusScreen(
       title: 'Complete Profile',
       backRoute: '/more',
@@ -69,6 +133,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
               localImagePath: _localImagePath,
               isUploading: _isUploading,
               onTap: _pickProfilePicture,
+              name: _name.text,
             ),
           ),
           if (_errorMessage.isNotEmpty) ...[
@@ -77,36 +142,29 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
               _errorMessage,
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppColors.error,
-                    fontWeight: FontWeight.w700,
-                  ),
+                color: AppColors.error,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
           const SizedBox(height: AppSpacing.md),
-          const TextField(
-            decoration: InputDecoration(
+          TextField(
+            controller: _name,
+            decoration: const InputDecoration(
               labelText: 'Full name',
               prefixIcon: Icon(Icons.person_outline),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
-            decoration: InputDecoration(
-              labelText: 'Phone number',
-              prefixIcon: Icon(Icons.phone_outlined),
+          for (final identity in (data?['identities'] as List? ?? []))
+            ListTile(
+              title: Text('${identity['value']}'),
+              subtitle: Text('Verified ${identity['type']}'),
             ),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          const TextField(
-            decoration: InputDecoration(
-              labelText: 'Email address',
-              prefixIcon: Icon(Icons.mail_outline),
-            ),
-          ),
           const SizedBox(height: AppSpacing.md),
           FilledButton(
-            onPressed: _isUploading ? null : () => context.go('/more'),
-            child: const Text('Save Profile'),
+            onPressed: _isUploading || _saving || !_loaded ? null : _save,
+            child: Text(_saving ? 'Saving...' : 'Save Profile'),
           ),
         ],
       ),
@@ -118,11 +176,13 @@ class _ProfilePhotoUploader extends StatelessWidget {
   const _ProfilePhotoUploader({
     required this.isUploading,
     required this.onTap,
+    required this.name,
     this.imageUrl,
     this.localImagePath,
   });
 
   final bool isUploading;
+  final String name;
   final VoidCallback onTap;
   final String? imageUrl;
   final String? localImagePath;
@@ -156,16 +216,8 @@ class _ProfilePhotoUploader extends StatelessWidget {
                 children: [
                   if (hasLocalPreview)
                     Image.file(File(localPath), fit: BoxFit.cover)
-                  else if (hasRemotePreview)
-                    Image.network(imageUrl!, fit: BoxFit.cover)
                   else
-                    const Center(
-                      child: Icon(
-                        Icons.add_a_photo_outlined,
-                        color: AppColors.primary,
-                        size: 40,
-                      ),
-                    ),
+                    ProfileAvatar(name: name, url: imageUrl, radius: 48),
                   if (isUploading)
                     const ColoredBox(
                       color: Color(0x66000000),
@@ -187,9 +239,7 @@ class _ProfilePhotoUploader extends StatelessWidget {
           hasLocalPreview || hasRemotePreview
               ? 'Change Profile Photo'
               : 'Upload Profile Photo',
-          style: Theme.of(context)
-              .textTheme
-              .labelMedium
+          style: Theme.of(context).textTheme.labelMedium
               ?.copyWith(color: AppColors.onSurfaceVariant),
         ),
       ],

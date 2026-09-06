@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-final contributionReportFiltersProvider = NotifierProvider<
-    ContributionReportFiltersNotifier, ContributionReportFilters>(
-  ContributionReportFiltersNotifier.new,
-);
+final contributionReportFiltersProvider =
+    NotifierProvider<
+      ContributionReportFiltersNotifier,
+      ContributionReportFilters
+    >(ContributionReportFiltersNotifier.new);
 
 enum ContributionReportMemberStatus {
   all('All members'),
@@ -16,7 +17,8 @@ enum ContributionReportMemberStatus {
 }
 
 enum ContributionReportExportFormat {
-  csv('CSV', 'csv');
+  csv('CSV', 'csv'),
+  pdf('PDF', 'pdf');
 
   const ContributionReportExportFormat(this.label, this.apiValue);
 

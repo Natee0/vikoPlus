@@ -24,6 +24,7 @@ class VikoplusTopBar extends StatelessWidget {
     required this.title,
     this.onBack,
     this.trailing,
+    this.leading,
     this.showBorder = true,
     this.trailingWidth = AppSizes.iconButton,
     super.key,
@@ -32,6 +33,7 @@ class VikoplusTopBar extends StatelessWidget {
   final String title;
   final VoidCallback? onBack;
   final Widget? trailing;
+  final Widget? leading;
   final bool showBorder;
   final double trailingWidth;
 
@@ -51,7 +53,7 @@ class VikoplusTopBar extends StatelessWidget {
             width: AppSizes.iconButton,
             height: AppSizes.iconButton,
             child: onBack == null
-                ? null
+                ? leading
                 : IconButton(
                     tooltip: 'Back',
                     onPressed: onBack,

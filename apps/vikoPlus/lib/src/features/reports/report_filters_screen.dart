@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +13,7 @@ import '../../core/groups/groups_repository.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
+import 'contribution_report_pdf.dart';
 
 class ReportFiltersScreen extends ConsumerStatefulWidget {
   const ReportFiltersScreen({super.key});
@@ -37,7 +42,9 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
   }
 
   void _apply(GroupFinancialYearSummary selectedYear) {
-    ref.read(contributionReportFiltersProvider.notifier).update(
+    ref
+        .read(contributionReportFiltersProvider.notifier)
+        .update(
           ContributionReportFilters(
             financialYearId: selectedYear.id,
             financialYearLabel: _yearLabel(selectedYear),
@@ -53,7 +60,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
     context.go('/reports');
   }
 
-  Future<void> _copyExport(
+  Future<void> _exportFile(
     String groupId,
     GroupFinancialYearSummary selectedYear,
   ) async {
@@ -64,18 +71,50 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
         _errorMessage = '';
         _isExporting = true;
       });
-      final export = await ref
-          .read(groupsRepositoryProvider)
-          .exportContributionReport(
-            groupId,
-            financialYearId: selectedYear.id,
-            memberStatus: _memberStatus.name,
-            format: _exportFormat.apiValue,
-          );
-      await Clipboard.setData(ClipboardData(text: export.content));
+      final format = _exportFormat;
+      final status = _memberStatus;
+      final groupName = ref.read(activeGroupProvider)?.name ?? '';
+      final locale = Localizations.localeOf(context).languageCode;
+      final box = context.findRenderObject() as RenderBox?;
+      final origin = box == null
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+      late Uint8List bytes;
+      late String fileName;
+      late String mimeType;
+      if (format == ContributionReportExportFormat.pdf) {
+        final report = await ref
+            .read(groupsRepositoryProvider)
+            .contributionReport(groupId, financialYearId: selectedYear.id);
+        bytes = await buildContributionReportPdf(
+          report: report,
+          groupName: groupName,
+          year: selectedYear.name,
+          memberStatus: status,
+          locale: locale,
+        );
+        fileName = 'contributions-${selectedYear.id}.pdf';
+        mimeType = 'application/pdf';
+      } else {
+        final export = await ref
+            .read(groupsRepositoryProvider)
+            .exportContributionReport(
+              groupId,
+              financialYearId: selectedYear.id,
+              memberStatus: status.name,
+              format: 'csv',
+            );
+        bytes = Uint8List.fromList(utf8.encode('\uFEFF${export.content}'));
+        fileName = export.fileName;
+        mimeType = 'text/csv';
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${export.fileName} copied to clipboard.')),
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile.fromData(bytes, mimeType: mimeType)],
+          fileNameOverrides: [fileName],
+          sharePositionOrigin: origin,
+        ),
       );
     } on Object catch (error) {
       if (!mounted) return;
@@ -153,6 +192,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       key: ValueKey(selectedYear.id),
                       initialValue: selectedYear.id,
                       decoration: const InputDecoration(
@@ -163,7 +203,11 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                         for (final year in years)
                           DropdownMenuItem(
                             value: year.id,
-                            child: Text(_yearLabel(year)),
+                            child: Text(
+                              _yearLabel(year),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (value) {
@@ -179,6 +223,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     DropdownButtonFormField<ContributionReportMemberStatus>(
+                      isExpanded: true,
                       initialValue: _memberStatus,
                       decoration: const InputDecoration(
                         labelText: 'Member status',
@@ -189,7 +234,11 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                             in ContributionReportMemberStatus.values)
                           DropdownMenuItem(
                             value: status,
-                            child: Text(status.label),
+                            child: Text(
+                              status.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (value) {
@@ -199,6 +248,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     DropdownButtonFormField<ContributionReportExportFormat>(
+                      isExpanded: true,
                       initialValue: _exportFormat,
                       decoration: const InputDecoration(
                         labelText: 'Export format',
@@ -209,7 +259,11 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                             in ContributionReportExportFormat.values)
                           DropdownMenuItem(
                             value: format,
-                            child: Text(format.label),
+                            child: Text(
+                              format.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                       ],
                       onChanged: (value) {
@@ -230,15 +284,15 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     FilledButton.icon(
                       onPressed: _isExporting
                           ? null
-                          : () => _copyExport(activeGroup.id, selectedYear),
+                          : () => _exportFile(activeGroup.id, selectedYear),
                       icon: _isExporting
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.copy_outlined, size: 18),
-                      label: Text(_isExporting ? 'Preparing' : 'Copy Export'),
+                          : const Icon(Icons.file_download_outlined, size: 18),
+                      label: Text(_isExporting ? 'Preparing' : 'Export report'),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton.icon(

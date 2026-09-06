@@ -413,19 +413,40 @@ class LoanApplicationsScreen extends ConsumerWidget {
       future: ref.watch(loansRepositoryProvider).applications(group.id),
       onRefresh: () => ref.read(loansRepositoryProvider).applications(group.id),
       builder: (context, result) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _LoanReviewFilters(total: result.applications.length),
-            const SizedBox(height: AppSpacing.md),
-            if (result.applications.isEmpty)
-              const _EmptyApplicationsCard()
-            else
-              for (final application in result.applications) ...[
-                _LoanApplicationCard(application: application),
-                const SizedBox(height: AppSpacing.sm),
+        var selected = 0;
+        return StatefulBuilder(
+          builder: (context, setFilter) {
+            final applications = result.applications
+                .where(
+                  (item) =>
+                      selected == 0 ||
+                      (item.status == 'SUBMITTED' &&
+                          (selected == 1
+                              ? item.guarantorSummary.confirmed >=
+                                    item.guarantorSummary.required
+                              : item.guarantorSummary.confirmed <
+                                    item.guarantorSummary.required)),
+                )
+                .toList();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _LoanReviewFilters(
+                  total: result.applications.length,
+                  selected: selected,
+                  onChanged: (value) => setFilter(() => selected = value),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (applications.isEmpty)
+                  const _EmptyApplicationsCard()
+                else
+                  for (final application in applications) ...[
+                    _LoanApplicationCard(application: application),
+                    const SizedBox(height: AppSpacing.sm),
+                  ],
               ],
-          ],
+            );
+          },
         );
       },
     );
@@ -642,7 +663,7 @@ class _LoanScaffold extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: (index) {
-          if (index == selectedIndex) return;
+          if (isMemberPortal && index == selectedIndex) return;
           if (isMemberPortal) {
             switch (index) {
               case 0:
@@ -672,7 +693,7 @@ class _LoanScaffold extends ConsumerWidget {
               context.go('/members');
               break;
             case 2:
-              context.go('/loans');
+              context.go(portalContributionsRoute(activeGroup));
               break;
             case 3:
               context.go('/reports');
@@ -714,7 +735,7 @@ class _LoanScaffold extends ConsumerWidget {
                 NavigationDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
-                  label: 'Dashboard',
+                  label: 'Home',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.groups_2_outlined),
@@ -722,19 +743,19 @@ class _LoanScaffold extends ConsumerWidget {
                   label: 'Members',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.account_balance_wallet_outlined),
-                  selectedIcon: Icon(Icons.account_balance_wallet),
-                  label: 'Loans',
+                  icon: Icon(Icons.savings_outlined),
+                  selectedIcon: Icon(Icons.savings),
+                  label: 'Register',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.insert_chart_outlined),
-                  selectedIcon: Icon(Icons.insert_chart),
-                  label: 'Activity',
+                  icon: Icon(Icons.bar_chart_outlined),
+                  selectedIcon: Icon(Icons.bar_chart),
+                  label: 'Reports',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
+                  icon: Icon(Icons.more_horiz),
+                  selectedIcon: Icon(Icons.more),
+                  label: 'More',
                 ),
               ],
       ),
@@ -1563,7 +1584,13 @@ class _RepaymentHistoryCard extends StatelessWidget {
 }
 
 class _LoanReviewFilters extends StatelessWidget {
-  const _LoanReviewFilters({required this.total});
+  const _LoanReviewFilters({
+    required this.total,
+    required this.selected,
+    required this.onChanged,
+  });
+  final int selected;
+  final ValueChanged<int> onChanged;
 
   final int total;
 
@@ -1575,20 +1602,20 @@ class _LoanReviewFilters extends StatelessWidget {
         children: [
           ChoiceChip(
             label: Text('All ($total)'),
-            selected: true,
-            onSelected: (_) {},
+            selected: selected == 0,
+            onSelected: (_) => onChanged(0),
           ),
           const SizedBox(width: AppSpacing.xs),
           ChoiceChip(
             label: const Text('Pending Review'),
-            selected: false,
-            onSelected: (_) {},
+            selected: selected == 1,
+            onSelected: (_) => onChanged(1),
           ),
           const SizedBox(width: AppSpacing.xs),
           ChoiceChip(
             label: const Text('Guarantor Pending'),
-            selected: false,
-            onSelected: (_) {},
+            selected: selected == 2,
+            onSelected: (_) => onChanged(2),
           ),
         ],
       ),

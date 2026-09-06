@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { GroupMemberStatus, GroupRole } from "@prisma/client";
 import { ApiErrorCode } from "../common/errors/api-error-code";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
@@ -67,18 +71,41 @@ export class ReportsService {
       },
     );
 
-    return calculateContributionReport(
+    const report = calculateContributionReport(
       obligations.map((obligation) => ({
         memberId: obligation.member.id,
         memberNumber: obligation.member.memberNumber,
         memberName: obligation.member.fullName,
         planType: obligation.plan.type,
         periodLabel: obligation.period?.label ?? null,
+        periodId: obligation.period?.id ?? null,
         periodSortOrder: obligation.period?.sortOrder ?? null,
         amountDueMinor: obligation.amountDueMinor,
         amountPaidMinor: obligation.amountPaidMinor,
       })),
     );
+    const plans = await this.prisma.contributionPlan.findMany({
+      where: {
+        groupId,
+        OR: [
+          { isActive: true },
+          {
+            obligations: {
+              some: { period: { financialYearId: selectedFinancialYearId } },
+            },
+          },
+        ],
+      },
+      select: {
+        name: true,
+        type: true,
+        frequency: true,
+        amountMinor: true,
+        currency: true,
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    return { ...report, rates: plans };
   }
 
   async exportContributionReport(

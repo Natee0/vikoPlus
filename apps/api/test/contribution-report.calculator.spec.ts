@@ -46,6 +46,33 @@ const monthLabels = [
 ] as const;
 
 describe("calculateContributionReport", () => {
+  it("includes unpaid register cells and reproduces period contributor counts", () => {
+    const report = calculateContributionReport(buildSofiaObligations());
+    expect(report.register).toHaveLength(23 * 12);
+    expect(
+      report.register.filter(
+        (cell) => cell.periodKey === "July 2026" && cell.paidMinor > 0,
+      ),
+    ).toHaveLength(13);
+    expect(
+      report.register.filter(
+        (cell) => cell.periodKey === "August 2026" && cell.paidMinor > 0,
+      ),
+    ).toHaveLength(6);
+    expect(report.register.reduce((sum, cell) => sum + cell.paidMinor, 0)).toBe(
+      report.recurringPaidMinor,
+    );
+  });
+
+  it("keeps identically labelled periods from different plans separate", () => {
+    const source = buildSofiaObligations()[1];
+    const report = calculateContributionReport([
+      { ...source, periodId: "plan-one-period", amountPaidMinor: 2000 },
+      { ...source, periodId: "plan-two-period", amountPaidMinor: 3000 },
+    ]);
+    expect(report.register).toHaveLength(2);
+    expect(report.register.map((cell) => cell.paidMinor)).toEqual([2000, 3000]);
+  });
   it("reproduces the Sofia Wajukuu Michago contribution totals", () => {
     const report = calculateContributionReport(buildSofiaObligations());
 

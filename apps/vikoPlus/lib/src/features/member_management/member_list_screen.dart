@@ -9,6 +9,7 @@ import '../auth/auth_widgets.dart';
 import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
+import '../common/profile_avatar.dart';
 
 class MemberListScreen extends ConsumerStatefulWidget {
   const MemberListScreen({this.showBottomNavigation = true, super.key});
@@ -20,6 +21,8 @@ class MemberListScreen extends ConsumerStatefulWidget {
 }
 
 class _MemberListScreenState extends ConsumerState<MemberListScreen> {
+  String _query = '';
+  String _filter = 'All';
   String? _loadedMembersGroupId;
   Future<GroupMembersResult>? _membersFuture;
 
@@ -136,8 +139,10 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
             role: activeGroup?.role ?? 'NONE',
           ),
           const SizedBox(height: 16),
-          const TextField(
-            decoration: InputDecoration(
+          TextField(
+            onChanged: (value) =>
+                setState(() => _query = value.trim().toLowerCase()),
+            decoration: const InputDecoration(
               hintText: 'Search members...',
               prefixIcon: Icon(Icons.search),
             ),
@@ -146,16 +151,28 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: const [
-                _FilterChip(label: 'All', selected: true),
-                _FilterChip(label: 'Active'),
-                _FilterChip(label: 'Outstanding'),
-                _FilterChip(label: 'Fully paid'),
+              children: [
+                for (final label in [
+                  'All',
+                  'Active',
+                  'Outstanding',
+                  'Fully paid',
+                ])
+                  _FilterChip(
+                    label: label,
+                    selected: _filter == label,
+                    onSelected: () => setState(() => _filter = label),
+                  ),
               ],
             ),
           ),
           const SizedBox(height: 16),
-          _MemberListBody(membersFuture: _membersFuture, onReload: _reload),
+          _MemberListBody(
+            membersFuture: _membersFuture,
+            onReload: _reload,
+            query: _query,
+            filter: _filter,
+          ),
         ],
       ),
     );
@@ -206,7 +223,14 @@ class _MemberStatsRow extends StatelessWidget {
 }
 
 class _MemberListBody extends StatelessWidget {
-  const _MemberListBody({required this.membersFuture, required this.onReload});
+  const _MemberListBody({
+    required this.membersFuture,
+    required this.onReload,
+    required this.query,
+    required this.filter,
+  });
+  final String query;
+  final String filter;
 
   final Future<GroupMembersResult>? membersFuture;
   final VoidCallback onReload;
@@ -245,9 +269,26 @@ class _MemberListBody extends StatelessWidget {
           );
         }
 
-        final members = snapshot.data?.members ?? const [];
+        final members = (snapshot.data?.members ?? <GroupMemberSummary>[]).where((
+          member,
+        ) {
+          final matches =
+              '${member.fullName} ${member.memberNumber ?? ''} ${member.phone ?? ''} ${member.email ?? ''}'
+                  .toLowerCase()
+                  .contains(query);
+          return matches &&
+              switch (filter) {
+                'Active' => member.status == 'ACTIVE',
+                'Outstanding' => member.outstandingMinor > 0,
+                'Fully paid' =>
+                  member.status == 'ACTIVE' && member.outstandingMinor == 0,
+                _ => true,
+              };
+        }).toList();
         if (members.isEmpty) {
-          return const _EmptyMembersCard();
+          return query.isNotEmpty || filter != 'All'
+              ? const Text('No members match these filters.')
+              : const _EmptyMembersCard();
         }
 
         return Column(
@@ -298,7 +339,12 @@ class _EmptyMembersCard extends StatelessWidget {
 }
 
 class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, this.selected = false});
+  const _FilterChip({
+    required this.label,
+    required this.onSelected,
+    this.selected = false,
+  });
+  final VoidCallback onSelected;
 
   final String label;
   final bool selected;
@@ -310,7 +356,7 @@ class _FilterChip extends StatelessWidget {
       child: ChoiceChip(
         label: Text(label),
         selected: selected,
-        onSelected: (_) {},
+        onSelected: (_) => onSelected(),
       ),
     );
   }
@@ -323,12 +369,6 @@ class _MemberRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final initials = member.fullName
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .take(2)
-        .map((part) => part[0].toUpperCase())
-        .join();
     final memberNumber = member.memberNumber?.trim();
 
     return Card(
@@ -339,7 +379,10 @@ class _MemberRow extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              InitialsAvatar(initials: initials.isEmpty ? 'M' : initials),
+              ProfileAvatar(
+                name: member.fullName,
+                url: member.profilePictureUrl,
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

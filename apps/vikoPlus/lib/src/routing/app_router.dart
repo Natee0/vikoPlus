@@ -602,9 +602,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/reminders/campaigns/:id',
-      builder: (context, state) => const PortalRouteGuard(
+      builder: (context, state) => PortalRouteGuard(
         area: PortalArea.staff,
-        child: CampaignDetailsScreen(),
+        child: ReminderCentreScreen(campaignId: state.pathParameters['id']),
       ),
     ),
     GoRoute(

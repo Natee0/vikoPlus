@@ -9,6 +9,7 @@ export type ContributionReportObligation = {
   periodSortOrder: number | null;
   amountDueMinor: number;
   amountPaidMinor: number;
+  periodId?: string | null;
 };
 
 export type ContributionPeriodTotal = {
@@ -30,6 +31,20 @@ export type MemberContributionAnalysis = {
 };
 
 export type ContributionReport = {
+  register: {
+    memberId: string;
+    periodKey: string;
+    label: string;
+    sortOrder: number;
+    paidMinor: number;
+  }[];
+  rates: {
+    name: string;
+    type: string;
+    frequency: string;
+    amountMinor: number;
+    currency: string;
+  }[];
   membersCount: number;
   totalPaidMinor: number;
   totalOutstandingMinor: number;
@@ -44,6 +59,7 @@ export function calculateContributionReport(
 ): ContributionReport {
   const members = new Map<string, MemberContributionAnalysis>();
   const periods = new Map<string, ContributionPeriodTotal>();
+  const register = new Map<string, ContributionReport["register"][number]>();
 
   let totalPaidMinor = 0;
   let totalOutstandingMinor = 0;
@@ -78,6 +94,17 @@ export function calculateContributionReport(
     }
 
     if (obligation.periodLabel && obligation.periodSortOrder !== null) {
+      const periodKey = obligation.periodId ?? obligation.periodLabel;
+      const cellKey = JSON.stringify([obligation.memberId, periodKey]);
+      const cell = register.get(cellKey) ?? {
+        memberId: obligation.memberId,
+        periodKey,
+        label: obligation.periodLabel,
+        sortOrder: obligation.periodSortOrder,
+        paidMinor: 0,
+      };
+      cell.paidMinor += obligation.amountPaidMinor;
+      register.set(cellKey, cell);
       const period = periods.get(obligation.periodLabel) ?? {
         label: obligation.periodLabel,
         sortOrder: obligation.periodSortOrder,
@@ -99,6 +126,8 @@ export function calculateContributionReport(
     .sort((left, right) => left.memberName.localeCompare(right.memberName));
 
   return {
+    rates: [],
+    register: [...register.values()],
     membersCount: members.size,
     totalPaidMinor,
     totalOutstandingMinor,

@@ -33,7 +33,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
   void initState() {
     super.initState();
     _messageController = TextEditingController(
-      text: 'Dear member, this is a friendly reminder regarding your outstanding dues of TZS 45,000 for the current month. Please complete the payment by Friday.',
+      text: 'Dear member, please review your outstanding group dues and contact the treasurer to arrange payment.',
     );
   }
 
@@ -64,12 +64,16 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
         _successMessage = '';
         _isSending = true;
       });
-      final result = await ref.read(groupsRepositoryProvider).sendReminder(
+      final result = await ref
+          .read(groupsRepositoryProvider)
+          .sendReminder(
             activeGroup.id,
             SendReminderInput(
               channel: _useSms ? 'SMS' : 'WHATSAPP',
               message: message,
-              memberIds: widget.memberId == null ? const [] : [widget.memberId!],
+              memberIds: widget.memberId == null
+                  ? const []
+                  : [widget.memberId!],
             ),
           );
       if (!mounted) return;
@@ -255,9 +259,9 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                         _successMessage,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w800,
-                            ),
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     const SizedBox(height: AppSpacing.lg),
                     FilledButton.icon(
@@ -515,47 +519,6 @@ class MessageTemplatesScreen extends StatelessWidget {
   }
 }
 
-class CampaignDetailsScreen extends StatelessWidget {
-  const CampaignDetailsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return VikoplusScreen(
-      title: 'Campaign Details',
-      backRoute: '/reminders',
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ProgressBlock(
-            title: 'July dues reminder',
-            value: '18 delivered',
-            caption: '18 delivered, 2 pending, 0 failed',
-            progress: 0.9,
-          ),
-          SizedBox(height: AppSpacing.md),
-          _CampaignMetric(
-            title: 'SMS sent',
-            value: '10',
-            icon: Icons.sms_outlined,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          _CampaignMetric(
-            title: 'WhatsApp sent',
-            value: '8',
-            icon: Icons.chat_outlined,
-          ),
-          SizedBox(height: AppSpacing.sm),
-          _CampaignMetric(
-            title: 'Estimated cost',
-            value: 'TZS 1,800',
-            icon: Icons.payments_outlined,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _TemplateTile extends StatelessWidget {
   const _TemplateTile({
     required this.title,
@@ -574,45 +537,6 @@ class _TemplateTile extends StatelessWidget {
       subtitle: subtitle,
       icon: icon,
       route: '/reminders/new',
-    );
-  }
-}
-
-class _CampaignMetric extends StatelessWidget {
-  const _CampaignMetric({
-    required this.title,
-    required this.value,
-    required this.icon,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: AppInsets.compactCard,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            backgroundColor: AppColors.surfaceContainer,
-            child: Icon(icon, color: AppColors.primary),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(child: Text(title)),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w700),
-          ),
-        ],
-      ),
     );
   }
 }

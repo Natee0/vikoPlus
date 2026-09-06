@@ -36,7 +36,9 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
 
   Future<void> _refresh() async {
     final future = _loadNotifications();
-    setState(() => _notificationsFuture = future);
+    setState(() {
+      _notificationsFuture = future;
+    });
     await future;
   }
 

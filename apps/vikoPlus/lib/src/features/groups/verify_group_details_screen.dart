@@ -42,7 +42,9 @@ class _VerifyGroupDetailsScreenState
 
   Future<void> _refresh() async {
     final future = _loadPreview();
-    setState(() => _previewFuture = future);
+    setState(() {
+      _previewFuture = future;
+    });
     await future;
   }
 

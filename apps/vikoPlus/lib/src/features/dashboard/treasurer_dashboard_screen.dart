@@ -43,7 +43,9 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
     final id = ref.read(activeGroupProvider)?.id;
     if (id == null) return;
     final future = _load(id);
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     await future;
   }
 

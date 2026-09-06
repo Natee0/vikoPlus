@@ -22,7 +22,9 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
     final id = _groupId;
     if (id == null) return;
     final future = ref.read(loansRepositoryProvider).tasks(id);
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     await future;
   }
 

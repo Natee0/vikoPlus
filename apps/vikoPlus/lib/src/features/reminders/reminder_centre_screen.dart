@@ -19,7 +19,9 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
     final id = ref.read(activeGroupProvider)?.id;
     if (id == null) return;
     final future = ref.read(groupsRepositoryProvider).reminderCampaigns(id);
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     await future;
   }
 

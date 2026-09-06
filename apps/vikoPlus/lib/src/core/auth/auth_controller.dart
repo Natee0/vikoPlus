@@ -189,7 +189,7 @@ class AuthFailure implements Exception {
     }
     if (error is StateError) return AuthFailure(error.message);
     if (error is FormatException) return AuthFailure(error.message);
-    return AuthFailure(errorText);
+    return const AuthFailure('Something went wrong. Please try again.');
   }
 
   final String message;

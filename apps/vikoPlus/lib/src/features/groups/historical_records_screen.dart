@@ -116,7 +116,9 @@ class _HistoricalRecordsScreenState
 
   Future<void> _refresh() async {
     final future = _loadMembers();
-    setState(() => _membersFuture = future);
+    setState(() {
+      _membersFuture = future;
+    });
     await future;
   }
 

@@ -132,7 +132,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
 
   Future<void> _refresh() async {
     final future = _loadMember();
-    setState(() => _memberFuture = future);
+    setState(() {
+      _memberFuture = future;
+    });
     await future;
   }
 

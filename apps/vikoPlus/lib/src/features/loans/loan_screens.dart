@@ -611,7 +611,9 @@ class _LoanFutureScreenState<T> extends State<_LoanFutureScreen<T>> {
     if (loader == null) return;
 
     final future = loader();
-    setState(() => _future = future);
+    setState(() {
+      _future = future;
+    });
     await future;
   }
 

@@ -43,7 +43,9 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
 
   Future<void> _refresh() async {
     final future = _loadGroups();
-    setState(() => _groupsFuture = future);
+    setState(() {
+      _groupsFuture = future;
+    });
     await future;
   }
 

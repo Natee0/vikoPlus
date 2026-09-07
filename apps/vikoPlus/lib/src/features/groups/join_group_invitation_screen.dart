@@ -38,7 +38,9 @@ String _frequencyLabel(BuildContext context, String frequency) {
 }
 
 class JoinGroupInvitationScreen extends ConsumerStatefulWidget {
-  const JoinGroupInvitationScreen({super.key});
+  const JoinGroupInvitationScreen({this.returnTo, super.key});
+
+  final String? returnTo;
 
   @override
   ConsumerState<JoinGroupInvitationScreen> createState() =>
@@ -60,6 +62,12 @@ class _JoinGroupInvitationScreenState
   }
 
   void _goBack(BuildContext context) {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      context.go(returnTo);
+      return;
+    }
+
     if (context.canPop()) {
       context.pop();
       return;
@@ -245,7 +253,7 @@ class _JoinGroupInvitationScreenState
       canPop: context.canPop(),
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          context.go('/create-or-join-group');
+          _goBack(context);
         }
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(

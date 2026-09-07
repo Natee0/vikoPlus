@@ -23,6 +23,8 @@ class VikoplusScreen extends ConsumerWidget {
     this.showBottomNavigation = true,
     this.onRefresh,
     this.preferBackRoute = false,
+    this.leading,
+    this.titleIcon,
     super.key,
   });
 
@@ -35,6 +37,8 @@ class VikoplusScreen extends ConsumerWidget {
   final bool showBottomNavigation;
   final RefreshCallback? onRefresh;
   final bool preferBackRoute;
+  final Widget? leading;
+  final Widget? titleIcon;
 
   void _goBack(
     BuildContext context, {
@@ -78,13 +82,14 @@ class VikoplusScreen extends ConsumerWidget {
             if (title != null)
               VikoplusTopBar(
                 title: context.vt(title!),
-                titleIcon: title == activeGroup?.name
-                    ? ProfileAvatar(
-                        name: activeGroup!.name,
-                        url: activeGroup.logoUrl,
-                        radius: 18,
-                      )
-                    : null,
+                titleIcon: titleIcon ??
+                    (title == activeGroup?.name
+                        ? ProfileAvatar(
+                            name: activeGroup!.name,
+                            url: activeGroup.logoUrl,
+                            radius: 18,
+                          )
+                        : null),
                 onBack: shouldShowBack
                     ? () => _goBack(
                         context,
@@ -92,6 +97,7 @@ class VikoplusScreen extends ConsumerWidget {
                         preferRoute: preferBackRoute,
                       )
                     : null,
+                leading: leading,
                 trailing: topActions == null || topActions.isEmpty
                     ? null
                     : Row(

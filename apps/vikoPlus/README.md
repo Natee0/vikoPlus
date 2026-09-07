@@ -74,6 +74,37 @@ The APK is generated under:
 apps/vikoPlus/build/app/outputs/flutter-apk/app-debug.apk
 ```
 
+## Shareable Test APK
+
+The main Android manifest already includes internet access, and the app uses the
+configured HTTPS API endpoint in:
+
+```text
+lib/src/core/config/app_config.dart
+```
+
+Current API endpoint:
+
+```text
+https://api.vikoplus.sayarisoftware.com/v1
+```
+
+Build the release test APK from the repository root:
+
+```bash
+npm run android:build:release
+```
+
+The APK is generated under:
+
+```text
+apps/vikoPlus/build/app/outputs/flutter-apk/app-release.apk
+```
+
+This APK is suitable for direct testing on Android phones with “Install unknown
+apps” enabled for the sharing app. Play Store publishing will still need a real
+release keystore and Play App Signing setup before production upload.
+
 ## Android Identity
 
 - App display name: `vikoPlus`

@@ -118,7 +118,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/groups/join',
-      builder: (context, state) => const JoinGroupInvitationScreen(),
+      builder: (context, state) => JoinGroupInvitationScreen(
+        returnTo: state.uri.queryParameters['returnTo'],
+      ),
     ),
     GoRoute(
       path: '/groups',

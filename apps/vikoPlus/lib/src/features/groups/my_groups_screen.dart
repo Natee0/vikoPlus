@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-
-import '../common/profile_avatar.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/auth/profile_provider.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
@@ -13,6 +11,7 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
+import '../common/profile_avatar.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
@@ -53,17 +52,27 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
+    final profile = ref.watch(profileProvider).asData?.value;
+    final displayName = (profile?['displayName'] as String?)?.trim();
+    final profileName = displayName != null && displayName.isNotEmpty
+        ? displayName
+        : 'Member';
+    final profilePictureUrl = profile?['profilePictureUrl'] as String?;
 
     return VikoplusScreen(
       title: context.vt('My Groups'),
-      backRoute: portalHomeRoute(activeGroup),
-      showBackButton: activeGroup != null,
-      actions: [
-        IconButton(
-          tooltip: context.vt('Refresh groups'),
-          onPressed: _reload,
-          icon: const Icon(Icons.refresh),
+      leading: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.go('/profile/complete'),
+        child: ProfileAvatar(
+          name: profileName,
+          url: profilePictureUrl,
+          radius: 18,
         ),
+      ),
+      backRoute: portalHomeRoute(activeGroup),
+      showBackButton: false,
+      actions: [
         const AuthLogoutIconButton(),
       ],
       onRefresh: _refresh,
@@ -93,7 +102,7 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
               Expanded(
                 child: _GroupActionButton(
                   label: context.vt('Join group'),
-                  route: '/groups/join',
+                  route: '/groups/join?returnTo=${Uri.encodeComponent('/groups')}',
                   icon: Icons.group_add_outlined,
                 ),
               ),

@@ -1479,6 +1479,7 @@ class ContributionPaymentSummary {
     required this.method,
     required this.status,
     required this.createdAt,
+    this.memberRole = 'MEMBER',
     this.reference,
     this.paidAt,
     this.submittedAt,
@@ -1501,6 +1502,7 @@ class ContributionPaymentSummary {
       groupId: json['groupId'] as String? ?? '',
       memberId: json['groupMemberId'] as String? ?? '',
       memberName: memberJson?['fullName'] as String? ?? 'Member',
+      memberRole: memberJson?['role'] as String? ?? 'MEMBER',
       amountMinor: json['amountMinor'] as int? ?? 0,
       currency: json['currency'] as String? ?? 'TZS',
       method: json['method'] as String? ?? 'OTHER',
@@ -1522,6 +1524,7 @@ class ContributionPaymentSummary {
   final String groupId;
   final String memberId;
   final String memberName;
+  final String memberRole;
   final int amountMinor;
   final String currency;
   final String method;

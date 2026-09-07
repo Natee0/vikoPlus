@@ -101,7 +101,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
       if (!mounted) return;
       setState(
         () => _errorMessage =
-            'Payment was not recorded. Confirm your treasurer role and try again.',
+            'Payment was not recorded. Confirm your staff role and try again.',
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

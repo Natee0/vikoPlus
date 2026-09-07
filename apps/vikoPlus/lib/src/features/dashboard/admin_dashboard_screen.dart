@@ -6,7 +6,6 @@ import '../../../l10n/app_localizations.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
-import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';

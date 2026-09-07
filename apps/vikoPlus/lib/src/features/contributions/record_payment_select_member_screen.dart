@@ -101,10 +101,16 @@ class _RecordPaymentSelectMemberScreenState
                   );
                 }
 
-                final members = snapshot.data?.members ?? const [];
+                final role = activeGroup.role;
+                final members = (snapshot.data?.members ?? const [])
+                    .where(
+                      (member) => _canRecordPaymentForRole(role, member.role),
+                    )
+                    .toList();
                 if (members.isEmpty) {
                   return const AuthErrorMessage(
-                    message: 'Add members before recording contributions.',
+                    message:
+                        'No members are available for your payment reviewer role.',
                   );
                 }
 
@@ -148,6 +154,16 @@ class _MemberSelectionList extends StatelessWidget {
       ),
     );
   }
+}
+
+bool _canRecordPaymentForRole(String reviewerRole, String memberRole) {
+  if (reviewerRole == 'SECRETARY') {
+    return memberRole == 'TREASURER';
+  }
+  if (reviewerRole == 'TREASURER') {
+    return memberRole != 'TREASURER';
+  }
+  return false;
 }
 
 class _SelectableMemberRow extends StatelessWidget {

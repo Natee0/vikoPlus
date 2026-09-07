@@ -249,7 +249,7 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/contributions',
               builder: (context, state) => const PortalRouteGuard(
-                area: PortalArea.treasurer,
+                area: PortalArea.staff,
                 child: ContributionRegisterScreen(showBottomNavigation: false),
               ),
             ),
@@ -530,21 +530,21 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/contributions/record',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.treasurer,
+        area: PortalArea.paymentReviewer,
         child: RecordPaymentSelectMemberScreen(),
       ),
     ),
     GoRoute(
       path: '/contributions/record/select-member',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.treasurer,
+        area: PortalArea.paymentReviewer,
         child: RecordPaymentSelectMemberScreen(),
       ),
     ),
     GoRoute(
       path: '/contributions/record/details',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.treasurer,
+        area: PortalArea.paymentReviewer,
         child: RecordPaymentScreen(
           memberId: state.uri.queryParameters['memberId'],
         ),
@@ -553,14 +553,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/contributions/receipt',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.treasurer,
+        area: PortalArea.staff,
         child: DigitalReceiptScreen(backRoute: '/contributions'),
       ),
     ),
     GoRoute(
       path: '/contributions/receipt/:id',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.treasurer,
+        area: PortalArea.staff,
         child: DigitalReceiptScreen(
           receiptId: state.pathParameters['id'],
           backRoute: '/contributions',

@@ -744,7 +744,7 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
                 : Icons.phone_android_outlined,
             title: isCash ? context.vt('Cash payment') : context.vt(method),
             subtitle: context.vt(
-              'Submit this contribution for treasurer verification.',
+              'Submit this contribution for secretary or treasurer verification.',
             ),
             compact: true,
           ),
@@ -829,7 +829,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           const SizedBox(height: AppSpacing.xs),
           Text(
             context.vt(
-              'Your contribution request is waiting for treasurer verification. A receipt will be created after approval.',
+              'Your contribution request is waiting for secretary or treasurer verification. A receipt will be created after approval.',
             ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge

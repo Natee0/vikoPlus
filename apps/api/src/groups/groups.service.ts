@@ -958,9 +958,35 @@ export class GroupsService {
     input: AssignRoleDto,
   ) {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
-    return this.prisma.groupMember.update({
-      where: { id: memberId, groupId },
-      data: { role: input.role },
+    return this.prisma.$transaction(async (tx) => {
+      const member = await tx.groupMember.findFirst({
+        where: { id: memberId, groupId },
+      });
+      if (!member) throw new NotFoundException("Member not found.");
+
+      if (
+        member.role === GroupRole.GROUP_ADMIN &&
+        input.role !== GroupRole.GROUP_ADMIN
+      ) {
+        const otherActiveAdmins = await tx.groupMember.count({
+          where: {
+            groupId,
+            id: { not: memberId },
+            role: GroupRole.GROUP_ADMIN,
+            status: GroupMemberStatus.ACTIVE,
+          },
+        });
+        if (otherActiveAdmins === 0) {
+          throw new BadRequestException(
+            "Add another group admin before changing this admin role.",
+          );
+        }
+      }
+
+      return tx.groupMember.update({
+        where: { id: memberId, groupId },
+        data: { role: input.role },
+      });
     });
   }
 
@@ -1069,7 +1095,9 @@ export class GroupsService {
 
   async contributionPayments(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
-    const canReviewPayments = membership.role === GroupRole.TREASURER;
+    const canReviewPayments = this.canReviewContributionPayments(
+      membership.role,
+    );
 
     return {
       payments: await this.prisma.groupContributionPayment.findMany({
@@ -1144,12 +1172,14 @@ export class GroupsService {
   ) {
     const reviewer = await this.requireMembership(user, groupId, [
       GroupRole.TREASURER,
+      GroupRole.SECRETARY,
     ]);
     if (reviewer.id === input.memberId)
       throw new ForbiddenException(
-        "Submit your own payment for another treasurer to verify.",
+        "Submit your own payment request for another reviewer to verify.",
       );
-    await this.ensureGroupMember(groupId, input.memberId);
+    const member = await this.ensureGroupMember(groupId, input.memberId);
+    this.ensureContributionPaymentReviewer(reviewer.role, member);
     return this.prisma.$transaction(
       async (tx) => {
         const paidAt = input.paidAt ? new Date(input.paidAt) : new Date();
@@ -1294,19 +1324,15 @@ export class GroupsService {
   ) {
     const membership = await this.requireMembership(user, groupId, [
       GroupRole.TREASURER,
+      GroupRole.SECRETARY,
     ]);
     return this.prisma.$transaction(
       async (tx) => {
         const payment = await tx.groupContributionPayment.findFirstOrThrow({
           where: { id: paymentId, groupId },
+          include: { member: true },
         });
-        if (
-          payment.createdByUserId === user.id ||
-          payment.groupMemberId === membership.id
-        )
-          throw new ForbiddenException(
-            "Another treasurer must verify this payment.",
-          );
+        this.ensureContributionPaymentReviewer(membership.role, payment.member);
         const paymentStatusesAllowedForApproval: GroupContributionPaymentStatus[] =
           [
             GroupContributionPaymentStatus.SUBMITTED,
@@ -1361,8 +1387,17 @@ export class GroupsService {
     paymentId: string,
     input: ReviewContributionPaymentDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
-    const payment = await this.findGroupPayment(groupId, paymentId);
+    const membership = await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ]);
+    const payment = await this.prisma.groupContributionPayment.findFirstOrThrow(
+      {
+        where: { id: paymentId, groupId },
+        include: { member: true },
+      },
+    );
+    this.ensureContributionPaymentReviewer(membership.role, payment.member);
     if (
       ![
         GroupContributionPaymentStatus.SUBMITTED,
@@ -1397,8 +1432,17 @@ export class GroupsService {
     paymentId: string,
     input: ReviewContributionPaymentDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
-    const payment = await this.findGroupPayment(groupId, paymentId);
+    const membership = await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ]);
+    const payment = await this.prisma.groupContributionPayment.findFirstOrThrow(
+      {
+        where: { id: paymentId, groupId },
+        include: { member: true },
+      },
+    );
+    this.ensureContributionPaymentReviewer(membership.role, payment.member);
     if (
       ![
         GroupContributionPaymentStatus.SUBMITTED,
@@ -2360,6 +2404,28 @@ export class GroupsService {
     return role === GroupRole.TREASURER;
   }
 
+  private canReviewContributionPayments(role: GroupRole): boolean {
+    return role === GroupRole.TREASURER || role === GroupRole.SECRETARY;
+  }
+
+  private ensureContributionPaymentReviewer(
+    reviewerRole: GroupRole,
+    paymentMember: Pick<GroupMember, "role">,
+  ): void {
+    const paymentMemberRole = paymentMember.role;
+    const canReview =
+      (reviewerRole === GroupRole.SECRETARY &&
+        paymentMemberRole === GroupRole.TREASURER) ||
+      (reviewerRole === GroupRole.TREASURER &&
+        paymentMemberRole !== GroupRole.TREASURER);
+
+    if (!canReview) {
+      throw new ForbiddenException(
+        "This payment must be reviewed by the other payment reviewer role.",
+      );
+    }
+  }
+
   private processingFee(amountMinor: number): number {
     return Math.ceil(amountMinor * 0.02);
   }
@@ -3261,20 +3327,13 @@ export class GroupsService {
   private async ensureGroupMember(
     groupId: string,
     memberId: string,
-  ): Promise<void> {
+  ): Promise<Pick<GroupMember, "id" | "role">> {
     const member = await this.prisma.groupMember.findFirst({
       where: { id: memberId, groupId, status: GroupMemberStatus.ACTIVE },
-      select: { id: true },
+      select: { id: true, role: true },
     });
     if (!member) throw new NotFoundException("Member not found.");
-  }
-
-  private async findGroupPayment(groupId: string, paymentId: string) {
-    const payment = await this.prisma.groupContributionPayment.findFirst({
-      where: { id: paymentId, groupId },
-    });
-    if (!payment) throw new NotFoundException("Payment not found.");
-    return payment;
+    return member;
   }
 
   private async createReceiptForPayment(

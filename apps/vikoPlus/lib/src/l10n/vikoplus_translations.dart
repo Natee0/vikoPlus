@@ -30,6 +30,8 @@ const _swahili = <String, String>{
   'Continue': 'Endelea',
   'Try Again': 'Jaribu tena',
   'Retry': 'Jaribu tena',
+  'Add another group admin before changing this admin role.':
+      'Ongeza msimamizi mwingine wa kikundi kabla ya kubadilisha jukumu la msimamizi huyu.',
   'Choose Group': 'Chagua kikundi',
   'Notifications': 'Taarifa',
   'No notifications': 'Hakuna taarifa',
@@ -272,6 +274,8 @@ const _swahili = <String, String>{
   'Submit for verification': 'Tuma kwa uthibitisho',
   'Payment Submitted': 'Malipo yametumwa',
   'Your contribution request is waiting for treasurer verification. A receipt will be created after approval.': 'Ombi lako la mchango linasubiri uthibitisho wa mweka hazina. Risiti itatengenezwa baada ya kuidhinishwa.',
+  'Your contribution request is waiting for secretary or treasurer verification. A receipt will be created after approval.':
+      'Ombi lako la mchango linasubiri uthibitisho wa katibu au mweka hazina. Risiti itatengenezwa baada ya kuidhinishwa.',
   'Request ID': 'Namba ya ombi',
   'Pending': 'Inasubiri',
   'Pending verification': 'Inasubiri uthibitisho',
@@ -598,6 +602,11 @@ const _swahili = <String, String>{
       'Malipo hayakuweza kuidhinishwa. Jaribu tena.',
   'Payment was not rejected. Please try again.':
       'Malipo hayakuweza kukataliwa. Jaribu tena.',
+  'Review payments': 'Kagua malipo',
+  'Approve or reject submitted contributions':
+      'Idhinisha au kataa michango iliyowasilishwa',
+  'Submit this contribution for secretary or treasurer verification.':
+      'Wasilisha mchango huu ukaguliwe na katibu au mweka hazina.',
   'More': 'Zaidi',
   'Switch, create or join a group': 'Badili, unda au jiunge na kikundi',
   'Group rules, member roles, historical records and audit logs':

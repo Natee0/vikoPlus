@@ -83,7 +83,7 @@ class _ContributionRegisterScreenState
                 .rejectPayment(
                   group.id,
                   payment.id,
-                  reason: 'Rejected by treasurer',
+                  reason: 'Rejected by reviewer',
                 ));
       if (mounted) {
         setState(() => _setPaymentsFuture(group.id));
@@ -110,7 +110,8 @@ class _ContributionRegisterScreenState
       Localizations.localeOf(context).toLanguageTag(),
     );
     final activeGroup = ref.watch(activeGroupProvider);
-    final canReviewPayments = activeGroup?.role == 'TREASURER';
+    final canReviewPayments =
+        activeGroup?.role == 'TREASURER' || activeGroup?.role == 'SECRETARY';
     _ensurePaymentsFuture(activeGroup?.id);
 
     return VikoplusScreen(
@@ -131,7 +132,7 @@ class _ContributionRegisterScreenState
         children: [
           StatusPill(label: activeGroup?.name ?? context.vt('No group selected')),
           const SizedBox(height: 16),
-          if (canReviewPayments)
+          if (activeGroup?.role == 'TREASURER')
             ActionTile(
               title: context.vt('Loan applications'),
               subtitle: context.vt(
@@ -175,7 +176,14 @@ class _ContributionRegisterScreenState
 
                 final payments = snapshot.data?.payments ?? const [];
                 final pending = payments
-                    .where((payment) => _isPendingReview(payment.status))
+                    .where(
+                      (payment) =>
+                          _isPendingReview(payment.status) &&
+                          _canReviewPayment(
+                            activeGroup.role,
+                            payment.memberRole,
+                          ),
+                    )
                     .toList();
                 final approvedTotal = payments
                     .where((payment) => payment.status == 'APPROVED')
@@ -431,6 +439,16 @@ bool _isPendingReview(String status) {
   return status == 'SUBMITTED' ||
       status == 'PENDING_VERIFICATION' ||
       status == 'CORRECTION_REQUESTED';
+}
+
+bool _canReviewPayment(String reviewerRole, String paymentMemberRole) {
+  if (reviewerRole == 'SECRETARY') {
+    return paymentMemberRole == 'TREASURER';
+  }
+  if (reviewerRole == 'TREASURER') {
+    return paymentMemberRole != 'TREASURER';
+  }
+  return false;
 }
 
 String _initials(String value) {

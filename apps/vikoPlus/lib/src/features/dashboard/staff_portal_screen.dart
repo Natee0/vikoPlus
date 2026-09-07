@@ -129,6 +129,13 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
             icon: Icons.notifications_active_outlined,
             route: '/reminders/new',
           ),
+          const SizedBox(height: AppSpacing.xs),
+          _SecretaryActionTile(
+            title: context.vt('Review payments'),
+            subtitle: context.vt('Approve or reject submitted contributions'),
+            icon: Icons.fact_check_outlined,
+            route: '/contributions',
+          ),
           const SizedBox(height: AppSpacing.md),
           SectionHeader(title: context.vt('Personal actions')),
           const SizedBox(height: AppSpacing.xs),

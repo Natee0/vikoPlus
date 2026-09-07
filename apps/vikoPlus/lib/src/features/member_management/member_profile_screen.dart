@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -214,6 +215,40 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       return;
     }
 
+    final selectedApiRole = _apiRole(selected);
+    if (member.role == 'GROUP_ADMIN' && selectedApiRole != 'GROUP_ADMIN') {
+      try {
+        final members = await ref
+            .read(groupsRepositoryProvider)
+            .listMembers(widget.groupId);
+        final hasOtherActiveAdmin = members.members.any(
+          (item) =>
+              item.id != member.id &&
+              item.role == 'GROUP_ADMIN' &&
+              item.status == 'ACTIVE',
+        );
+        if (!hasOtherActiveAdmin) {
+          if (!mounted) {
+            return;
+          }
+          setState(
+            () => _errorMessage = context.vt(
+              'Add another group admin before changing this admin role.',
+            ),
+          );
+          return;
+        }
+      } on Object catch (error) {
+        if (!mounted) {
+          return;
+        }
+        setState(
+          () => _errorMessage = context.vt(AuthFailure.from(error).message),
+        );
+        return;
+      }
+    }
+
     try {
       setState(() {
         _errorMessage = '';
@@ -221,7 +256,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       });
       await ref
           .read(groupsRepositoryProvider)
-          .assignRole(widget.groupId, member.id, _apiRole(selected));
+          .assignRole(widget.groupId, member.id, selectedApiRole);
       if (!mounted) {
         return;
       }
@@ -230,7 +265,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
+      );
     } finally {
       if (mounted) {
         setState(() => _isAssigningRole = false);
@@ -414,7 +451,10 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                   label: Text(AppLocalizations.of(context).sendReminder),
                 ),
               const SizedBox(height: AppSpacing.sm),
-              if (ref.watch(activeGroupProvider)?.role == 'TREASURER' &&
+              if ([
+                    'TREASURER',
+                    'SECRETARY',
+                  ].contains(ref.watch(activeGroupProvider)?.role) &&
                   member.status == 'ACTIVE')
                 OutlinedButton.icon(
                   onPressed: () => context.go(

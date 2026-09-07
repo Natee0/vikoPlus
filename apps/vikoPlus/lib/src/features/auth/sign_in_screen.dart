@@ -185,32 +185,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/logo/vikoPlus-logo.png',
-                  width: 36,
-                  height: 36,
-                  fit: BoxFit.cover,
-                ),
+          Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                'assets/logo/vikoPlus-logo.png',
+                width: 56,
+                height: 56,
+                fit: BoxFit.cover,
               ),
-              const SizedBox(width: AppSpacing.xs),
-              Flexible(
-                child: Text(
-                  'Vikoplus',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Vikoplus',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(

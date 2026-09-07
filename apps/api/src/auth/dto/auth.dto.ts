@@ -60,6 +60,12 @@ export class VerifyOtpDto {
   code!: string;
 }
 
+export class ResendAccountVerificationDto {
+  @IsString()
+  @IsNotEmpty()
+  challengeId!: string;
+}
+
 export class RefreshTokenDto {
   @IsString()
   @IsNotEmpty()

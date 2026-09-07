@@ -21,6 +21,7 @@ import {
   CompletePasswordResetDto,
   LoginDto,
   RefreshTokenDto,
+  ResendAccountVerificationDto,
   RegisterDto,
   RequestPasswordResetDto,
   VerifyPasswordResetCodeDto,
@@ -169,6 +170,37 @@ export class AuthService {
     ]);
 
     return { verified: true, nextRoute: "/groups" };
+  }
+
+  async resendAccountVerification(input: ResendAccountVerificationDto) {
+    const previous = await this.prisma.otpChallenge.findUnique({
+      where: { id: input.challengeId },
+      include: { user: true },
+    });
+    if (
+      !previous ||
+      previous.purpose !== OtpPurpose.ACCOUNT_VERIFICATION ||
+      previous.consumedAt
+    ) {
+      throw new UnauthorizedException("Verification session expired or invalid.");
+    }
+
+    const identity = await this.prisma.userIdentity.findUnique({
+      where: {
+        type_value: {
+          type: previous.identityType,
+          value: previous.identifier,
+        },
+      },
+      include: { user: true },
+    });
+    if (!identity || identity.isVerified) {
+      throw new UnauthorizedException("Account is already verified.");
+    }
+
+    return {
+      otpChallenge: await this.createAccountVerificationChallenge(identity),
+    };
   }
 
   async requestPasswordReset(input: RequestPasswordResetDto) {

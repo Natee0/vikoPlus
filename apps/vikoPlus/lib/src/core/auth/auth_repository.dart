@@ -59,6 +59,18 @@ class AuthRepository {
     );
   }
 
+  Future<OtpChallengeResult> resendAccountVerification({
+    required String challengeId,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/resend-account-verification',
+      data: {'challengeId': challengeId},
+      options: Options(extra: {'skipAuth': true}),
+    );
+
+    return OtpChallengeResult.fromJson(_responseBody(response.data));
+  }
+
   Future<PasswordResetRequestResult> requestPasswordReset({
     required String identifier,
   }) async {
@@ -163,6 +175,38 @@ class RegisterResult {
   }
 
   final AuthUser user;
+  final String challengeId;
+  final String destination;
+  final String channel;
+  final DateTime expiresAt;
+}
+
+class OtpChallengeResult {
+  const OtpChallengeResult({
+    required this.challengeId,
+    required this.destination,
+    required this.channel,
+    required this.expiresAt,
+  });
+
+  factory OtpChallengeResult.fromJson(Map<String, dynamic> json) {
+    final challenge = json['otpChallenge'] as Map<String, dynamic>? ?? {};
+    final challengeId = challenge['id'];
+    if (challengeId is! String || challengeId.isEmpty) {
+      throw const FormatException(
+        'Response did not include a verification challenge.',
+      );
+    }
+
+    return OtpChallengeResult(
+      challengeId: challengeId,
+      destination: challenge['destination'] as String? ?? '',
+      channel: challenge['channel'] as String? ?? 'sms',
+      expiresAt: DateTime.tryParse(challenge['expiresAt'] as String? ?? '') ??
+          DateTime.now().add(const Duration(minutes: 10)),
+    );
+  }
+
   final String challengeId;
   final String destination;
   final String channel;

@@ -543,6 +543,9 @@ const _swahili = <String, String>{
       'Kutuma tena msimbo kutawezeshwa baada ya sehemu ya kutuma tena kuongezwa.',
   'Resend email': 'Tuma tena barua pepe',
   'Resend code': 'Tuma tena msimbo',
+  'Sending code': 'Inatuma msimbo',
+  'A new verification code has been sent.':
+      'Msimbo mpya wa uthibitisho umetumwa.',
   'Verifying': 'Inathibitisha',
   'Verify': 'Thibitisha',
   'Verify & Proceed': 'Thibitisha na endelea',

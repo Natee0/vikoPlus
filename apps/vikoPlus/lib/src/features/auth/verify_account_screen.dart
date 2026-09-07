@@ -42,7 +42,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   Timer? _countdownTimer;
   Duration _timeRemaining = const Duration(minutes: 10);
   String _errorMessage = '';
+  String _successMessage = '';
   bool _isSubmitting = false;
+  bool _isResending = false;
 
   @override
   void initState() {
@@ -110,8 +112,13 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty) return;
-    setState(() => _errorMessage = '');
+    if (_errorMessage.isEmpty && _successMessage.isEmpty) {
+      return;
+    }
+    setState(() {
+      _errorMessage = '';
+      _successMessage = '';
+    });
   }
 
   void _handleCodeChanged(String value, int index) {
@@ -193,6 +200,43 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     }
   }
 
+  Future<void> _resendCode() async {
+    if (_isResending || _isSubmitting) {
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _successMessage = '';
+        _isResending = true;
+      });
+      await ref
+          .read(authControllerProvider.notifier)
+          .resendPendingAccountVerification();
+      for (final controller in _controllers) {
+        controller.clear();
+      }
+      _focusNodes.first.requestFocus();
+      _updateCountdown();
+      if (!mounted) {
+        return;
+      }
+      setState(
+        () => _successMessage = context.vt('A new verification code has been sent.'),
+      );
+    } on AuthFailure catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _errorMessage = error.message);
+    } finally {
+      if (mounted) {
+        setState(() => _isResending = false);
+      }
+    }
+  }
+
   KeyEventResult _handleKeyEvent(KeyEvent event, int index) {
     if (event is! KeyDownEvent ||
         event.logicalKey != LogicalKeyboardKey.backspace ||
@@ -215,8 +259,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
         pending?.destination ??
         context.vt('your phone or email');
     final channel = widget.channel ?? pending?.channel ?? 'sms';
-    final isLoading =
-        ref.watch(authControllerProvider).isLoading || _isSubmitting;
+    final isLoading = ref.watch(authControllerProvider).isLoading ||
+        _isSubmitting ||
+        _isResending;
 
     return PopScope(
       canPop: context.canPop(),
@@ -421,21 +466,30 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                   TextButton(
                                     onPressed: isLoading
                                         ? null
-                                        : () {
-                                            setState(
-                                              () => _errorMessage =
-                                                  context.vt(
-                                                'Resend code will be enabled after the resend endpoint is added.',
-                                              ),
-                                            );
-                                          },
+                                        : _resendCode,
                                     child: Text(
-                                      channel == 'email'
+                                      _isResending
+                                          ? context.vt('Sending code')
+                                          : channel == 'email'
                                           ? context.vt('Resend email')
                                           : context.vt('Resend code'),
                                     ),
                                   ),
                                   const SizedBox(height: AppSpacing.sm),
+                                  if (_successMessage.isNotEmpty) ...[
+                                    Text(
+                                      _successMessage,
+                                      textAlign: TextAlign.center,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: AppSpacing.sm),
+                                  ],
                                   AuthErrorMessage(message: _errorMessage),
                                   if (_errorMessage.isNotEmpty)
                                     const SizedBox(height: AppSpacing.sm),

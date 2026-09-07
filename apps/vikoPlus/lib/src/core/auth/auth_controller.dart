@@ -94,6 +94,31 @@ class AuthController extends AsyncNotifier<AuthSession> {
     });
   }
 
+  Future<void> resendPendingAccountVerification() async {
+    state = const AsyncLoading();
+    await _guard(() async {
+      final pending = ref.read(authSessionProvider).pendingVerification;
+      if (pending == null) {
+        throw const AuthFailure('Verification session expired. Sign in again.');
+      }
+
+      final result = await ref
+          .read(authRepositoryProvider)
+          .resendAccountVerification(challengeId: pending.challengeId);
+      ref.read(authSessionProvider.notifier).setPendingVerification(
+            PendingVerification(
+              challengeId: result.challengeId,
+              destination: result.destination,
+              channel: result.channel,
+              identifier: pending.identifier,
+              password: pending.password,
+              expiresAt: result.expiresAt,
+            ),
+          );
+      state = AsyncData(ref.read(authSessionProvider));
+    });
+  }
+
   Future<void> refresh() async {
     state = const AsyncLoading();
     await _guard(() async {

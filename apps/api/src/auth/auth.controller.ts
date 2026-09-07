@@ -10,6 +10,7 @@ import {
   CompletePasswordResetDto,
   LoginDto,
   RefreshTokenDto,
+  ResendAccountVerificationDto,
   RegisterDto,
   RequestPasswordResetDto,
   VerifyPasswordResetCodeDto,
@@ -40,6 +41,13 @@ export class AuthController {
   @Post("verify-otp")
   verifyOtp(@Body() body: VerifyOtpDto) {
     return this.auth.verifyOtp(body);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000, blockDuration: 300000 } })
+  @Post("resend-account-verification")
+  resendAccountVerification(@Body() body: ResendAccountVerificationDto) {
+    return this.auth.resendAccountVerification(body);
   }
 
   @Public()

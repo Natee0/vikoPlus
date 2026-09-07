@@ -73,18 +73,16 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
               children: [
                 const Spacer(flex: 6),
                 Center(
-                  child: Container(
+                  child: SizedBox(
                     width: AppSizes.splashLogo,
                     height: AppSizes.splashLogo,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.12),
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(AppRadii.lg),
-                    ),
-                    child: const Icon(
-                      Icons.groups_2_rounded,
-                      size: 38,
-                      color: AppColors.onPrimaryContainer,
+                      child: Image.asset(
+                        'assets/logo/vikoPlus-logo.png',
+                        fit: BoxFit.cover,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ),
                   ),
                 ),

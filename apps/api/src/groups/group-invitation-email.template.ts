@@ -12,6 +12,10 @@ type GroupInvitationEmailInput = {
   recipientEmail?: string | null;
 };
 
+const brandLogoUrl =
+  "https://res.cloudinary.com/drlq5jwtm/image/upload/v1788796014/vikoPlus-logo_bkhsk6.png";
+const brandTagline = "Group contributions, made clear.";
+
 export function groupInvitationEmailTemplate(
   input: GroupInvitationEmailInput,
 ): {
@@ -66,10 +70,12 @@ export function groupInvitationEmailTemplate(
                   <td align="left" valign="middle">
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td align="center" valign="middle" style="width:46px;height:46px;border-radius:16px;background-color:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.22);font-size:24px;font-weight:800;color:#ffffff;">V</td>
+                        <td align="center" valign="middle" style="width:46px;height:46px;border-radius:16px;background-color:#ffffff;overflow:hidden;border:1px solid rgba(255,255,255,0.22);">
+                          <img src="${brandLogoUrl}" width="46" height="46" alt="Vikoplus" style="display:block;width:46px;height:46px;border-radius:16px;object-fit:cover;border:0;">
+                        </td>
                         <td style="padding-left:14px;">
                           <div style="font-size:22px;font-weight:800;line-height:1;color:#ffffff;">Vikoplus</div>
-                          <div style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#a7f3d0;padding-top:6px;">Chama &amp; Sacco Finance</div>
+                          <div style="font-size:11px;font-weight:800;letter-spacing:.2px;color:#a7f3d0;padding-top:6px;">${brandTagline}</div>
                         </td>
                       </tr>
                     </table>
@@ -198,7 +204,7 @@ export function groupInvitationEmailTemplate(
           <tr>
             <td style="background-color:#04281e;color:rgba(167,243,208,0.82);padding:24px 32px;text-align:center;">
               <div style="font-size:12px;font-weight:800;color:#d1fae5;margin-bottom:10px;">Download Android App &bull; How Vikoplus Works &bull; Help Center</div>
-              <div style="font-size:11px;line-height:1.55;color:rgba(52,211,153,0.72);">&copy; ${new Date().getFullYear()} Vikoplus Mutual Trust Financial Systems Ltd. All rights reserved.<br>Chama &amp; Sacco Double-Entry Ledger &bull; Dar es Salaam</div>
+              <div style="font-size:11px;line-height:1.55;color:rgba(52,211,153,0.72);">&copy; ${new Date().getFullYear()} Vikoplus Mutual Trust Financial Systems Ltd. All rights reserved.<br>${brandTagline} &bull; Dar es Salaam</div>
             </td>
           </tr>
         </table>

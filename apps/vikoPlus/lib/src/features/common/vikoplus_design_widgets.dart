@@ -29,6 +29,7 @@ class VikoplusTopBar extends StatelessWidget {
     this.leading,
     this.titleIcon,
     this.showBorder = true,
+    this.leadingWidth = AppSizes.iconButton,
     this.trailingWidth = AppSizes.iconButton,
     super.key,
   });
@@ -39,6 +40,7 @@ class VikoplusTopBar extends StatelessWidget {
   final Widget? leading;
   final Widget? titleIcon;
   final bool showBorder;
+  final double leadingWidth;
   final double trailingWidth;
 
   @override
@@ -55,7 +57,7 @@ class VikoplusTopBar extends StatelessWidget {
         children: [
           if (titleIcon == null || onBack != null)
             SizedBox(
-              width: AppSizes.iconButton,
+              width: leadingWidth,
               height: AppSizes.iconButton,
               child: onBack == null
                   ? leading

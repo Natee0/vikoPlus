@@ -25,6 +25,13 @@ const _swahili = <String, String>{
   'Join thousands of communities trusting\nVikoplus for their shared financial goals.': 'Jiunge na jumuiya nyingi zinazotumia\nVikoplus kusimamia fedha za pamoja.',
   'Get started': 'Anza',
   'Sign in': 'Ingia',
+  'Enter your phone/email and password.':
+      'Weka namba ya simu/barua pepe na nenosiri.',
+  'Verify account': 'Thibitisha akaunti',
+  'Your account needs verification. Tap Verify account to continue.':
+      'Akaunti yako inahitaji uthibitisho. Bonyeza Thibitisha akaunti kuendelea.',
+  'Verification session expired. Sign in again.':
+      'Muda wa uthibitisho umeisha. Ingia tena.',
   'Cancel': 'Ghairi',
   'Confirm': 'Thibitisha',
   'Continue': 'Endelea',
@@ -524,14 +531,24 @@ const _swahili = <String, String>{
       'Muda wa kuweka upya umeisha. Anza tena.',
   'Enter the full verification code.': 'Weka msimbo kamili wa uthibitisho.',
   'your phone or email': 'simu au barua pepe yako',
+  'Verify Account': 'Thibitisha akaunti',
+  'Enter the verification code sent to':
+      'Weka msimbo wa uthibitisho uliotumwa kwa',
   'Verification': 'Uthibitisho',
   'Enter Security Code': 'Weka msimbo wa usalama',
   'We sent a 6-digit verification code to {destination}.':
       'Tumetuma msimbo wa tarakimu 6 kwenda {destination}.',
   'Resend or change destination': 'Tuma tena au badili mahali pa kutuma',
+  'Resend code will be enabled after the resend endpoint is added.':
+      'Kutuma tena msimbo kutawezeshwa baada ya sehemu ya kutuma tena kuongezwa.',
+  'Resend email': 'Tuma tena barua pepe',
+  'Resend code': 'Tuma tena msimbo',
   'Verifying': 'Inathibitisha',
+  'Verify': 'Thibitisha',
   'Verify & Proceed': 'Thibitisha na endelea',
   'Code expires in {time}': 'Msimbo utaisha baada ya {time}',
+  'Change email address': 'Badili barua pepe',
+  'Change phone number': 'Badili namba ya simu',
   'Verification code expired. Request a new code.':
       'Msimbo wa uthibitisho umeisha. Omba msimbo mpya.',
   'Vikoplus Mutual Trust Guarantee': 'Dhamana ya uaminifu ya Vikoplus',

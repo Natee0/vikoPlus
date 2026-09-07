@@ -42,6 +42,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
         channel: result.channel,
         identifier: identifier,
         password: password,
+        expiresAt: result.expiresAt,
       );
       ref
           .read(authSessionProvider.notifier)
@@ -166,6 +167,11 @@ class AuthFailure implements Exception {
       );
     }
     if (error is DioException) {
+      final verification = AuthVerificationRequired.from(error.response?.data);
+      if (verification != null) {
+        return verification;
+      }
+
       final transportMessage = _messageForDioType(error.type);
       if (error.response == null && transportMessage != null) {
         return AuthFailure(transportMessage);
@@ -276,4 +282,47 @@ class AuthFailure implements Exception {
       DioExceptionType.badResponse || DioExceptionType.unknown => null,
     };
   }
+}
+
+class AuthVerificationRequired extends AuthFailure {
+  AuthVerificationRequired({
+    required this.challengeId,
+    required this.destination,
+    required this.channel,
+    required this.expiresAt,
+  }) : super('Account verification is required.');
+
+  static AuthVerificationRequired? from(Object? data) {
+    final map = data is Map<String, dynamic>
+        ? data
+        : data is Map
+        ? Map<String, dynamic>.from(data)
+        : null;
+    if (map == null || map['code'] != 'ACCOUNT_VERIFICATION_REQUIRED') {
+      return null;
+    }
+
+    final challenge = map['otpChallenge'] is Map<String, dynamic>
+        ? map['otpChallenge'] as Map<String, dynamic>
+        : map['otpChallenge'] is Map
+        ? Map<String, dynamic>.from(map['otpChallenge'] as Map)
+        : null;
+    final challengeId = challenge?['id'];
+    if (challengeId is! String || challengeId.isEmpty) {
+      return null;
+    }
+
+    return AuthVerificationRequired(
+      challengeId: challengeId,
+      destination: challenge?['destination'] as String? ?? '',
+      channel: challenge?['channel'] as String? ?? 'sms',
+      expiresAt: DateTime.tryParse(challenge?['expiresAt'] as String? ?? '') ??
+          DateTime.now().add(const Duration(minutes: 10)),
+    );
+  }
+
+  final String challengeId;
+  final String destination;
+  final String channel;
+  final DateTime expiresAt;
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_design_widgets.dart';
@@ -36,6 +39,8 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
 
   late final List<TextEditingController> _controllers;
   late final List<FocusNode> _focusNodes;
+  Timer? _countdownTimer;
+  Duration _timeRemaining = const Duration(minutes: 10);
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -44,10 +49,12 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     super.initState();
     _controllers = List.generate(_codeLength, (_) => TextEditingController());
     _focusNodes = List.generate(_codeLength, (_) => FocusNode());
+    _startCountdown();
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     for (final controller in _controllers) {
       controller.dispose();
     }
@@ -63,6 +70,34 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
 
   String get _code {
     return _controllers.map((controller) => controller.text).join();
+  }
+
+  String get _countdownLabel {
+    final remainingSeconds = _timeRemaining.inSeconds.clamp(0, 600).toInt();
+    final minutes = remainingSeconds ~/ 60;
+    final seconds = remainingSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void _startCountdown() {
+    _updateCountdown();
+    _countdownTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _updateCountdown(),
+    );
+  }
+
+  void _updateCountdown() {
+    final pending = ref.read(authSessionProvider).pendingVerification;
+    final nextRemaining = pending == null
+        ? _timeRemaining - const Duration(seconds: 1)
+        : pending.expiresAt.difference(DateTime.now());
+    final clamped = nextRemaining.isNegative ? Duration.zero : nextRemaining;
+
+    if (!mounted) {
+      return;
+    }
+    setState(() => _timeRemaining = clamped);
   }
 
   void _goBack() {
@@ -132,7 +167,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     if (_isSubmitting) return;
 
     if (!_isComplete) {
-      setState(() => _errorMessage = 'Enter the full verification code.');
+      setState(
+        () => _errorMessage = context.vt('Enter the full verification code.'),
+      );
       return;
     }
 
@@ -174,8 +211,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
   Widget build(BuildContext context) {
     final session = ref.watch(authSessionProvider);
     final pending = session.pendingVerification;
-    final destination =
-        widget.destination ?? pending?.destination ?? 'your phone or email';
+    final destination = widget.destination ??
+        pending?.destination ??
+        context.vt('your phone or email');
     final channel = widget.channel ?? pending?.channel ?? 'sms';
     final isLoading =
         ref.watch(authControllerProvider).isLoading || _isSubmitting;
@@ -246,7 +284,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                   ),
                                   const SizedBox(height: AppSpacing.md),
                                   Text(
-                                    'Verify Account',
+                                    context.vt('Verify Account'),
                                     textAlign: TextAlign.center,
                                     style: Theme.of(context)
                                         .textTheme
@@ -260,7 +298,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                   Text.rich(
                                     TextSpan(
                                       text:
-                                          'Enter the verification code sent to\n',
+                                          '${context.vt('Enter the verification code sent to')}\n',
                                       children: [
                                         TextSpan(
                                           text: destination,
@@ -367,7 +405,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                       ),
                                       const SizedBox(width: AppSpacing.xxs),
                                       Text(
-                                        '00:57',
+                                        context.vtf('Code expires in {time}', {
+                                          'time': _countdownLabel,
+                                        }),
                                         style: Theme.of(context)
                                             .textTheme
                                             .bodySmall
@@ -384,13 +424,15 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                         : () {
                                             setState(
                                               () => _errorMessage =
-                                                  'Resend code will be enabled after the resend endpoint is added.',
+                                                  context.vt(
+                                                'Resend code will be enabled after the resend endpoint is added.',
+                                              ),
                                             );
                                           },
                                     child: Text(
                                       channel == 'email'
-                                          ? 'Resend email'
-                                          : 'Resend code',
+                                          ? context.vt('Resend email')
+                                          : context.vt('Resend code'),
                                     ),
                                   ),
                                   const SizedBox(height: AppSpacing.sm),
@@ -416,7 +458,9 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                             size: 18,
                                           ),
                                     label: Text(
-                                      isLoading ? 'Verifying' : 'Verify',
+                                      isLoading
+                                          ? context.vt('Verifying')
+                                          : context.vt('Verify'),
                                     ),
                                   ),
                                   const SizedBox(height: AppSpacing.xs),
@@ -424,8 +468,8 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                     onPressed: _goBack,
                                     child: Text(
                                       channel == 'email'
-                                          ? 'Change email address'
-                                          : 'Change phone number',
+                                          ? context.vt('Change email address')
+                                          : context.vt('Change phone number'),
                                     ),
                                   ),
                                 ],

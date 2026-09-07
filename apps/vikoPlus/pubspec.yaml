@@ -69,6 +69,7 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
+    - assets/logo/vikoPlus-logo.png
     - assets/images/welcome_community.png
     - assets/images/group_choice_community.png
     - assets/images/join_group_growth.png

@@ -138,9 +138,8 @@ class _WelcomeLogo extends StatelessWidget {
       child: Container(
         width: AppSizes.brandLogo,
         height: AppSizes.brandLogo,
-        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.primaryGreen,
+          color: AppColors.surface,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
@@ -150,10 +149,11 @@ class _WelcomeLogo extends StatelessWidget {
             ),
           ],
         ),
-        child: const Icon(
-          Icons.groups_2_rounded,
-          color: AppColors.onPrimaryContainer,
-          size: 28,
+        clipBehavior: Clip.antiAlias,
+        child: Image.asset(
+          'assets/logo/vikoPlus-logo.png',
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
         ),
       ),
     );

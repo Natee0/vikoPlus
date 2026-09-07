@@ -24,6 +24,7 @@ class VikoplusScreen extends ConsumerWidget {
     this.onRefresh,
     this.preferBackRoute = false,
     this.leading,
+    this.leadingWidth = AppSizes.iconButton,
     this.titleIcon,
     super.key,
   });
@@ -38,6 +39,7 @@ class VikoplusScreen extends ConsumerWidget {
   final RefreshCallback? onRefresh;
   final bool preferBackRoute;
   final Widget? leading;
+  final double leadingWidth;
   final Widget? titleIcon;
 
   void _goBack(
@@ -108,6 +110,7 @@ class VikoplusScreen extends ConsumerWidget {
                 trailingWidth: (topActions?.length ?? 0) > 1
                     ? AppSizes.iconButton * topActions!.length
                     : AppSizes.iconButton,
+                leadingWidth: leadingWidth,
               ),
             Expanded(
               child: VikoplusConstrainedContent(

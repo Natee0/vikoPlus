@@ -108,7 +108,12 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials.");
     }
     if (!identity.isVerified) {
-      throw new UnauthorizedException("Account verification is required.");
+      const challenge = await this.createAccountVerificationChallenge(identity);
+      throw new UnauthorizedException({
+        message: "Account verification is required.",
+        code: "ACCOUNT_VERIFICATION_REQUIRED",
+        otpChallenge: challenge,
+      });
     }
 
     return this.authResponse(identity.user.id);
@@ -411,6 +416,52 @@ export class AuthService {
       where: { type_value: { type, value } },
       include: { user: true },
     });
+  }
+
+  private async createAccountVerificationChallenge(identity: {
+    userId: string;
+    type: UserIdentityType;
+    value: string;
+    user: { displayName: string | null };
+  }) {
+    await this.prisma.otpChallenge.updateMany({
+      where: {
+        userId: identity.userId,
+        identifier: identity.value,
+        purpose: OtpPurpose.ACCOUNT_VERIFICATION,
+        consumedAt: null,
+      },
+      data: { consumedAt: new Date() },
+    });
+
+    const code = this.otpCode();
+    const otpHash = await argon2.hash(code);
+    const challenge = await this.prisma.otpChallenge.create({
+      data: {
+        userId: identity.userId,
+        identityType: identity.type,
+        purpose: OtpPurpose.ACCOUNT_VERIFICATION,
+        identifier: identity.value,
+        otpHash,
+        expiresAt: this.minutesFromNow(10),
+      },
+    });
+
+    const delivery = await this.verificationDelivery.sendCode({
+      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      destination: identity.value,
+      code,
+      name: identity.user.displayName,
+      purpose: "account_verification",
+    });
+
+    return {
+      id: challenge.id,
+      destination: identity.value,
+      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      expiresAt: challenge.expiresAt,
+      delivery,
+    };
   }
 
   private identityInput(input: RegisterDto): {

@@ -48,6 +48,7 @@ class PendingVerification {
     required this.channel,
     required this.identifier,
     required this.password,
+    required this.expiresAt,
   });
 
   final String challengeId;
@@ -55,6 +56,7 @@ class PendingVerification {
   final String channel;
   final String identifier;
   final String password;
+  final DateTime expiresAt;
 }
 
 class AuthSession {

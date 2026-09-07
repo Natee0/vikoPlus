@@ -64,12 +64,16 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
       leading: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () => context.go('/profile/complete'),
-        child: ProfileAvatar(
-          name: profileName,
-          url: profilePictureUrl,
-          radius: 18,
+        child: Padding(
+          padding: const EdgeInsets.only(left: AppSpacing.sm),
+          child: ProfileAvatar(
+            name: profileName,
+            url: profilePictureUrl,
+            radius: 18,
+          ),
         ),
       ),
+      leadingWidth: AppSizes.iconButton + AppSpacing.sm,
       backRoute: portalHomeRoute(activeGroup),
       showBackButton: false,
       actions: [

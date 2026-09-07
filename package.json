@@ -14,7 +14,8 @@
     "android:test": "cd apps/vikoPlus && flutter test",
     "android:analyze": "cd apps/vikoPlus && flutter analyze",
     "android:build:debug": "cd apps/vikoPlus && flutter build apk --debug --target-platform android-arm64 --no-pub",
-    "android:build:release": "cd apps/vikoPlus && flutter build apk --release --target-platform android-arm64 --no-pub",
+    "android:build:release": "cd apps/vikoPlus && flutter build apk --release --no-pub",
+    "android:uninstall": "adb uninstall com.vikoplus",
     "android:run": "cd apps/vikoPlus && flutter run --target-platform android-arm64 --no-pub"
   },
   "engines": {

@@ -140,6 +140,7 @@ class RegisterResult {
     required this.challengeId,
     required this.destination,
     required this.channel,
+    required this.expiresAt,
   });
 
   factory RegisterResult.fromJson(Map<String, dynamic> json) {
@@ -156,6 +157,8 @@ class RegisterResult {
       challengeId: challengeId,
       destination: challenge['destination'] as String? ?? '',
       channel: challenge['channel'] as String? ?? 'sms',
+      expiresAt: DateTime.tryParse(challenge['expiresAt'] as String? ?? '') ??
+          DateTime.now().add(const Duration(minutes: 10)),
     );
   }
 
@@ -163,6 +166,7 @@ class RegisterResult {
   final String challengeId;
   final String destination;
   final String channel;
+  final DateTime expiresAt;
 }
 
 class PasswordResetRequestResult {

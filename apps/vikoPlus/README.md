@@ -102,8 +102,10 @@ apps/vikoPlus/build/app/outputs/flutter-apk/app-release.apk
 ```
 
 This APK is suitable for direct testing on Android phones with “Install unknown
-apps” enabled for the sharing app. Play Store publishing will still need a real
-release keystore and Play App Signing setup before production upload.
+apps” enabled for the sharing app. It is built as a universal APK so both
+32-bit and 64-bit Android phones can install it. Play Store publishing will
+still need a real release keystore and Play App Signing setup before production
+upload.
 
 ## Android Identity
 

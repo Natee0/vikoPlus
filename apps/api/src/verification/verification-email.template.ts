@@ -7,6 +7,10 @@ type VerificationEmailInput = {
   purpose?: VerificationEmailPurpose;
 };
 
+const brandLogoUrl =
+  "https://res.cloudinary.com/drlq5jwtm/image/upload/v1788796014/vikoPlus-logo_bkhsk6.png";
+const brandTagline = "Group contributions, made clear.";
+
 export function verificationEmailTemplate(input: VerificationEmailInput): {
   subject: string;
   text: string;
@@ -60,10 +64,12 @@ export function verificationEmailTemplate(input: VerificationEmailInput): {
                   <td align="left" valign="middle">
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0">
                       <tr>
-                        <td align="center" valign="middle" style="width:44px;height:44px;border-radius:12px;background-color:#287e65;color:#a7f3d0;font-size:24px;font-weight:800;">V</td>
+                        <td align="center" valign="middle" style="width:44px;height:44px;border-radius:12px;background-color:#ffffff;overflow:hidden;">
+                          <img src="${brandLogoUrl}" width="44" height="44" alt="Vikoplus" style="display:block;width:44px;height:44px;border-radius:12px;object-fit:cover;border:0;">
+                        </td>
                         <td style="padding-left:14px;">
                           <span style="display:block;color:#ffffff;font-size:22px;font-weight:800;line-height:1.1;">Vikoplus</span>
-                          <span style="display:block;color:#a7f3d0;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;">Group Finance Security</span>
+                          <span style="display:block;color:#a7f3d0;font-size:11px;font-weight:700;letter-spacing:.2px;">${brandTagline}</span>
                         </td>
                       </tr>
                     </table>
@@ -116,7 +122,7 @@ export function verificationEmailTemplate(input: VerificationEmailInput): {
           </tr>
           <tr>
             <td style="background-color:#ebf6ef;padding:24px 36px;border-top:1px solid #d8ebd9;text-align:center;">
-              <p style="margin:0 0 8px 0;font-size:12px;font-weight:700;color:#52796f;">Vikoplus Mutual Trust Financial Systems</p>
+              <p style="margin:0 0 8px 0;font-size:12px;font-weight:700;color:#52796f;">${brandTagline}</p>
               <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">This is an automated transactional security alert. Replies to this email are not monitored.</p>
             </td>
           </tr>

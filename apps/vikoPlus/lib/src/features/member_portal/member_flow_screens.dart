@@ -112,7 +112,9 @@ class MyContributionsScreen extends ConsumerWidget {
                   0,
                   (total, item) => total + item.amountPaidMinor,
                 );
-                final outstanding = obligations.fold<int>(
+                final outstanding = obligations
+                    .where((item) => item.isPayable)
+                    .fold<int>(
                   0,
                   (total, item) => total + item.outstandingMinor,
                 );
@@ -148,13 +150,17 @@ class MyContributionsScreen extends ConsumerWidget {
                       for (final obligation in obligations) ...[
                         _MemberContributionTile(
                           title: obligation.planName,
-                          subtitle:
-                              '${obligation.periodLabel} • Due ${formatter.date(obligation.dueAt)}',
+                          subtitle: _obligationSubtitle(
+                            context,
+                            formatter,
+                            obligation,
+                          ),
                           amount: formatter.money(
                             obligation.outstandingMinor,
                             currency: obligation.currency,
                           ),
                           paid: obligation.outstandingMinor <= 0,
+                          upcoming: obligation.isUpcoming,
                         ),
                         const SizedBox(height: AppSpacing.sm),
                       ],
@@ -210,7 +216,7 @@ class DuesArrearsScreen extends ConsumerWidget {
                 }
 
                 final outstanding = snapshot.data!.obligations
-                    .where((item) => item.outstandingMinor > 0)
+                    .where((item) => item.isPayable)
                     .toList();
                 final totalOutstanding = outstanding.fold<int>(
                   0,
@@ -427,7 +433,7 @@ class _SelectContributionScreenState
     _initializedSelection = true;
     _selectedIds.addAll(
       obligations
-          .where((obligation) => obligation.outstandingMinor > 0)
+          .where((obligation) => obligation.isPayable)
           .take(2)
           .map((obligation) => obligation.id),
     );
@@ -504,15 +510,21 @@ class _SelectContributionScreenState
                   );
                 }
 
-                final obligations = (snapshot.data?.obligations ?? const [])
-                    .where((obligation) => obligation.outstandingMinor > 0)
+                final allObligations = snapshot.data?.obligations ?? const [];
+                final obligations = allObligations
+                    .where((obligation) => obligation.isPayable)
                     .toList();
                 _initializeSelection(obligations);
                 if (obligations.isEmpty) {
+                  final hasUpcoming = allObligations.any(
+                    (obligation) => obligation.isUpcoming,
+                  );
                   return _InfoNotice(
                     title: context.vt('Nothing Due'),
                     message: context.vt(
-                      'Your current contribution obligations are fully paid.',
+                      hasUpcoming
+                          ? 'No contributions are due yet. Upcoming items will activate on their collection date.'
+                          : 'Your current contribution obligations are fully paid.',
                     ),
                   );
                 }
@@ -1137,12 +1149,14 @@ class _MemberContributionTile extends StatelessWidget {
     required this.subtitle,
     required this.amount,
     required this.paid,
+    this.upcoming = false,
   });
 
   final String title;
   final String subtitle;
   final String amount;
   final bool paid;
+  final bool upcoming;
 
   @override
   Widget build(BuildContext context) {
@@ -1155,13 +1169,33 @@ class _MemberContributionTile extends StatelessWidget {
           Text(amount, style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(height: AppSpacing.xxs),
           StatusPill(
-            label: paid ? context.vt('Paid') : context.vt('Due'),
-            color: paid ? AppColors.primary : AppColors.error,
+            label: paid
+                ? context.vt('Paid')
+                : upcoming
+                ? context.vt('Upcoming')
+                : context.vt('Due'),
+            color: paid
+                ? AppColors.primary
+                : upcoming
+                ? AppColors.onSurfaceVariant
+                : AppColors.error,
           ),
         ],
       ),
     );
   }
+}
+
+String _obligationSubtitle(
+  BuildContext context,
+  AppFormatters formatter,
+  ContributionObligationSummary obligation,
+) {
+  final dateLabel = obligation.isUpcoming
+      ? context.vt('Collection date')
+      : context.vt('Due');
+  return '${obligation.periodLabel} • '
+      '$dateLabel ${formatter.date(obligation.dueAt)}';
 }
 
 class _SelectableObligation extends StatelessWidget {

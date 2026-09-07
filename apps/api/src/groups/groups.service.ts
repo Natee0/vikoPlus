@@ -719,6 +719,7 @@ export class GroupsService {
 
   async dashboard(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
+    const now = new Date();
     const [group, membersCount, paid, outstanding] = await Promise.all([
       this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
       this.prisma.groupMember.count({ where: { groupId } }),
@@ -727,7 +728,18 @@ export class GroupsService {
         _sum: { amountMinor: true },
       }),
       this.prisma.memberContributionObligation.aggregate({
-        where: { member: { groupId } },
+        where: {
+          member: { groupId },
+          dueAt: { lte: now },
+          status: {
+            in: [
+              ContributionObligationStatus.UPCOMING,
+              ContributionObligationStatus.DUE,
+              ContributionObligationStatus.PARTIALLY_PAID,
+              ContributionObligationStatus.OVERDUE,
+            ],
+          },
+        },
         _sum: { amountDueMinor: true, amountPaidMinor: true },
       }),
     ]);
@@ -747,13 +759,24 @@ export class GroupsService {
 
   async listMembers(user: AuthenticatedUser, groupId: string) {
     await this.requireMembership(user, groupId);
+    const now = new Date();
     const members = await this.prisma.groupMember.findMany({
       where: { groupId },
       orderBy: [{ fullName: "asc" }],
       include: {
         user: { select: { displayName: true, profilePictureObjectKey: true } },
         obligations: {
-          where: { status: { not: "WAIVED" } },
+          where: {
+            dueAt: { lte: now },
+            status: {
+              in: [
+                ContributionObligationStatus.UPCOMING,
+                ContributionObligationStatus.DUE,
+                ContributionObligationStatus.PARTIALLY_PAID,
+                ContributionObligationStatus.OVERDUE,
+              ],
+            },
+          },
           select: { amountDueMinor: true, amountPaidMinor: true },
         },
       },
@@ -1790,9 +1813,10 @@ export class GroupsService {
         db.memberContributionObligation.aggregate({
           where: {
             groupMemberId: membership.id,
-            dueAt: { lt: this.startOfDay(new Date()) },
+            dueAt: { lte: new Date() },
             status: {
               in: [
+                ContributionObligationStatus.UPCOMING,
                 ContributionObligationStatus.DUE,
                 ContributionObligationStatus.PARTIALLY_PAID,
                 ContributionObligationStatus.OVERDUE,
@@ -2655,8 +2679,10 @@ export class GroupsService {
         status: GroupMemberStatus.ACTIVE,
         obligations: {
           some: {
+            dueAt: { lte: new Date() },
             status: {
               in: [
+                ContributionObligationStatus.UPCOMING,
                 ContributionObligationStatus.DUE,
                 ContributionObligationStatus.PARTIALLY_PAID,
                 ContributionObligationStatus.OVERDUE,
@@ -2856,6 +2882,15 @@ export class GroupsService {
     });
     if (!plans.length || !members.length) return;
 
+    await db.memberContributionObligation.updateMany({
+      where: {
+        member: { groupId },
+        status: ContributionObligationStatus.UPCOMING,
+        dueAt: { lte: new Date() },
+      },
+      data: { status: ContributionObligationStatus.DUE },
+    });
+
     for (const plan of plans) {
       await db.memberContributionObligation.updateMany({
         where: {
@@ -2863,7 +2898,12 @@ export class GroupsService {
           amountPaidMinor: 0,
           dueAt: { gt: new Date() },
           allocations: { none: {} },
-          status: ContributionObligationStatus.DUE,
+          status: {
+            in: [
+              ContributionObligationStatus.DUE,
+              ContributionObligationStatus.UPCOMING,
+            ],
+          },
         },
         data: {
           amountDueMinor: plan.amountMinor,
@@ -2904,7 +2944,11 @@ export class GroupsService {
                   amountDueMinor: plan.amountMinor,
                   currency: plan.currency,
                   dueAt: period.dueAt < joinedAt ? joinedAt : period.dueAt,
-                  status: ContributionObligationStatus.DUE,
+                  status:
+                    (period.dueAt < joinedAt ? joinedAt : period.dueAt) <=
+                    new Date()
+                      ? ContributionObligationStatus.DUE
+                      : ContributionObligationStatus.UPCOMING,
                 },
               }),
             ),
@@ -3036,8 +3080,10 @@ export class GroupsService {
         ...(requestedIds.length ? { id: { in: requestedIds } } : {}),
         groupMemberId: memberId,
         member: { groupId },
+        dueAt: { lte: new Date() },
         status: {
           in: [
+            ContributionObligationStatus.UPCOMING,
             ContributionObligationStatus.DUE,
             ContributionObligationStatus.PARTIALLY_PAID,
             ContributionObligationStatus.OVERDUE,

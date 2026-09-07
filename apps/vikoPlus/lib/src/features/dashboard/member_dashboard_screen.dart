@@ -7,12 +7,12 @@ import '../../../l10n/app_localizations.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
 import '../notifications/notification_icon_button.dart';
-import '../groups/member_requirements_notice.dart';
 
 class MemberDashboardScreen extends ConsumerStatefulWidget {
   const MemberDashboardScreen({this.showBottomNavigation = true, super.key});
@@ -49,7 +49,6 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
   Future<void> _refresh() async {
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) return;
-    ref.invalidate(memberRequirementsProvider(activeGroup.id));
     final future = ref
         .read(groupsRepositoryProvider)
         .contributionReport(activeGroup.id);
@@ -66,7 +65,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
     final groupName = activeGroup?.name ?? 'your group';
     final firstDueLabel = activeGroup == null
         ? loc.selectGroup
-        : loc.checkContributionBalance;
+        : context.vt('Scheduled');
 
     return Scaffold(
       backgroundColor: AppColors.surface,
@@ -107,7 +106,7 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
             ),
             children: [
               Text(
-                loc.welcomeTitle,
+                _timeGreeting(context),
                 style: Theme.of(context).textTheme.bodyLarge
                     ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
@@ -120,13 +119,11 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
-              if (activeGroup != null) ...[
-                MemberRequirementsNotice(groupId: activeGroup.id),
-                const SizedBox(height: AppSpacing.md),
-              ],
               _ContributionSummaryCard(
                 summaryFuture: _summaryFor(activeGroup?.id),
               ),
+              const SizedBox(height: AppSpacing.md),
+              const _MemberActionGrid(),
               const SizedBox(height: AppSpacing.lg),
               Row(
                 children: [
@@ -222,6 +219,84 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
           : null,
     );
   }
+
+  String _timeGreeting(BuildContext context) {
+    final isSwahili = Localizations.localeOf(context).languageCode == 'sw';
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return isSwahili ? 'Habari za asubuhi,' : 'Good morning,';
+    }
+    if (hour < 17) {
+      return isSwahili ? 'Habari za mchana,' : 'Good afternoon,';
+    }
+    return isSwahili ? 'Habari za jioni,' : 'Good evening,';
+  }
+}
+
+class _MemberActionGrid extends StatelessWidget {
+  const _MemberActionGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = [
+      _MemberAction(
+        title: context.vt('Seek loan'),
+        icon: Icons.account_balance_wallet_outlined,
+        route: '/loans',
+      ),
+      _MemberAction(
+        title: context.vt('Group members'),
+        icon: Icons.groups_2_outlined,
+        route: '/member/members',
+      ),
+      _MemberAction(
+        title: context.vt('Update language'),
+        icon: Icons.language_outlined,
+        route: '/language',
+      ),
+      _MemberAction(
+        title: context.vt('Manage profile'),
+        icon: Icons.person_outline,
+        route: '/profile/complete',
+      ),
+    ];
+
+    return GridView.builder(
+      itemCount: actions.length,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: AppSpacing.sm,
+        crossAxisSpacing: AppSpacing.sm,
+        childAspectRatio: 2.7,
+      ),
+      itemBuilder: (context, index) {
+        final action = actions[index];
+        return OutlinedButton.icon(
+          onPressed: () => context.push(action.route),
+          icon: Icon(action.icon, size: 18),
+          label: Text(
+            action.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MemberAction {
+  const _MemberAction({
+    required this.title,
+    required this.icon,
+    required this.route,
+  });
+
+  final String title;
+  final IconData icon;
+  final String route;
 }
 
 class _ContributionSummaryCard extends StatelessWidget {

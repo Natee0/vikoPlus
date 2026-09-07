@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { GroupMemberStatus, GroupRole } from "@prisma/client";
+import {
+  ContributionObligationStatus,
+  GroupMemberStatus,
+  GroupRole,
+} from "@prisma/client";
 import { ApiErrorCode } from "../common/errors/api-error-code";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
@@ -62,6 +66,16 @@ export class ReportsService {
             ...(canSeeAllMembers ? {} : { id: membership.id }),
           },
           period: { financialYearId: selectedFinancialYearId },
+          dueAt: { lte: new Date() },
+          status: {
+            in: [
+              ContributionObligationStatus.UPCOMING,
+              ContributionObligationStatus.DUE,
+              ContributionObligationStatus.PARTIALLY_PAID,
+              ContributionObligationStatus.OVERDUE,
+              ContributionObligationStatus.PAID,
+            ],
+          },
         },
         include: {
           member: true,

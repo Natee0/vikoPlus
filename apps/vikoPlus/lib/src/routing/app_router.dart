@@ -378,6 +378,16 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/member/members',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.member,
+        child: MemberListScreen(
+          showBottomNavigation: false,
+          backRoute: '/member/dashboard',
+        ),
+      ),
+    ),
+    GoRoute(
       path: '/loans',
       builder: (context, state) => const PortalRouteGuard(
         area: PortalArea.group,
@@ -504,7 +514,7 @@ final appRouter = GoRouter(
       path: '/members/:id/fully-paid',
       builder: (context, state) {
         return PortalRouteGuard(
-          area: PortalArea.staff,
+          area: PortalArea.group,
           child: MemberProfileScreen(memberId: state.pathParameters['id']),
         );
       },
@@ -513,7 +523,7 @@ final appRouter = GoRouter(
       path: '/members/:id/outstanding',
       builder: (context, state) {
         return PortalRouteGuard(
-          area: PortalArea.staff,
+          area: PortalArea.group,
           child: MemberProfileScreen(memberId: state.pathParameters['id']),
         );
       },
@@ -522,7 +532,7 @@ final appRouter = GoRouter(
       path: '/members/:id',
       builder: (context, state) {
         return PortalRouteGuard(
-          area: PortalArea.staff,
+          area: PortalArea.group,
           child: MemberProfileScreen(memberId: state.pathParameters['id']),
         );
       },

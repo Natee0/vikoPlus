@@ -13,9 +13,14 @@ import '../common/vikoplus_screen.dart';
 import '../common/profile_avatar.dart';
 
 class MemberListScreen extends ConsumerStatefulWidget {
-  const MemberListScreen({this.showBottomNavigation = true, super.key});
+  const MemberListScreen({
+    this.showBottomNavigation = true,
+    this.backRoute,
+    super.key,
+  });
 
   final bool showBottomNavigation;
+  final String? backRoute;
 
   @override
   ConsumerState<MemberListScreen> createState() => _MemberListScreenState();
@@ -84,6 +89,7 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
 
     return VikoplusScreen(
       title: context.vt('Members'),
+      backRoute: widget.backRoute,
       bottomNavigationIndex: 1,
       showBottomNavigation: widget.showBottomNavigation,
       actions: [

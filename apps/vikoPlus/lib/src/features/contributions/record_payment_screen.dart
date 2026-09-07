@@ -39,7 +39,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
     _initializedObligations = true;
     _selectedObligationIds.addAll(
       obligations
-          .where((obligation) => obligation.outstandingMinor > 0)
+          .where((obligation) => obligation.isPayable)
           .take(2)
           .map((obligation) => obligation.id),
     );
@@ -67,7 +67,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
             (obligation) =>
                 obligation.memberId == memberId &&
                 _selectedObligationIds.contains(obligation.id) &&
-                obligation.outstandingMinor > 0,
+                obligation.isPayable,
           )
           .toList();
       final amountMinor = selectedObligations.fold<int>(
@@ -184,7 +184,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                     .where(
                       (obligation) =>
                           obligation.memberId == widget.memberId &&
-                          obligation.outstandingMinor > 0,
+                          obligation.isPayable,
                     )
                     .toList();
                 _initializeObligations(obligations);

@@ -53,6 +53,7 @@ enum ContributionFrequency {
 }
 
 enum ContributionObligationStatus {
+  UPCOMING
   DUE
   PARTIALLY_PAID
   PAID

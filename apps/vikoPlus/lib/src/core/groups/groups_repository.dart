@@ -1266,7 +1266,23 @@ class ContributionObligationSummary {
   final String status;
   final DateTime dueAt;
 
-  int get outstandingMinor => amountDueMinor - amountPaidMinor;
+  int get outstandingMinor {
+    final remaining = amountDueMinor - amountPaidMinor;
+    return remaining <= 0 ? 0 : remaining;
+  }
+
+  bool get isUpcoming {
+    final now = DateTime.now();
+    return status == 'UPCOMING' || dueAt.isAfter(now);
+  }
+
+  bool get isPayable {
+    return !isUpcoming &&
+        outstandingMinor > 0 &&
+        (status == 'DUE' ||
+            status == 'PARTIALLY_PAID' ||
+            status == 'OVERDUE');
+  }
 }
 
 class SelectedContributionPayment {

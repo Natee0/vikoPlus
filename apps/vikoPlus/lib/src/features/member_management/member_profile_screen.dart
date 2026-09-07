@@ -289,7 +289,9 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
   Widget build(BuildContext context) {
     return VikoplusScreen(
       title: AppLocalizations.of(context).memberProfile,
-      backRoute: '/members',
+      backRoute: ref.watch(activeGroupProvider)?.role == 'MEMBER'
+          ? '/member/members'
+          : '/members',
       onRefresh: _refresh,
       child: FutureBuilder<GroupMemberSummary>(
         future: _memberFuture,
@@ -321,6 +323,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
           }
 
           final member = snapshot.data!;
+          final activeRole = ref.watch(activeGroupProvider)?.role;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -385,8 +388,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
               AuthErrorMessage(message: _errorMessage),
               if (_errorMessage.isNotEmpty)
                 const SizedBox(height: AppSpacing.sm),
-              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN' &&
-                  member.status == 'ACTIVE')
+              if (activeRole == 'GROUP_ADMIN' && member.status == 'ACTIVE')
                 OutlinedButton.icon(
                   onPressed: _isAssigningRole || _isUpdatingStatus
                       ? null
@@ -405,8 +407,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                   ),
                 ),
               const SizedBox(height: AppSpacing.sm),
-              if (ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN' &&
-                  member.role != 'GROUP_ADMIN') ...[
+              if (activeRole == 'GROUP_ADMIN' && member.role != 'GROUP_ADMIN') ...[
                 for (final status in [
                   'SUSPENDED',
                   'REMOVED',
@@ -442,7 +443,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
                 if (_isUpdatingStatus)
                   const Center(child: CircularProgressIndicator()),
               ],
-              if (member.status == 'ACTIVE')
+              if (activeRole == 'GROUP_ADMIN' && member.status == 'ACTIVE')
                 FilledButton.icon(
                   onPressed: () => context.go(
                     '/reminders/new?memberId=${Uri.encodeComponent(member.id)}',

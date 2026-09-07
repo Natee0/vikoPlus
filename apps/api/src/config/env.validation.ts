@@ -74,5 +74,6 @@ export const envValidationSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional(),
   }),
-  DEFAULT_LOCALE: Joi.string().valid("en", "sw").default("en"),
+  FIREBASE_SERVICE_ACCOUNT_BASE64: Joi.string().optional(),
+  DEFAULT_LOCALE: Joi.string().valid("en", "sw").default("sw"),
 });

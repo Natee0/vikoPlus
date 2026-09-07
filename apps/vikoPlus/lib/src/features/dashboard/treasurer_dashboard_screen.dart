@@ -61,6 +61,10 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
     final format = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
+    final displayName = ref.watch(profileDisplayNameProvider);
+    final treasurerName = displayName.isEmpty
+        ? AppLocalizations.of(context).welcomeTitle
+        : displayName;
     return VikoplusScreen(
       title: group?.name ?? AppLocalizations.of(context).treasurerTitle,
       bottomNavigationIndex: 0,
@@ -78,11 +82,18 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            ref.watch(profileDisplayNameProvider).isEmpty
-                ? AppLocalizations.of(context).welcomeTitle
-                : AppLocalizations.of(context)
-                      .helloName(ref.watch(profileDisplayNameProvider)),
-            style: Theme.of(context).textTheme.headlineSmall,
+            _timeGreeting(context),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            treasurerName,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: AppSpacing.xxs),
           Text(
@@ -334,6 +345,18 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
         ],
       ),
     );
+  }
+
+  String _timeGreeting(BuildContext context) {
+    final isSwahili = Localizations.localeOf(context).languageCode == 'sw';
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return isSwahili ? 'Habari za asubuhi,' : 'Good morning,';
+    }
+    if (hour < 17) {
+      return isSwahili ? 'Habari za mchana,' : 'Good afternoon,';
+    }
+    return isSwahili ? 'Habari za jioni,' : 'Good evening,';
   }
 }
 

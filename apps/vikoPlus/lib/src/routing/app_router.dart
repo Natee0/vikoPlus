@@ -413,14 +413,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/loans/applications',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.financeStaff,
+        area: PortalArea.group,
         child: LoanApplicationsScreen(),
       ),
     ),
     GoRoute(
       path: '/loans/applications/:id',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.financeStaff,
+        area: PortalArea.group,
         child: LoanApplicationReviewScreen(
           applicationId: state.pathParameters['id'] ?? '',
         ),

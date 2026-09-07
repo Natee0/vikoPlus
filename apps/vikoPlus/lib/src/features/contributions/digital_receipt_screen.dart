@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -27,13 +28,13 @@ class DigitalReceiptScreen extends ConsumerWidget {
     final fallbackRoute = backRoute ?? portalHomeRoute(activeGroup);
 
     return VikoplusScreen(
-      title: 'Digital Receipt',
+      title: context.vt('Digital Receipt'),
       backRoute: fallbackRoute,
       actions: [
         IconButton(
           onPressed: () {},
           icon: const Icon(Icons.more_vert),
-          tooltip: 'More options',
+          tooltip: context.vt('More options'),
         ),
       ],
       child: _body(context, ref, formatters, activeGroup, id, fallbackRoute),
@@ -54,8 +55,8 @@ class DigitalReceiptScreen extends ConsumerWidget {
     if (activeGroup == null) {
       return _ReceiptUnavailable(
         backRoute: fallbackRoute,
-        title: 'Select a group',
-        message: 'Open a group before viewing receipts.',
+        title: context.vt('Select a group'),
+        message: context.vt('Open a group before viewing receipts.'),
       );
     }
 
@@ -75,13 +76,15 @@ class DigitalReceiptScreen extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AuthErrorMessage(
-                message: 'Could not load this receipt. Please try again.',
+              AuthErrorMessage(
+                message: context.vt(
+                  'Could not load this receipt. Please try again.',
+                ),
               ),
               const SizedBox(height: AppSpacing.md),
               FilledButton(
                 onPressed: () => context.go(fallbackRoute),
-                child: const Text('Go Back'),
+                child: Text(context.vt('Go Back')),
               ),
             ],
           );
@@ -114,9 +117,9 @@ class _ReceiptUnavailable extends StatelessWidget {
   Widget build(BuildContext context) {
     return EmptyStateCard(
       icon: Icons.receipt_long_outlined,
-      title: title,
-      message: message,
-      actionLabel: 'Go Back',
+      title: context.vt(title),
+      message: context.vt(message),
+      actionLabel: context.vt('Go Back'),
       onAction: () => context.go(backRoute),
     );
   }
@@ -149,12 +152,12 @@ class _ReceiptContent extends StatelessWidget {
       lines: [
         ('Reference No', receipt.receiptNumber),
         ('Date & Time', formatters.date(receipt.issuedAt)),
-        ('Payment Method', _methodLabel(payment?.method ?? 'OTHER')),
+        ('Payment Method', context.vt(_methodLabel(payment?.method ?? 'OTHER'))),
         ('Group Name', groupName),
-        const ('Contribution Type', 'Monthly Contribution'),
-        ('Member Name', payment?.memberName ?? 'Member'),
+        ('Contribution Type', 'Monthly Contribution'),
+        ('Member Name', payment?.memberName ?? context.vt('Member')),
         ('Amount', amount),
-        const ('Transaction Fee', 'TZS 0'),
+        ('Transaction Fee', 'TZS 0'),
       ],
     );
   }
@@ -183,22 +186,24 @@ class _ReceiptLayout extends StatelessWidget {
         FilledButton.icon(
           onPressed: () {},
           icon: const Icon(Icons.share_outlined),
-          label: const Text('Share Receipt'),
+          label: Text(context.vt('Share Receipt')),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
           onPressed: () {},
           icon: const Icon(Icons.download_outlined),
-          label: const Text('Download PDF'),
+          label: Text(context.vt('Download PDF')),
         ),
         const SizedBox(height: AppSpacing.sm),
         TextButton(
           onPressed: () => context.go(returnRoute),
-          child: const Text('Return to Dashboard'),
+          child: Text(context.vt('Return to Dashboard')),
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'This is an automated receipt for your records.\nPlease contact your group admin for any queries.',
+          context.vt(
+            'This is an automated receipt for your records.\nPlease contact your group admin for any queries.',
+          ),
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: AppColors.outline),
@@ -228,7 +233,7 @@ class _ReceiptSuccessHeader extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.sm),
         Text(
-          'Payment Confirmed',
+          context.vt('Payment Confirmed'),
           style: Theme.of(context).textTheme.titleMedium
               ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
         ),
@@ -271,7 +276,10 @@ class _ReceiptCard extends StatelessWidget {
       child: Column(
         children: [
           for (var index = 0; index < lines.length; index++) ...[
-            _ReceiptLine(label: lines[index].$1, value: lines[index].$2),
+            _ReceiptLine(
+              label: context.vt(lines[index].$1),
+              value: lines[index].$2,
+            ),
             if (index == 2 || index == 5)
               const Divider(
                 height: AppSpacing.md,
@@ -279,7 +287,7 @@ class _ReceiptCard extends StatelessWidget {
               ),
           ],
           const Divider(height: AppSpacing.md, color: AppColors.outlineVariant),
-          _ReceiptLine(label: 'Total', value: total, strong: true),
+          _ReceiptLine(label: context.vt('Total'), value: total, strong: true),
         ],
       ),
     );

@@ -12,6 +12,8 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
+import '../common/vikoplus_components.dart';
+import '../common/vikoplus_screen.dart';
 import '../notifications/notification_icon_button.dart';
 
 class MemberDashboardScreen extends ConsumerStatefulWidget {
@@ -67,156 +69,76 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
         ? loc.selectGroup
         : context.vt('Scheduled');
 
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      appBar: AppBar(
-        leadingWidth: 56,
-        leading: const Padding(
-          padding: EdgeInsets.only(left: AppSpacing.screenMobile),
-          child: CircleAvatar(
-            backgroundColor: AppColors.surfaceContainerHigh,
-            child: Icon(Icons.person_outline, color: AppColors.primary),
-          ),
+    return VikoplusScreen(
+      title: activeGroup?.name ?? loc.memberPortal,
+      bottomNavigationIndex: widget.showBottomNavigation ? 0 : null,
+      showBottomNavigation: widget.showBottomNavigation,
+      showBackButton: false,
+      onRefresh: _refresh,
+      actions: [
+        const NotificationIconButton(),
+        IconButton(
+          tooltip: loc.myGroups,
+          onPressed: () => context.go('/groups'),
+          icon: const Icon(Icons.groups_2_outlined),
         ),
-        title: Text(
-          loc.memberPortal,
-          style: Theme.of(context).textTheme.headlineMedium
-              ?.copyWith(color: AppColors.primary, fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          const NotificationIconButton(),
-          IconButton(
-            tooltip: loc.myGroups,
-            onPressed: () => context.go('/groups'),
-            icon: const Icon(Icons.groups_2_outlined),
-          ),
-          const AuthLogoutIconButton(),
-        ],
-      ),
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.screenMobile,
-              AppSpacing.md,
-              AppSpacing.screenMobile,
-              104,
+        const AuthLogoutIconButton(),
+      ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _timeGreeting(context),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.onSurfaceVariant,
             ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            memberName,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.onSurface,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          _ContributionSummaryCard(summaryFuture: _summaryFor(activeGroup?.id)),
+          const SizedBox(height: AppSpacing.md),
+          const _MemberQuickLinks(),
+          const SizedBox(height: AppSpacing.lg),
+          Row(
             children: [
-              Text(
-                _timeGreeting(context),
-                style: Theme.of(context).textTheme.bodyLarge
-                    ?.copyWith(color: AppColors.onSurfaceVariant),
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                memberName,
-                style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                  color: AppColors.onSurface,
-                  fontWeight: FontWeight.w700,
+              Expanded(
+                child: Text(
+                  loc.recentActivities,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              _ContributionSummaryCard(
-                summaryFuture: _summaryFor(activeGroup?.id),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              const _MemberActionGrid(),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      loc.recentActivities,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => context.go('/member/contributions'),
-                    child: Text(loc.viewHistory),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              const _ActivityTile(
-                title: 'Joined group',
-                subtitle: 'Membership confirmed',
-                value: 'Today',
-                icon: Icons.group_add_outlined,
-              ),
-              const SizedBox(height: AppSpacing.xs),
-              _ActivityTile(
-                title: 'First contribution due',
-                subtitle: groupName,
-                value: firstDueLabel,
-                icon: Icons.event_available_outlined,
-              ),
-              const SizedBox(height: AppSpacing.md),
-              OutlinedButton.icon(
-                onPressed: () => context.go('/groups'),
-                icon: const Icon(Icons.hub_outlined, size: 18),
-                label: Text(loc.switchCreateJoin),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              FilledButton.icon(
-                onPressed: () => context.go('/loans'),
-                icon: const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 18,
-                ),
-                label: Text(loc.loans),
+              TextButton(
+                onPressed: () => context.go('/member/contributions'),
+                child: Text(loc.viewHistory),
               ),
             ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.xs),
+          const _ActivityTile(
+            title: 'Joined group',
+            subtitle: 'Membership confirmed',
+            value: 'Today',
+            icon: Icons.group_add_outlined,
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          _ActivityTile(
+            title: 'First contribution due',
+            subtitle: groupName,
+            value: firstDueLabel,
+            icon: Icons.event_available_outlined,
+          ),
+        ],
       ),
-      bottomNavigationBar: widget.showBottomNavigation
-          ? NavigationBar(
-              selectedIndex: 0,
-              onDestinationSelected: (index) {
-                if (index == 0) return;
-
-                switch (index) {
-                  case 1:
-                    context.go('/member/contributions');
-                    break;
-                  case 2:
-                    context.go('/member/payments/select');
-                    break;
-                  case 3:
-                    context.go('/member/profile');
-                    break;
-                }
-              },
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.history_outlined),
-                  selectedIcon: Icon(Icons.history),
-                  label: 'History',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.payments_outlined),
-                  selectedIcon: Icon(Icons.payments),
-                  label: 'Payments',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: 'Account',
-                ),
-              ],
-            )
-          : null,
     );
   }
 
@@ -233,56 +155,51 @@ class _MemberDashboardScreenState extends ConsumerState<MemberDashboardScreen> {
   }
 }
 
-class _MemberActionGrid extends StatelessWidget {
-  const _MemberActionGrid();
+class _MemberQuickLinks extends StatelessWidget {
+  const _MemberQuickLinks();
 
   @override
   Widget build(BuildContext context) {
     final actions = [
       _MemberAction(
-        title: context.vt('Seek loan'),
+        title: 'Seek loan',
+        subtitle: 'Apply for support or track your loan requests',
         icon: Icons.account_balance_wallet_outlined,
         route: '/loans',
       ),
       _MemberAction(
-        title: context.vt('Group members'),
+        title: 'Group members',
+        subtitle: 'View fellow members in this group',
         icon: Icons.groups_2_outlined,
         route: '/member/members',
       ),
       _MemberAction(
-        title: context.vt('Update language'),
+        title: 'Update language',
+        subtitle: 'Choose Kiswahili or English',
         icon: Icons.language_outlined,
         route: '/language',
       ),
       _MemberAction(
-        title: context.vt('Manage profile'),
-        icon: Icons.person_outline,
-        route: '/profile/complete',
+        title: 'Switch groups',
+        subtitle: 'Open another group, create one, or join by code',
+        icon: Icons.hub_outlined,
+        route: '/groups',
       ),
     ];
 
-    return GridView.builder(
-      itemCount: actions.length,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: AppSpacing.sm,
-        crossAxisSpacing: AppSpacing.sm,
-        childAspectRatio: 2.7,
-      ),
-      itemBuilder: (context, index) {
-        final action = actions[index];
-        return OutlinedButton.icon(
-          onPressed: () => context.push(action.route),
-          icon: Icon(action.icon, size: 18),
-          label: Text(
-            action.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final action in actions) ...[
+          ActionTile(
+            title: action.title,
+            subtitle: action.subtitle,
+            icon: action.icon,
+            route: action.route,
           ),
-        );
-      },
+          const SizedBox(height: AppSpacing.sm),
+        ],
+      ],
     );
   }
 }
@@ -290,11 +207,13 @@ class _MemberActionGrid extends StatelessWidget {
 class _MemberAction {
   const _MemberAction({
     required this.title,
+    required this.subtitle,
     required this.icon,
     required this.route,
   });
 
   final String title;
+  final String subtitle;
   final IconData icon;
   final String route;
 }
@@ -311,14 +230,16 @@ class _ContributionSummaryCard extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const AuthErrorMessage(
-                  message: 'Select a group to load your contribution summary.',
+                AuthErrorMessage(
+                  message: context.vt(
+                    'Select a group to load your contribution summary.',
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 FilledButton.icon(
                   onPressed: () => context.go('/groups'),
                   icon: const Icon(Icons.hub_outlined, size: 18),
-                  label: const Text('Choose Group'),
+                  label: Text(context.vt('Choose Group')),
                 ),
               ],
             )
@@ -350,8 +271,8 @@ class _LiveContributionSummary extends StatelessWidget {
           );
         }
         if (snapshot.hasError || snapshot.data == null) {
-          return const AuthErrorMessage(
-            message: 'Could not load your contribution summary.',
+          return AuthErrorMessage(
+            message: context.vt('Could not load your contribution summary.'),
           );
         }
         final report = snapshot.data!;
@@ -367,11 +288,11 @@ class _LiveContributionSummary extends StatelessWidget {
             : paidMinor / (paidMinor + outstandingMinor);
 
         return _ContributionSummaryContent(
-          paid: formatters.compactMoney(paidMinor),
-          outstanding: formatters.compactMoney(outstandingMinor),
+          paid: formatters.money(paidMinor),
+          outstanding: formatters.money(outstandingMinor),
           nextDue: outstandingMinor > 0 ? 'Pending' : 'Cleared',
           progress: progress,
-          progressLabel: '$paidPeriods paid',
+          progressLabel: context.vtf('{count} paid', {'count': paidPeriods}),
         );
       },
     );
@@ -402,7 +323,7 @@ class _ContributionSummaryContent extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Contribution Summary',
+                context.vt('Contribution Summary'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.onSurface,
                   fontWeight: FontWeight.w700,
@@ -417,7 +338,7 @@ class _ContributionSummaryContent extends StatelessWidget {
         ),
         const SizedBox(height: AppSpacing.md),
         Text(
-          'Total Paid',
+          context.vt('Total Paid'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: AppColors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
@@ -454,7 +375,7 @@ class _ContributionSummaryContent extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Annual Goal Progress',
+                context.vt('Annual Goal Progress'),
                 style: Theme.of(context).textTheme.bodySmall
                     ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
@@ -483,13 +404,13 @@ class _ContributionSummaryContent extends StatelessWidget {
           onPressed: () => context.go('/member/payments/select'),
           iconAlignment: IconAlignment.end,
           icon: const Icon(Icons.arrow_forward, size: 18),
-          label: const Text('Make a Payment'),
+          label: Text(context.vt('Make a Payment')),
         ),
         const SizedBox(height: AppSpacing.sm),
         OutlinedButton.icon(
           onPressed: () => context.go('/member/contributions'),
           icon: const Icon(Icons.pending_actions_outlined, size: 18),
-          label: const Text('View dues'),
+          label: Text(context.vt('View dues')),
         ),
       ],
     );
@@ -535,14 +456,14 @@ class _MetricBlock extends StatelessWidget {
           : CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          context.vt(label),
           textAlign: alignEnd ? TextAlign.end : TextAlign.start,
           style: Theme.of(context).textTheme.bodySmall
               ?.copyWith(color: AppColors.onSurfaceVariant),
         ),
         const SizedBox(height: AppSpacing.xxs),
         Text(
-          value,
+          context.vt(value),
           textAlign: alignEnd ? TextAlign.end : TextAlign.start,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             color: AppColors.onSurface,
@@ -597,7 +518,7 @@ class _ActivityTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  title,
+                  context.vt(title),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
@@ -606,7 +527,7 @@ class _ActivityTile extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  subtitle,
+                  context.vt(subtitle),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall
@@ -617,7 +538,7 @@ class _ActivityTile extends StatelessWidget {
           ),
           const SizedBox(width: AppSpacing.sm),
           Text(
-            value,
+            context.vt(value),
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
               color: AppColors.onSurface,
               fontWeight: FontWeight.w700,

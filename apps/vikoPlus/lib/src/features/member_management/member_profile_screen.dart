@@ -290,7 +290,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
     return VikoplusScreen(
       title: AppLocalizations.of(context).memberProfile,
       backRoute: ref.watch(activeGroupProvider)?.role == 'MEMBER'
-          ? '/member/members'
+          ? '/member/dashboard'
           : '/members',
       onRefresh: _refresh,
       child: FutureBuilder<GroupMemberSummary>(

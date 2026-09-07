@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../l10n/app_localizations.dart';
 import 'core/locale/locale_controller.dart';
+import 'features/notifications/phone_notification_host.dart';
 import 'routing/app_router.dart';
 import 'theme/app_theme.dart';
 
@@ -20,6 +21,9 @@ class VikoplusApp extends ConsumerWidget {
       onGenerateTitle: (context) => AppLocalizations.of(context).appName,
       theme: AppTheme.light(),
       routerConfig: appRouter,
+      builder: (context, child) {
+        return PhoneNotificationHost(child: child ?? const SizedBox.shrink());
+      },
       locale: locale ?? const Locale('sw'),
       supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [

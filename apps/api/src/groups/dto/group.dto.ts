@@ -25,6 +25,25 @@ export class UpdateLanguageDto {
   locale!: "en" | "sw";
 }
 
+export class RegisterPushTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  token!: string;
+
+  @IsIn(["android", "ios", "web"])
+  platform!: "android" | "ios" | "web";
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  deviceId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  appVersion?: string;
+}
+
 export class UpdateMemberStatusDto {
   @IsIn(["ACTIVE", "SUSPENDED", "REMOVED"])
   status!: "ACTIVE" | "SUSPENDED" | "REMOVED";

@@ -90,7 +90,7 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
     return VikoplusScreen(
       title: context.vt('Members'),
       backRoute: widget.backRoute,
-      bottomNavigationIndex: 1,
+      bottomNavigationIndex: widget.showBottomNavigation ? 1 : null,
       showBottomNavigation: widget.showBottomNavigation,
       actions: [
         if (activeGroup?.role == 'GROUP_ADMIN') ...[

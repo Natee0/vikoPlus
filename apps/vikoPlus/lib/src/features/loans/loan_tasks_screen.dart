@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
@@ -32,6 +33,13 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
 
   Future<void> _decide(LoanTask task, bool approve) async {
     if (_busy || _groupId == null) return;
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+    final amount = formatters.money(
+      task.amountMinor,
+      currency: task.currency,
+    );
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -46,7 +54,7 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
                   'Respond to {name}\'s guarantee request for {amount}?',
                   {
                     'name': task.memberName,
-                    'amount': '${task.currency} ${task.amountMinor}',
+                    'amount': amount,
                   },
                 )
               : context.vtf('Confirm repayment from {name}.', {
@@ -90,7 +98,7 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
       _future = ref.read(loansRepositoryProvider).tasks(group.id);
     }
     return VikoplusScreen(
-      title: context.vt('Loan Requests'),
+      title: 'Loan Requests',
       backRoute: '/loans',
       onRefresh: _refresh,
       child: FutureBuilder<List<LoanTask>>(
@@ -108,12 +116,19 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
             else if (snapshot.data?.isEmpty ?? true)
               Text(context.vt('No requests awaiting your response.')),
             for (final task in snapshot.data ?? <LoanTask>[]) ...[
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(task.memberName),
-                subtitle: Text(
-                  '${context.vt(task.isGuarantee ? "Guarantee request" : "Repayment verification")} · ${task.currency} ${task.amountMinor}',
-                ),
+              Builder(
+                builder: (context) {
+                  final formatters = AppFormatters(
+                    Localizations.localeOf(context).toLanguageTag(),
+                  );
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(task.memberName),
+                    subtitle: Text(
+                      '${context.vt(task.isGuarantee ? "Guarantee request" : "Repayment verification")} - ${formatters.money(task.amountMinor, currency: task.currency)}',
+                    ),
+                  );
+                },
               ),
               Row(
                 children: [

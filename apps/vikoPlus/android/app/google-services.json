@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "275850719373",
+    "project_id": "vikoplus",
+    "storage_bucket": "vikoplus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:275850719373:android:496be08fae2b4f964db2c4",
+        "android_client_info": {
+          "package_name": "com.vikoplus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTDKQhUB5Mh3qJwVVIwHioktdWDSOveTY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

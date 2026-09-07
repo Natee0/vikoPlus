@@ -1,4 +1,4 @@
-// cspell:words Habari malipo yako yanatakiwa tarehe Kumbusho
+// cspell:words Habari malipo yako yanatakiwa tarehe Kumbusho Ombi udhamini amekuomba mkopo yameidhinishwa yamekataliwa yanahitaji marekebisho amewasilisha marejesho Udhamini umekubaliwa amekubali amekataa
 import {
   BadGatewayException,
   BadRequestException,
@@ -35,6 +35,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
 import { BriqMessagingService } from "../messaging/briq-messaging.service";
+import { FirebasePushService } from "../messaging/firebase-push.service";
 import { SmtpEmailService } from "../messaging/smtp-email.service";
 import { groupInvitationEmailTemplate } from "./group-invitation-email.template";
 import { ReminderDispatchService } from "./reminder-dispatch.service";
@@ -54,6 +55,7 @@ import {
   PaymentRulesDto,
   RecordContributionPaymentDto,
   RecordLoanRepaymentDto,
+  RegisterPushTokenDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
   ReviewLoanApplicationDto,
@@ -103,6 +105,7 @@ export class GroupsService {
     @Inject(SUBSCRIPTION_BILLING_PROVIDER)
     private readonly billingProvider: SubscriptionBillingProvider,
     private readonly briq: BriqMessagingService,
+    private readonly pushNotifications: FirebasePushService,
     private readonly email: SmtpEmailService,
     private readonly reminderDispatch: ReminderDispatchService,
     private readonly config: ConfigService = new ConfigService(),
@@ -150,6 +153,36 @@ export class GroupsService {
       data: { preferredLocale: input.locale === "sw" ? Locale.sw : Locale.en },
     });
     return { userId: updated.id, preferredLocale: updated.preferredLocale };
+  }
+
+  async registerPushToken(
+    user: AuthenticatedUser,
+    input: RegisterPushTokenDto,
+  ) {
+    const token = input.token.trim();
+    if (token.length === 0) {
+      throw new BadRequestException("Push token is required.");
+    }
+
+    await this.prisma.pushDeviceToken.upsert({
+      where: { token },
+      update: {
+        userId: user.id,
+        platform: input.platform,
+        deviceId: input.deviceId,
+        appVersion: input.appVersion,
+        lastSeenAt: new Date(),
+      },
+      create: {
+        userId: user.id,
+        token,
+        platform: input.platform,
+        deviceId: input.deviceId,
+        appVersion: input.appVersion,
+      },
+    });
+
+    return { registered: true };
   }
 
   async paymentRules(user: AuthenticatedUser, groupId: string) {
@@ -1179,6 +1212,25 @@ export class GroupsService {
           false,
           tx,
         );
+        const reviewers = await tx.groupMember.findMany({
+          where: {
+            groupId,
+            status: GroupMemberStatus.ACTIVE,
+            role: { in: [GroupRole.TREASURER, GroupRole.SECRETARY] },
+            id: { not: membership.id },
+            userId: { not: null },
+          },
+          select: { userId: true },
+        });
+        for (const reviewer of reviewers) {
+          await this.createUserNotification(tx, {
+            userId: reviewer.userId,
+            titleEn: "Payment awaiting review",
+            titleSw: "Malipo yanasubiri ukaguzi",
+            bodyEn: `${membership.fullName} submitted a payment of ${payment.currency} ${payment.amountMinor}.`,
+            bodySw: `${membership.fullName} amewasilisha malipo ya ${payment.currency} ${payment.amountMinor}.`,
+          });
+        }
         return tx.groupContributionPayment.findUniqueOrThrow({
           where: { id: payment.id },
           include: { receipt: true, member: true },
@@ -1231,6 +1283,13 @@ export class GroupsService {
           tx,
         );
         await this.createReceiptForPayment(groupId, payment.id, tx);
+        await this.createUserNotification(tx, {
+          userId: member.userId,
+          titleEn: "Payment recorded",
+          titleSw: "Malipo yamerekodiwa",
+          bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} has been recorded and approved.`,
+          bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yamerekodiwa na kuidhinishwa.`,
+        });
         return tx.groupContributionPayment.findUniqueOrThrow({
           where: { id: payment.id },
           include: { receipt: true, member: true },
@@ -1387,6 +1446,13 @@ export class GroupsService {
           tx,
         );
         await this.createReceiptForPayment(groupId, payment.id, tx);
+        await this.createUserNotification(tx, {
+          userId: payment.member.userId,
+          titleEn: "Payment approved",
+          titleSw: "Malipo yameidhinishwa",
+          bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} has been approved.`,
+          bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yameidhinishwa.`,
+        });
         await this.auditPaymentReview(
           user,
           groupId,
@@ -1414,39 +1480,47 @@ export class GroupsService {
       GroupRole.TREASURER,
       GroupRole.SECRETARY,
     ]);
-    const payment = await this.prisma.groupContributionPayment.findFirstOrThrow(
-      {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.groupContributionPayment.findFirstOrThrow({
         where: { id: paymentId, groupId },
         include: { member: true },
-      },
-    );
-    this.ensureContributionPaymentReviewer(membership.role, payment.member);
-    if (
-      ![
-        GroupContributionPaymentStatus.SUBMITTED,
-        GroupContributionPaymentStatus.PENDING_VERIFICATION,
-        GroupContributionPaymentStatus.CORRECTION_REQUESTED,
-      ].some((status) => status === payment.status)
-    ) {
-      throw new ConflictException("Only pending payments can be rejected.");
-    }
-    const updated = await this.prisma.groupContributionPayment.update({
-      where: { id: payment.id, status: payment.status },
-      data: {
-        reviewedByUserId: user.id,
-        reviewedAt: new Date(),
-        status: GroupContributionPaymentStatus.REJECTED,
-        reversalReason: input.reason,
-      },
+      });
+      this.ensureContributionPaymentReviewer(membership.role, payment.member);
+      if (
+        ![
+          GroupContributionPaymentStatus.SUBMITTED,
+          GroupContributionPaymentStatus.PENDING_VERIFICATION,
+          GroupContributionPaymentStatus.CORRECTION_REQUESTED,
+        ].some((status) => status === payment.status)
+      ) {
+        throw new ConflictException("Only pending payments can be rejected.");
+      }
+      const updated = await tx.groupContributionPayment.update({
+        where: { id: payment.id, status: payment.status },
+        data: {
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
+          status: GroupContributionPaymentStatus.REJECTED,
+          reversalReason: input.reason,
+        },
+      });
+      await this.createUserNotification(tx, {
+        userId: payment.member.userId,
+        titleEn: "Payment rejected",
+        titleSw: "Malipo yamekataliwa",
+        bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} was rejected. ${input.reason ?? ""}`.trim(),
+        bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yamekataliwa. ${input.reason ?? ""}`.trim(),
+      });
+      await this.auditPaymentReview(
+        user,
+        groupId,
+        payment.id,
+        AuditAction.GROUP_CONTRIBUTION_PAYMENT_REJECTED,
+        input.reason,
+        tx,
+      );
+      return updated;
     });
-    await this.auditPaymentReview(
-      user,
-      groupId,
-      payment.id,
-      AuditAction.GROUP_CONTRIBUTION_PAYMENT_REJECTED,
-      input.reason,
-    );
-    return updated;
   }
 
   async requestPaymentCorrection(
@@ -1474,22 +1548,33 @@ export class GroupsService {
     ) {
       throw new ConflictException("Only pending payments can be corrected.");
     }
-    const updated = await this.prisma.groupContributionPayment.update({
-      where: { id: payment.id, status: payment.status },
-      data: {
-        reviewedByUserId: user.id,
-        reviewedAt: new Date(),
-        status: GroupContributionPaymentStatus.CORRECTION_REQUESTED,
-        correctionMessage: input.reason,
-      },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const reviewed = await tx.groupContributionPayment.update({
+        where: { id: payment.id, status: payment.status },
+        data: {
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
+          status: GroupContributionPaymentStatus.CORRECTION_REQUESTED,
+          correctionMessage: input.reason,
+        },
+      });
+      await this.createUserNotification(tx, {
+        userId: payment.member.userId,
+        titleEn: "Payment needs correction",
+        titleSw: "Malipo yanahitaji marekebisho",
+        bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} needs correction. ${input.reason ?? ""}`.trim(),
+        bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yanahitaji marekebisho. ${input.reason ?? ""}`.trim(),
+      });
+      await this.auditPaymentReview(
+        user,
+        groupId,
+        payment.id,
+        AuditAction.GROUP_CONTRIBUTION_PAYMENT_CORRECTION_REQUESTED,
+        input.reason,
+        tx,
+      );
+      return reviewed;
     });
-    await this.auditPaymentReview(
-      user,
-      groupId,
-      payment.id,
-      AuditAction.GROUP_CONTRIBUTION_PAYMENT_CORRECTION_REQUESTED,
-      input.reason,
-    );
     return updated;
   }
 
@@ -1927,7 +2012,7 @@ export class GroupsService {
             groupId,
             status: GroupMemberStatus.ACTIVE,
           },
-          select: { id: true },
+          select: { id: true, userId: true },
         });
         if (guarantors.length !== guarantorIds.length) {
           throw new BadRequestException(
@@ -1951,6 +2036,15 @@ export class GroupsService {
           },
           include: { member: true, guarantors: { include: { member: true } } },
         });
+        for (const guarantor of guarantors) {
+          await this.createUserNotification(tx, {
+            userId: guarantor.userId,
+            titleEn: "Guarantee request",
+            titleSw: "Ombi la udhamini",
+            bodyEn: `${membership.fullName} asked you to guarantee a loan of ${overview.currency} ${input.amountMinor}.`,
+            bodySw: `${membership.fullName} amekuomba udhamini wa mkopo wa ${overview.currency} ${input.amountMinor}.`,
+          });
+        }
         await tx.auditLog.create({
           data: {
             actorUserId: user.id,
@@ -2134,6 +2228,13 @@ export class GroupsService {
             newValue: { amountMinor, totalPayableMinor, dueAt },
           },
         });
+        await this.createUserNotification(tx, {
+          userId: savedApplication.member.userId,
+          titleEn: "Loan approved",
+          titleSw: "Mkopo umeidhinishwa",
+          bodyEn: `Your loan request for ${savedApplication.currency} ${amountMinor} has been approved and disbursed.`,
+          bodySw: `Ombi lako la mkopo wa ${savedApplication.currency} ${amountMinor} limeidhinishwa na fedha zimetolewa.`,
+        });
         return savedApplication;
       },
       { isolationLevel: "Serializable" },
@@ -2150,7 +2251,14 @@ export class GroupsService {
     await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
     const application = await this.prisma.loanApplication.findFirst({
       where: { id: applicationId, groupId },
-      select: { id: true, status: true, requestedByUserId: true },
+      select: {
+        id: true,
+        status: true,
+        requestedByUserId: true,
+        amountMinor: true,
+        currency: true,
+        member: { select: { userId: true } },
+      },
     });
     if (!application)
       throw new NotFoundException("Loan application not found.");
@@ -2173,6 +2281,15 @@ export class GroupsService {
         rejectedAt: new Date(),
       },
       include: { member: true, guarantors: { include: { member: true } } },
+    });
+    await this.prisma.$transaction(async (tx) => {
+      await this.createUserNotification(tx, {
+        userId: updated.member.userId,
+        titleEn: "Loan rejected",
+        titleSw: "Mkopo umekataliwa",
+        bodyEn: `Your loan request for ${updated.currency} ${updated.amountMinor} was rejected. ${input.reason ?? input.notes ?? ""}`.trim(),
+        bodySw: `Ombi lako la mkopo wa ${updated.currency} ${updated.amountMinor} limekataliwa. ${input.reason ?? input.notes ?? ""}`.trim(),
+      });
     });
     await this.prisma.auditLog.create({
       data: {
@@ -2265,6 +2382,25 @@ export class GroupsService {
             newValue: { loanId, amountMinor: repayment.amountMinor },
           },
         });
+        const reviewers = await tx.groupMember.findMany({
+          where: {
+            groupId,
+            status: GroupMemberStatus.ACTIVE,
+            role: GroupRole.TREASURER,
+            id: { not: membership.id },
+            userId: { not: null },
+          },
+          select: { userId: true },
+        });
+        for (const reviewer of reviewers) {
+          await this.createUserNotification(tx, {
+            userId: reviewer.userId,
+            titleEn: "Loan repayment awaiting review",
+            titleSw: "Marejesho ya mkopo yanasubiri ukaguzi",
+            bodyEn: `${membership.fullName} submitted a loan repayment of ${repayment.currency} ${repayment.amountMinor}.`,
+            bodySw: `${membership.fullName} amewasilisha marejesho ya mkopo ya ${repayment.currency} ${repayment.amountMinor}.`,
+          });
+        }
         return repayment;
       },
       { isolationLevel: "Serializable" },
@@ -2321,24 +2457,37 @@ export class GroupsService {
     accept: boolean,
   ) {
     const membership = await this.requireMembership(user, groupId);
-    const updated = await this.prisma.loanGuarantor.updateMany({
-      where: {
-        id: guaranteeId,
-        groupMemberId: membership.id,
-        status: LoanGuarantorStatus.PENDING,
-        application: { groupId, status: LoanApplicationStatus.SUBMITTED },
-      },
-      data: {
-        status: accept
-          ? LoanGuarantorStatus.CONFIRMED
-          : LoanGuarantorStatus.DECLINED,
-        confirmedAt: accept ? new Date() : null,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const guarantee = await tx.loanGuarantor.findFirst({
+        where: {
+          id: guaranteeId,
+          groupMemberId: membership.id,
+          status: LoanGuarantorStatus.PENDING,
+          application: { groupId, status: LoanApplicationStatus.SUBMITTED },
+        },
+        include: { application: { include: { member: true } } },
+      });
+      if (!guarantee)
+        throw new ConflictException(
+          "Guarantee request is unavailable or already answered.",
+        );
+      await tx.loanGuarantor.update({
+        where: { id: guarantee.id },
+        data: {
+          status: accept
+            ? LoanGuarantorStatus.CONFIRMED
+            : LoanGuarantorStatus.DECLINED,
+          confirmedAt: accept ? new Date() : null,
+        },
+      });
+      await this.createUserNotification(tx, {
+        userId: guarantee.application.member.userId,
+        titleEn: accept ? "Guarantee accepted" : "Guarantee declined",
+        titleSw: accept ? "Udhamini umekubaliwa" : "Udhamini umekataliwa",
+        bodyEn: `${membership.fullName} ${accept ? "accepted" : "declined"} your guarantee request for ${guarantee.application.currency} ${guarantee.application.amountMinor}.`,
+        bodySw: `${membership.fullName} ${accept ? "amekubali" : "amekataa"} ombi lako la udhamini wa ${guarantee.application.currency} ${guarantee.application.amountMinor}.`,
+      });
     });
-    if (updated.count !== 1)
-      throw new ConflictException(
-        "Guarantee request is unavailable or already answered.",
-      );
     return { accepted: accept };
   }
 
@@ -2355,7 +2504,7 @@ export class GroupsService {
       async (tx) => {
         const repayment = await tx.loanRepayment.findFirst({
           where: { id: repaymentId, groupId },
-          include: { loan: true },
+          include: { loan: true, member: true },
         });
         if (!repayment) throw new NotFoundException("Repayment not found.");
         if (
@@ -2417,6 +2566,15 @@ export class GroupsService {
               status: updated.status,
             },
           },
+        });
+        await this.createUserNotification(tx, {
+          userId: repayment.member.userId,
+          titleEn: approve ? "Loan repayment approved" : "Loan repayment rejected",
+          titleSw: approve
+            ? "Marejesho ya mkopo yameidhinishwa"
+            : "Marejesho ya mkopo yamekataliwa",
+          bodyEn: `Your loan repayment of ${repayment.currency} ${repayment.amountMinor} was ${approve ? "approved" : "rejected"}.`,
+          bodySw: `Marejesho yako ya mkopo ya ${repayment.currency} ${repayment.amountMinor} ${approve ? "yameidhinishwa" : "yamekataliwa"}.`,
         });
         return updated;
       },
@@ -2648,6 +2806,53 @@ export class GroupsService {
       where: { id: notification.id },
       data: { readAt: new Date() },
     });
+  }
+
+  private async createUserNotification(
+    tx: Prisma.TransactionClient,
+    input: {
+      userId: string | null;
+      titleEn: string;
+      titleSw: string;
+      bodyEn: string;
+      bodySw: string;
+    },
+  ) {
+    if (!input.userId) return;
+    const recipient = await tx.user.findUnique({
+      where: { id: input.userId },
+      select: {
+        id: true,
+        preferredLocale: true,
+        pushDeviceTokens: { select: { token: true } },
+      },
+    });
+    if (!recipient) return;
+    const title =
+      recipient.preferredLocale === Locale.sw ? input.titleSw : input.titleEn;
+    const body =
+      recipient.preferredLocale === Locale.sw ? input.bodySw : input.bodyEn;
+    const notification = await tx.notification.create({
+      data: {
+        userId: recipient.id,
+        title,
+        body,
+        locale: recipient.preferredLocale,
+      },
+    });
+    const pushResult = await this.pushNotifications.sendToTokens(
+      recipient.pushDeviceTokens.map((item) => item.token),
+      {
+        title,
+        body,
+        data: { notificationId: notification.id },
+      },
+    );
+    if (pushResult.invalidTokens.length > 0) {
+      await tx.pushDeviceToken.deleteMany({
+        where: { token: { in: pushResult.invalidTokens } },
+      });
+    }
   }
 
   private async requireMembership(
@@ -3373,10 +3578,10 @@ export class GroupsService {
   private async ensureGroupMember(
     groupId: string,
     memberId: string,
-  ): Promise<Pick<GroupMember, "id" | "role">> {
+  ): Promise<Pick<GroupMember, "id" | "role" | "userId">> {
     const member = await this.prisma.groupMember.findFirst({
       where: { id: memberId, groupId, status: GroupMemberStatus.ACTIVE },
-      select: { id: true, role: true },
+      select: { id: true, role: true, userId: true },
     });
     if (!member) throw new NotFoundException("Member not found.");
     return member;

@@ -45,6 +45,10 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
       _groupId = group?.id;
       _future = group == null ? null : _load(group.id);
     }
+    final displayName = ref.watch(profileDisplayNameProvider);
+    final secretaryName = displayName.isEmpty
+        ? context.vt('Welcome')
+        : displayName;
 
     return VikoplusScreen(
       title: group?.name ?? context.vt('Secretary Portal'),
@@ -56,9 +60,14 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            ref.watch(profileDisplayNameProvider).isEmpty
-                ? context.vt('Welcome')
-                : ref.watch(profileDisplayNameProvider),
+            _timeGreeting(context),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            secretaryName,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
               color: AppColors.onSurface,
               fontWeight: FontWeight.w700,
@@ -155,6 +164,18 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
         ],
       ),
     );
+  }
+
+  String _timeGreeting(BuildContext context) {
+    final isSwahili = Localizations.localeOf(context).languageCode == 'sw';
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return isSwahili ? 'Habari za asubuhi,' : 'Good morning,';
+    }
+    if (hour < 17) {
+      return isSwahili ? 'Habari za mchana,' : 'Good afternoon,';
+    }
+    return isSwahili ? 'Habari za jioni,' : 'Good evening,';
   }
 }
 

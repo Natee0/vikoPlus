@@ -32,6 +32,7 @@ import {
   PreviewJoinCodeDto,
   RecordContributionPaymentDto,
   RecordLoanRepaymentDto,
+  RegisterPushTokenDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
   ReviewLoanApplicationDto,
@@ -68,6 +69,15 @@ export class GroupsController {
     @Body() body: UpdateLanguageDto,
   ) {
     return this.groups.updateLanguage(user, body);
+  }
+
+  @Put("me/push-tokens")
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  registerPushToken(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: RegisterPushTokenDto,
+  ) {
+    return this.groups.registerPushToken(user, body);
   }
 
   @Get("me/groups")

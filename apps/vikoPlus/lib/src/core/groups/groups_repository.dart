@@ -427,6 +427,26 @@ class GroupsRepository {
     return NotificationSummary.fromJson(_responseBody(response.data));
   }
 
+  Future<void> registerPushToken({
+    required String token,
+    required String platform,
+    String? deviceId,
+    String? appVersion,
+  }) async {
+    final data = <String, dynamic>{'token': token, 'platform': platform};
+    if (deviceId != null) {
+      data['deviceId'] = deviceId;
+    }
+    if (appVersion != null) {
+      data['appVersion'] = appVersion;
+    }
+
+    await _dio.put<void>(
+      '/me/push-tokens',
+      data: data,
+    );
+  }
+
   Future<AuditLogResult> auditLog(String groupId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/groups/$groupId/audit-log',

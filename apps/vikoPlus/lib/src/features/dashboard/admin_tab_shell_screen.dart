@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 
 import 'package:go_router/go_router.dart';
@@ -18,16 +19,27 @@ class AdminTabShellScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(activeGroupProvider);
+    final recordsTab = group?.role == 'SECRETARY';
+    final isAdmin = group?.role == 'GROUP_ADMIN';
     return Scaffold(
       backgroundColor: AppColors.surface,
       body: navigationShell,
       bottomNavigationBar: NavigationBar(
-        selectedIndex:
-            group?.role != 'GROUP_ADMIN' && navigationShell.currentIndex >= 3
-            ? 3
-            : navigationShell.currentIndex,
+        selectedIndex: switch (navigationShell.currentIndex) {
+          3 => isAdmin ? 3 : 4,
+          4 => 4,
+          _ => navigationShell.currentIndex,
+        },
         onDestinationSelected: (index) {
-          if (group?.role != 'GROUP_ADMIN' && index == 3) {
+          if (isAdmin && index == 2) {
+            context.go(portalPaymentsRoute(group));
+            return;
+          }
+          if (!isAdmin && index == 3) {
+            context.go(portalPaymentsRoute(group));
+            return;
+          }
+          if (!isAdmin && index == 4) {
             context.go(portalMoreRoute(group));
             return;
           }
@@ -35,15 +47,20 @@ class AdminTabShellScreen extends ConsumerWidget {
             context.go(portalHomeRoute(group));
             return;
           }
-          if (index == 4) {
+          if (recordsTab && index == 2) {
+            context.go(portalContributionsRoute(group));
+            return;
+          }
+          if (isAdmin && index == 4) {
             context.go(portalMoreRoute(group));
             return;
           }
-          if (index == navigationShell.currentIndex) return;
+          final branchIndex = index;
+          if (branchIndex == navigationShell.currentIndex) return;
 
           navigationShell.goBranch(
-            index,
-            initialLocation: index == navigationShell.currentIndex,
+            branchIndex,
+            initialLocation: branchIndex == navigationShell.currentIndex,
           );
         },
         destinations: [
@@ -57,10 +74,24 @@ class AdminTabShellScreen extends ConsumerWidget {
             selectedIcon: Icon(Icons.groups_2),
             label: AppLocalizations.of(context).members,
           ),
+          if (!isAdmin)
+            NavigationDestination(
+              icon: Icon(
+                recordsTab
+                    ? Icons.history_edu_outlined
+                    : Icons.savings_outlined,
+              ),
+              selectedIcon: Icon(
+                recordsTab ? Icons.history_edu : Icons.savings,
+              ),
+              label: recordsTab
+                  ? context.vt('Records')
+                  : AppLocalizations.of(context).registerTab,
+            ),
           NavigationDestination(
-            icon: Icon(Icons.savings_outlined),
-            selectedIcon: Icon(Icons.savings),
-            label: AppLocalizations.of(context).registerTab,
+            icon: Icon(Icons.payments_outlined),
+            selectedIcon: Icon(Icons.payments),
+            label: AppLocalizations.of(context).payments,
           ),
           if (group?.role == 'GROUP_ADMIN')
             NavigationDestination(

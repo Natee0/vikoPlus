@@ -204,9 +204,11 @@ class _HistoricalRecordsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final activeGroup = ref.watch(activeGroupProvider);
     return VikoplusScreen(
       title: 'Historical Records',
       backRoute: _backRoute,
+      bottomNavigationIndex: activeGroup?.role == 'SECRETARY' ? 2 : null,
       preferBackRoute: true,
       onRefresh: _membersFuture == null ? null : _refresh,
       child: Column(

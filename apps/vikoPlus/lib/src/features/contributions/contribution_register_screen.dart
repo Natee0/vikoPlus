@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -44,7 +45,9 @@ class _ContributionRegisterScreenState
   }
 
   void _ensurePaymentsFuture(String? groupId) {
-    if (groupId == null) return;
+    if (groupId == null) {
+      return;
+    }
     if (_loadedPaymentsGroupId != groupId || _paymentsFuture == null) {
       _setPaymentsFuture(groupId);
     }
@@ -52,7 +55,9 @@ class _ContributionRegisterScreenState
 
   Future<void> _refresh() async {
     final group = ref.read(activeGroupProvider);
-    if (group == null) return;
+    if (group == null) {
+      return;
+    }
 
     final future = _loadPayments(group.id);
     setState(() => _setPaymentsFuture(group.id, future));
@@ -84,14 +89,18 @@ class _ContributionRegisterScreenState
         setState(() => _setPaymentsFuture(group.id));
       }
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(
         () => _errorMessage = approve
-            ? 'Payment was not approved. Please try again.'
-            : 'Payment was not rejected. Please try again.',
+            ? context.vt('Payment was not approved. Please try again.')
+            : context.vt('Payment was not rejected. Please try again.'),
       );
     } finally {
-      if (mounted) setState(() => _isReviewing = false);
+      if (mounted) {
+        setState(() => _isReviewing = false);
+      }
     }
   }
 
@@ -105,14 +114,14 @@ class _ContributionRegisterScreenState
     _ensurePaymentsFuture(activeGroup?.id);
 
     return VikoplusScreen(
-      title: 'Contribution Register',
+      title: context.vt('Contribution Register'),
       bottomNavigationIndex: 2,
       showBottomNavigation: widget.showBottomNavigation,
       onRefresh: _refresh,
       actions: [
         if (canReviewPayments)
           IconButton(
-            tooltip: 'Record payment',
+            tooltip: context.vt('Record payment'),
             onPressed: () => context.go('/contributions/record'),
             icon: const Icon(Icons.add_card_outlined),
           ),
@@ -120,24 +129,28 @@ class _ContributionRegisterScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          StatusPill(label: activeGroup?.name ?? 'No group selected'),
+          StatusPill(label: activeGroup?.name ?? context.vt('No group selected')),
           const SizedBox(height: 16),
           if (canReviewPayments)
-            const ActionTile(
-              title: 'Loan applications',
-              subtitle: 'Review guarantors, approve loans, and disburse funds',
+            ActionTile(
+              title: context.vt('Loan applications'),
+              subtitle: context.vt(
+                'Review guarantors, approve loans, and disburse funds',
+              ),
               icon: Icons.fact_check_outlined,
               route: '/loans/applications',
             ),
           const SizedBox(height: 16),
           if (activeGroup == null) ...[
-            const AuthErrorMessage(
-              message: 'Select a group to view contribution payments.',
+            AuthErrorMessage(
+              message: context.vt(
+                'Select a group to view contribution payments.',
+              ),
             ),
             const SizedBox(height: AppSpacing.md),
             FilledButton(
               onPressed: () => context.go('/groups'),
-              child: const Text('Choose Group'),
+              child: Text(context.vt('Choose Group')),
             ),
           ] else ...[
             FutureBuilder<ContributionPaymentsResult>(
@@ -153,8 +166,10 @@ class _ContributionRegisterScreenState
                 }
 
                 if (snapshot.hasError) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load contribution payments.',
+                  return AuthErrorMessage(
+                    message: context.vt(
+                      'Could not load contribution payments.',
+                    ),
                   );
                 }
 
@@ -173,7 +188,7 @@ class _ContributionRegisterScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     InfoCard(
-                      title: 'Total approved contributions',
+                      title: context.vt('Total approved contributions'),
                       value: formatters.money(approvedTotal),
                       icon: Icons.account_balance_wallet_outlined,
                     ),
@@ -182,7 +197,7 @@ class _ContributionRegisterScreenState
                       children: [
                         Expanded(
                           child: InfoCard(
-                            title: 'Approved',
+                            title: context.vt('Approved'),
                             value:
                                 '${payments.where((payment) => payment.status == 'APPROVED').length}',
                             icon: Icons.check_circle_outline,
@@ -192,7 +207,7 @@ class _ContributionRegisterScreenState
                         const SizedBox(width: 12),
                         Expanded(
                           child: InfoCard(
-                            title: 'Pending',
+                            title: context.vt('Pending'),
                             value: '${pending.length}',
                             icon: Icons.pending_actions_outlined,
                             accentColor: AppColors.warning,
@@ -205,11 +220,13 @@ class _ContributionRegisterScreenState
                     if (_errorMessage.isNotEmpty)
                       const SizedBox(height: AppSpacing.sm),
                     if (canReviewPayments) ...[
-                      const SectionHeader(title: 'Pending Review'),
+                      SectionHeader(title: context.vt('Pending Review')),
                       const SizedBox(height: AppSpacing.sm),
                       if (pending.isEmpty)
-                        const _EmptyPaymentsNotice(
-                          message: 'No member payments are waiting for review.',
+                        _EmptyPaymentsNotice(
+                          message: context.vt(
+                            'No member payments are waiting for review.',
+                          ),
                         )
                       else
                         for (final payment in pending) ...[
@@ -226,12 +243,13 @@ class _ContributionRegisterScreenState
                         ],
                       const SizedBox(height: AppSpacing.md),
                     ],
-                    const SectionHeader(title: 'Recent Payments'),
+                    SectionHeader(title: context.vt('Recent Payments')),
                     const SizedBox(height: AppSpacing.sm),
                     if (payments.isEmpty)
-                      const _EmptyPaymentsNotice(
-                        message:
-                            'No contribution payments have been recorded yet.',
+                      _EmptyPaymentsNotice(
+                        message: context.vt(
+                          'No contribution payments have been recorded yet.',
+                        ),
                       )
                     else
                       for (final payment in payments.take(20)) ...[
@@ -287,14 +305,14 @@ class _PaymentReviewCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton(
                   onPressed: isBusy ? null : onReject,
-                  child: const Text('Reject'),
+                  child: Text(context.vt('Reject')),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: FilledButton(
                   onPressed: isBusy ? null : onApprove,
-                  child: const Text('Approve'),
+                  child: Text(context.vt('Approve')),
                 ),
               ),
             ],
@@ -421,7 +439,9 @@ String _initials(String value) {
       .split(RegExp(r'\s+'))
       .where((word) => word.isNotEmpty)
       .toList();
-  if (words.isEmpty) return 'M';
+  if (words.isEmpty) {
+    return 'M';
+  }
   return words.take(2).map((word) => word[0].toUpperCase()).join();
 }
 
@@ -448,8 +468,14 @@ String _statusLabel(String status) {
 }
 
 Color _statusColor(String status) {
-  if (status == 'APPROVED') return AppColors.primaryGreen;
-  if (status == 'REJECTED') return AppColors.error;
-  if (status == 'CORRECTION_REQUESTED') return AppColors.warning;
+  if (status == 'APPROVED') {
+    return AppColors.primaryGreen;
+  }
+  if (status == 'REJECTED') {
+    return AppColors.error;
+  }
+  if (status == 'CORRECTION_REQUESTED') {
+    return AppColors.warning;
+  }
   return AppColors.primary;
 }

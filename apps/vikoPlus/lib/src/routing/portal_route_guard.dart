@@ -6,7 +6,16 @@ import '../core/groups/groups_repository.dart';
 import '../core/auth/auth_session.dart';
 import '../theme/app_colors.dart';
 
-enum PortalArea { admin, treasurer, secretary, staff, records, member, group }
+enum PortalArea {
+  admin,
+  treasurer,
+  secretary,
+  staff,
+  financeStaff,
+  records,
+  member,
+  group,
+}
 
 class PortalRouteGuard extends ConsumerWidget {
   const PortalRouteGuard({required this.area, required this.child, super.key});
@@ -24,6 +33,7 @@ class PortalRouteGuard extends ConsumerWidget {
       PortalArea.treasurer => role == 'TREASURER',
       PortalArea.secretary => role == 'SECRETARY',
       PortalArea.staff => isStaffPortalRole(role),
+      PortalArea.financeStaff => role == 'GROUP_ADMIN' || role == 'TREASURER',
       PortalArea.records => role == 'GROUP_ADMIN' || role == 'SECRETARY',
       PortalArea.member => role == 'MEMBER',
       PortalArea.group => role == 'MEMBER' || isStaffPortalRole(role),
@@ -64,7 +74,30 @@ String portalMembersRoute(GroupAccessSummary? group) {
 
 String portalContributionsRoute(GroupAccessSummary? group) {
   if (group?.role == 'MEMBER') return '/member/contributions';
+  if (group?.role == 'SECRETARY') {
+    final id = group?.id;
+    if (id == null) return '/groups';
+    return '/groups/history?groupId=${Uri.encodeComponent(id)}&returnTo=${Uri.encodeComponent('/secretary/dashboard')}';
+  }
   return '/contributions';
+}
+
+String portalPaymentsRoute(GroupAccessSummary? group) {
+  if (group == null) return '/groups';
+  if (group.role == 'MEMBER') return '/member/payments/select';
+  return '/payments/select';
+}
+
+int portalPaymentsTabIndex(GroupAccessSummary? group) {
+  return group?.role == 'GROUP_ADMIN' ? 2 : 3;
+}
+
+int portalReportsTabIndex(GroupAccessSummary? group) {
+  return group?.role == 'GROUP_ADMIN' ? 3 : 0;
+}
+
+int portalMoreTabIndex(GroupAccessSummary? group) {
+  return group?.role == 'GROUP_ADMIN' ? 4 : 4;
 }
 
 String portalReportsRoute(GroupAccessSummary? group) {

@@ -328,6 +328,9 @@ const _swahili = <String, String>{
       'Fungua kikundi kabla ya kusimamia wanachama.',
   'Invite members': 'Alika wanachama',
   'Add member manually': 'Ongeza mwanachama kwa mkono',
+  'Add/Invite Member': 'Ongeza/Alika mwanachama',
+  'Create a member record and send the invitation automatically':
+      'Tengeneza taarifa ya mwanachama na tuma mwaliko kiotomatiki',
   'Share a role-based invitation code, link, SMS or WhatsApp':
       'Shiriki msimbo, kiungo, SMS au WhatsApp ya mwaliko wenye jukumu',
   'Create a member record and assign their group role':
@@ -475,7 +478,6 @@ const _swahili = <String, String>{
   'Estimated checkout total': 'Makadirio ya jumla ya malipo',
   'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.': 'Habari {member_name}, hiki ni kikumbusho kuwa malipo yako ya {amount} ya kikundi yanakaribia.',
   'Group profile': 'Wasifu wa kikundi',
-  'Group Profile': 'Wasifu wa kikundi',
   'Update the group icon and visible identity':
       'Sasisha alama na utambulisho wa kikundi',
   'No active group': 'Hakuna kikundi kilichochaguliwa',
@@ -487,4 +489,153 @@ const _swahili = <String, String>{
   'Replace Group Icon': 'Badili alama ya kikundi',
   'Only group admins can update the group icon.':
       'Wasimamizi wa kikundi pekee wanaweza kusasisha alama ya kikundi.',
+  'Complete all required fields.': 'Jaza sehemu zote muhimu.',
+  'Password must be at least 8 characters.':
+      'Nenosiri lazima liwe na angalau herufi 8.',
+  'Accept the terms before creating an account.':
+      'Kubali vigezo kabla ya kutengeneza akaunti.',
+  'John Doe': 'Jina kamili',
+  'Creating account': 'Inatengeneza akaunti',
+  'Create account': 'Tengeneza akaunti',
+  'Already have an account? ': 'Tayari una akaunti? ',
+  'Log in': 'Ingia',
+  'Group Name': 'Jina la kikundi',
+  'Enter group name': 'Weka jina la kikundi',
+  'Description': 'Maelezo',
+  '(Optional)': '(Si lazima)',
+  'What is this group about?': 'Kikundi hiki kinahusu nini?',
+  'Location': 'Eneo',
+  'City or Region': 'Jiji au mkoa',
+  'Group Established Date': 'Tarehe kikundi kilipoanzishwa',
+  'When did this group start?': 'Kikundi kilianza lini?',
+  'Historical Records Start': 'Mwanzo wa kumbukumbu za zamani',
+  'Earliest data to import': 'Tarehe ya kwanza ya data ya kuingiza',
+  'Existing groups can keep their real start date and import previous contribution records after setup.':
+      'Vikundi vilivyokuwepo vinaweza kuweka tarehe yao halisi ya kuanza na kuingiza kumbukumbu za michango ya zamani baada ya usanidi.',
+  'Change Group Logo': 'Badili nembo ya kikundi',
+  'Upload Group Logo': 'Pakia nembo ya kikundi',
+  'Group Type': 'Aina ya kikundi',
+  'Select group type': 'Chagua aina ya kikundi',
+  'Family': 'Familia',
+  'Savings': 'Akiba',
+  'Welfare': 'Ustawi',
+  'Investment': 'Uwekezaji',
+  'TZS - Tanzanian Shilling (Locked)':
+      'TZS - Shilingi ya Tanzania (imefungwa)',
+  'Creating group': 'Inaunda kikundi',
+  'Financial Year': 'Mwaka wa fedha',
+  'Configure Cycle': 'Weka mzunguko',
+  "Set the start and end of your group's financial year. This determines reporting and contribution cycles.":
+      'Weka mwanzo na mwisho wa mwaka wa fedha wa kikundi. Hii huamua ripoti na mizunguko ya michango.',
+  'Create a group before setting its financial year.':
+      'Unda kikundi kabla ya kuweka mwaka wake wa fedha.',
+  'Recommended current year': 'Mwaka wa sasa unaopendekezwa',
+  'Current Financial Year': 'Mwaka wa fedha wa sasa',
+  'Start Date': 'Tarehe ya kuanza',
+  'End Date (Calculated)': 'Tarehe ya mwisho (imekokotolewa)',
+  'Current Period Preview': 'Muonekano wa kipindi cha sasa',
+  'Calculated as one full year from your selected start date.':
+      'Inakokotolewa kama mwaka mmoja kamili kuanzia tarehe uliyochagua.',
+  'Automatic Rollover': 'Hamisho la mwaka kiotomatiki',
+  'Start the next year automatically after the end date.':
+      'Anzisha mwaka unaofuata kiotomatiki baada ya tarehe ya mwisho.',
+  "The financial year defines the 12-month period for your group's accounting, contribution tracking, and annual reports.":
+      'Mwaka wa fedha hufafanua kipindi cha miezi 12 kwa hesabu, ufuatiliaji wa michango, na ripoti za mwaka za kikundi.',
+  'Enter a valid invitation code.': 'Weka msimbo sahihi wa mwaliko.',
+  'Enter Group Code': 'Weka msimbo wa kikundi',
+  'Use the invitation code shared by your group administrator.':
+      'Tumia msimbo wa mwaliko uliotumwa na msimamizi wa kikundi.',
+  'Invitation code': 'Msimbo wa mwaliko',
+  'Verify group details': 'Thibitisha taarifa za kikundi',
+  'Join an existing group': 'Jiunge na kikundi kilichopo',
+  'Invitation required': 'Mwaliko unahitajika',
+  '{count} Members': 'Wanachama {count}',
+  '{count} Member': 'Mwanachama {count}',
+  'After joining, review your fees and contributions. Pay your group leader and submit payment details for treasurer approval.':
+      'Baada ya kujiunga, angalia ada na michango yako. Lipa kwa kiongozi wa kikundi kisha wasilisha taarifa za malipo ili mweka hazina aidhinishe.',
+  'You will join as {role}.': 'Utajiunga kama {role}.',
+  'Enter Code to Join': 'Weka msimbo kujiunga',
+  'Checking code': 'Inakagua msimbo',
+  'Verify Group': 'Thibitisha kikundi',
+  'Invitation code required': 'Msimbo wa mwaliko unahitajika',
+  'Enter an invitation code to verify a group.':
+      'Weka msimbo wa mwaliko ili kuthibitisha kikundi.',
+  'Enter Code': 'Weka msimbo',
+  'Could not verify group.': 'Imeshindikana kuthibitisha kikundi.',
+  'Try Another Code': 'Jaribu msimbo mwingine',
+  'Role: {role}': 'Wajibu: {role}',
+  'Your invitation is valid. Join this group to access your member workspace.':
+      'Mwaliko wako ni sahihi. Jiunge na kikundi hiki ili kufikia eneo lako la mwanachama.',
+  'Welcome to {groupName}!': 'Karibu {groupName}!',
+  'You are the group administrator. Activate yearly group access before inviting members and managing contributions.':
+      'Wewe ni msimamizi wa kikundi. Washa huduma ya mwaka ya kikundi kabla ya kualika wanachama na kusimamia michango.',
+  'Next Steps': 'Hatua zinazofuata',
+  'Activate yearly group access': 'Washa huduma ya mwaka ya kikundi',
+  'TZS 10,000 per group per year.': 'TZS 10,000 kwa kikundi kwa mwaka.',
+  'Invite members and assign roles': 'Alika wanachama na gawa majukumu',
+  'Chairperson/admin controls member permissions.':
+      'Mwenyekiti/msimamizi husimamia ruhusa za wanachama.',
+  'Admin or secretary can add old contribution data.':
+      'Msimamizi au katibu anaweza kuongeza data ya michango ya zamani.',
+  'Choose plan': 'Chagua mpango',
+  'Contribution Register': 'Rejesta ya michango',
+  'Record payment': 'Rekodi malipo',
+  'No group selected': 'Hakuna kikundi kilichochaguliwa',
+  'Select a group to view contribution payments.':
+      'Chagua kikundi ili kuona malipo ya michango.',
+  'Could not load contribution payments.':
+      'Imeshindikana kupakia malipo ya michango.',
+  'Total approved contributions': 'Jumla ya michango iliyoidhinishwa',
+  'Approved': 'Imeidhinishwa',
+  'No member payments are waiting for review.':
+      'Hakuna malipo ya wanachama yanayosubiri ukaguzi.',
+  'Recent Payments': 'Malipo ya karibuni',
+  'No contribution payments have been recorded yet.':
+      'Hakuna malipo ya michango yaliyorekodiwa bado.',
+  'Reject': 'Kataa',
+  'Approve': 'Idhinisha',
+  'Payment was not approved. Please try again.':
+      'Malipo hayakuweza kuidhinishwa. Jaribu tena.',
+  'Payment was not rejected. Please try again.':
+      'Malipo hayakuweza kukataliwa. Jaribu tena.',
+  'More': 'Zaidi',
+  'Switch, create or join a group': 'Badili, unda au jiunge na kikundi',
+  'Group rules, member roles, historical records and audit logs':
+      'Kanuni za kikundi, majukumu ya wanachama, kumbukumbu za zamani na kumbukumbu za ukaguzi',
+  'Billing overview': 'Muhtasari wa malipo ya huduma',
+  'Group access subscription and payments':
+      'Usajili wa huduma ya kikundi na malipo',
+  'SMS reminders and delivery history':
+      'Vikumbusho vya SMS na historia ya utumaji',
+  'Applications, guarantees and repayments':
+      'Maombi, dhamana na marejesho',
+  'Import previous group records': 'Ingiza kumbukumbu za zamani za kikundi',
+  'Photo and account details': 'Picha na taarifa za akaunti',
+  'Personal alert preferences': 'Mapendeleo ya taarifa binafsi',
+  'English or Swahili': 'Kiingereza au Kiswahili',
+  'English': 'Kiingereza',
+  'Kiswahili': 'Kiswahili',
+  'You can switch the app language here.':
+      'Unaweza kubadili lugha ya programu hapa.',
+  'Complete Profile': 'Kamilisha wasifu',
+  'Add your photo and account details':
+      'Ongeza picha yako na taarifa za akaunti',
+  'Member number': 'Namba ya mwanachama',
+  'Phone number': 'Namba ya simu',
+  'Email address': 'Barua pepe',
+  'Not provided': 'Haijawekwa',
+  'Secretary Portal': 'Dashibodi ya katibu',
+  'Manage member records and group documentation.':
+      'Simamia kumbukumbu za wanachama na nyaraka za kikundi.',
+  'Secretary duties': 'Majukumu ya katibu',
+  'Member directory': 'Orodha ya wanachama',
+  'View member contacts, roles and status':
+      'Angalia mawasiliano, majukumu na hali za wanachama',
+  'Prepare notices for members with dues':
+      'Andaa taarifa kwa wanachama wenye madeni',
+  'Personal actions': 'Hatua binafsi',
+  'My payments': 'Malipo yangu',
+  'Pay your own group contributions': 'Lipa michango yako ya kikundi',
+  'Group records snapshot': 'Muhtasari wa kumbukumbu za kikundi',
+  'Records': 'Kumbukumbu',
 };

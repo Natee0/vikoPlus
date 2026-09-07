@@ -24,6 +24,7 @@ import {
   Locale,
   PaymentAllocationStatus,
   ReceiptStatus,
+  UserIdentityType,
 } from "@prisma/client";
 import type { GroupMember, Prisma } from "@prisma/client";
 import { createHash, randomBytes } from "crypto";
@@ -262,6 +263,16 @@ export class GroupsService {
   async createGroup(user: AuthenticatedUser, input: CreateGroupDto) {
     const name = input.name.trim();
     const slug = await this.uniqueSlug(name);
+    const identities = await this.prisma.userIdentity.findMany({
+      where: { userId: user.id, isVerified: true },
+      select: { type: true, value: true },
+    });
+    const phone =
+      identities.find((identity) => identity.type === UserIdentityType.PHONE)
+        ?.value ?? null;
+    const email =
+      identities.find((identity) => identity.type === UserIdentityType.EMAIL)
+        ?.value ?? null;
     const group = await this.prisma.group.create({
       data: {
         name,
@@ -280,7 +291,10 @@ export class GroupsService {
         members: {
           create: {
             userId: user.id,
+            memberNumber: "MBR-000001",
             fullName: await this.displayName(user.id),
+            phone,
+            email,
             role: GroupRole.GROUP_ADMIN,
             status: GroupMemberStatus.ACTIVE,
             joinedAt: new Date(),
@@ -397,6 +411,10 @@ export class GroupsService {
               data: {
                 groupId: invitation.groupId,
                 userId: user.id,
+                memberNumber: await this.nextMemberNumber(
+                  invitation.groupId,
+                  tx,
+                ),
                 fullName: await this.displayName(user.id),
                 role: invitation.role,
                 status: GroupMemberStatus.ACTIVE,
@@ -3358,6 +3376,29 @@ export class GroupsService {
     return trimmed ? trimmed : null;
   }
 
+  private async nextMemberNumber(
+    groupId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<string> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${groupId}))`;
+    const numbers = await tx.groupMember.findMany({
+      where: { groupId },
+      select: { memberNumber: true },
+    });
+    const next =
+      numbers.reduce(
+        (max, item) =>
+          /^MBR-[0-9]{6}$/.test(item.memberNumber ?? "")
+            ? Math.max(max, Number(item.memberNumber!.slice(4)))
+            : max,
+        0,
+      ) + 1;
+    if (next > 999999) {
+      throw new BadRequestException("Member number range exhausted.");
+    }
+    return `MBR-${String(next).padStart(6, "0")}`;
+  }
+
   private async activateInvitedMember(
     user: AuthenticatedUser,
     member: GroupMember,
@@ -3385,10 +3426,13 @@ export class GroupsService {
 
     const fullName =
       member.fullName.trim() || (await this.displayName(user.id));
+    const memberNumber =
+      member.memberNumber ?? (await this.nextMemberNumber(member.groupId, tx));
     return tx.groupMember.update({
       where: { id: member.id },
       data: {
         userId: user.id,
+        memberNumber,
         fullName,
         role,
         status: GroupMemberStatus.ACTIVE,

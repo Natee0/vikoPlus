@@ -6,6 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
@@ -114,46 +115,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           SectionHeader(title: loc.quickActions),
           const SizedBox(height: 12),
           ActionTile(
-            title: loc.recordPayment,
-            subtitle: loc.allocatePaymentDescription,
-            icon: Icons.add_card_outlined,
-            route: '/contributions/record',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.members,
-            subtitle: loc.memberReviewDescription,
-            icon: Icons.groups_2_outlined,
-            route: '/members',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
             title: loc.loans,
             subtitle: loc.loanReviewDescription,
             icon: Icons.account_balance_wallet_outlined,
             route: '/loans',
             color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.reports,
-            subtitle: loc.reportReviewDescription,
-            icon: Icons.analytics_outlined,
-            route: '/reports',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.reminderCentre,
-            subtitle: loc.reminderReviewDescription,
-            icon: Icons.notifications_active_outlined,
-            route: '/reminders',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.adminSettings,
-            subtitle: loc.adminSettingsDescription,
-            icon: Icons.tune_outlined,
-            route: '/settings/admin',
           ),
           const SizedBox(height: 12),
           ActionTile(

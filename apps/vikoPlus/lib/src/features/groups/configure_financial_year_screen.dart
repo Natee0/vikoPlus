@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -86,8 +87,12 @@ class _ConfigureFinancialYearScreenState
 
   String get _fallbackBackRoute {
     final returnTo = widget.returnTo;
-    if (returnTo != null && returnTo.isNotEmpty) return returnTo;
-    if (ref.read(activeGroupProvider) != null) return '/dashboard';
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
+    if (ref.read(activeGroupProvider) != null) {
+      return '/dashboard';
+    }
     return '/groups/create';
   }
 
@@ -129,17 +134,23 @@ class _ConfigureFinancialYearScreenState
       firstDate: DateTime(1990),
       lastDate: DateTime(DateTime.now().year + 10, 12, 31),
     );
-    if (selected == null) return;
+    if (selected == null) {
+      return;
+    }
     setState(() => _startDate = selected);
     _persistFinancialYear();
   }
 
   Future<void> _submit() async {
     final groupId = _groupId;
-    if (_isSubmitting) return;
+    if (_isSubmitting) {
+      return;
+    }
     if (groupId == null || groupId.isEmpty) {
       setState(
-        () => _errorMessage = 'Create a group before setting its financial year.',
+        () => _errorMessage = context.vt(
+          'Create a group before setting its financial year.',
+        ),
       );
       return;
     }
@@ -159,14 +170,18 @@ class _ConfigureFinancialYearScreenState
               automaticRollover: _automaticRollover,
             ),
           );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final returnTo = widget.returnTo;
       final route = returnTo == null || returnTo.isEmpty
           ? '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}'
           : '/groups/contributions?groupId=${Uri.encodeComponent(groupId)}&returnTo=${Uri.encodeComponent(returnTo)}';
       context.push(route);
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -197,7 +212,10 @@ class _ConfigureFinancialYearScreenState
           body: SafeArea(
             child: Column(
               children: [
-                VikoplusTopBar(title: 'Financial Year', onBack: _goBack),
+                VikoplusTopBar(
+                  title: context.vt('Financial Year'),
+                  onBack: _goBack,
+                ),
                 Expanded(
                   child: VikoplusConstrainedContent(
                     child: ListView(
@@ -209,7 +227,7 @@ class _ConfigureFinancialYearScreenState
                       ),
                       children: [
                         Text(
-                          'Configure Cycle',
+                          context.vt('Configure Cycle'),
                           style: Theme.of(context).textTheme.titleMedium
                               ?.copyWith(
                                 color: AppColors.onSurface,
@@ -218,7 +236,9 @@ class _ConfigureFinancialYearScreenState
                         ),
                         const SizedBox(height: AppSpacing.xs),
                         Text(
-                          "Set the start and end of your group's financial year. This determines reporting and contribution cycles.",
+                          context.vt(
+                            "Set the start and end of your group's financial year. This determines reporting and contribution cycles.",
+                          ),
                           style: Theme.of(context).textTheme.bodyLarge
                               ?.copyWith(color: AppColors.onSurfaceVariant),
                         ),
@@ -249,7 +269,9 @@ class _ConfigureFinancialYearScreenState
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: _isSubmitting ? 'Saving' : 'Continue',
+                  label: _isSubmitting
+                      ? context.vt('Saving')
+                      : context.vt('Continue'),
                   icon: const Icon(Icons.arrow_forward, size: 18),
                   isLoading: _isSubmitting,
                   onPressed: _submit,
@@ -299,7 +321,7 @@ class _RecommendationCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Recommended current year',
+                  context.vt('Recommended current year'),
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
@@ -359,7 +381,7 @@ class _ConfigurationCard extends StatelessWidget {
               ),
               const SizedBox(width: AppSpacing.xs),
               Text(
-                'Current Financial Year',
+                context.vt('Current Financial Year'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.onSurface,
                   fontWeight: FontWeight.w700,
@@ -369,7 +391,7 @@ class _ConfigurationCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           _DateSelectField(
-            label: 'Start Date',
+            label: context.vt('Start Date'),
             value: dateLabel(startDate),
             onTap: onStartDatePressed,
           ),
@@ -440,7 +462,7 @@ class _LockedDateField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'End Date (Calculated)',
+          context.vt('End Date (Calculated)'),
           style: Theme.of(context).textTheme.labelMedium?.copyWith(
             color: AppColors.onSurfaceVariant,
             fontWeight: FontWeight.w700,
@@ -517,7 +539,7 @@ class _PeriodPreview extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Current Period Preview',
+                  context.vt('Current Period Preview'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.primary,
                     fontWeight: FontWeight.w700,
@@ -533,7 +555,9 @@ class _PeriodPreview extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  'Calculated as one full year from your selected start date.',
+                  context.vt(
+                    'Calculated as one full year from your selected start date.',
+                  ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
@@ -569,7 +593,7 @@ class _RolloverTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Automatic Rollover',
+                  context.vt('Automatic Rollover'),
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w700,
@@ -577,7 +601,9 @@ class _RolloverTile extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  'Start the next year automatically after the end date.',
+                  context.vt(
+                    'Start the next year automatically after the end date.',
+                  ),
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
@@ -615,7 +641,7 @@ class _WhyItMattersCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Why this matters',
+                  context.vt('Why this matters'),
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w700,
@@ -623,7 +649,9 @@ class _WhyItMattersCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 Text(
-                  "The financial year defines the 12-month period for your group's accounting, contribution tracking, and annual reports.",
+                  context.vt(
+                    "The financial year defines the 12-month period for your group's accounting, contribution tracking, and annual reports.",
+                  ),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.onSurfaceVariant,
                     height: 1.45,

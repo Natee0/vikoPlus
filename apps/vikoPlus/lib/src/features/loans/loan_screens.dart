@@ -3,11 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -664,15 +666,22 @@ class _LoanScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final activeGroup = ref.watch(activeGroupProvider);
     final isMemberPortal = activeGroup?.role == 'MEMBER';
+    final navSelectedIndex = isMemberPortal
+        ? selectedIndex
+        : activeGroup?.role == 'GROUP_ADMIN'
+        ? 4
+        : 4;
+    final recordsTab = activeGroup?.role == 'SECRETARY';
 
     return Scaffold(
       backgroundColor: AppColors.surface,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
+        selectedIndex: navSelectedIndex,
         onDestinationSelected: (index) {
+          if (!isMemberPortal && index == navSelectedIndex) return;
           if (!isMemberPortal &&
               activeGroup?.role != 'GROUP_ADMIN' &&
-              index == 3) {
+              index == 4) {
             context.go(portalMoreRoute(activeGroup));
             return;
           }
@@ -706,10 +715,18 @@ class _LoanScaffold extends ConsumerWidget {
               context.go('/members');
               break;
             case 2:
-              context.go(portalContributionsRoute(activeGroup));
+              if (activeGroup?.role == 'GROUP_ADMIN') {
+                context.go(portalPaymentsRoute(activeGroup));
+              } else {
+                context.go(portalContributionsRoute(activeGroup));
+              }
               break;
             case 3:
-              context.go('/reports');
+              if (activeGroup?.role == 'GROUP_ADMIN') {
+                context.go(portalReportsRoute(activeGroup));
+              } else {
+                context.go(portalPaymentsRoute(activeGroup));
+              }
               break;
             case 4:
               context.go(portalMoreRoute(activeGroup));
@@ -748,28 +765,42 @@ class _LoanScaffold extends ConsumerWidget {
                 NavigationDestination(
                   icon: Icon(Icons.dashboard_outlined),
                   selectedIcon: Icon(Icons.dashboard),
-                  label: 'Home',
+                  label: AppLocalizations.of(context).home,
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.groups_2_outlined),
                   selectedIcon: Icon(Icons.groups_2),
-                  label: 'Members',
+                  label: AppLocalizations.of(context).members,
                 ),
+                if (activeGroup?.role != 'GROUP_ADMIN')
+                  NavigationDestination(
+                    icon: Icon(
+                      recordsTab
+                          ? Icons.history_edu_outlined
+                          : Icons.savings_outlined,
+                    ),
+                    selectedIcon: Icon(
+                      recordsTab ? Icons.history_edu : Icons.savings,
+                    ),
+                    label: recordsTab
+                        ? context.vt('Records')
+                        : AppLocalizations.of(context).registerTab,
+                  ),
                 NavigationDestination(
-                  icon: Icon(Icons.savings_outlined),
-                  selectedIcon: Icon(Icons.savings),
-                  label: 'Register',
+                  icon: Icon(Icons.payments_outlined),
+                  selectedIcon: Icon(Icons.payments),
+                  label: AppLocalizations.of(context).payments,
                 ),
                 if (activeGroup?.role == 'GROUP_ADMIN')
                   NavigationDestination(
                     icon: Icon(Icons.bar_chart_outlined),
                     selectedIcon: Icon(Icons.bar_chart),
-                    label: 'Reports',
+                    label: AppLocalizations.of(context).reports,
                   ),
                 NavigationDestination(
                   icon: Icon(Icons.more_horiz),
                   selectedIcon: Icon(Icons.more),
-                  label: 'More',
+                  label: AppLocalizations.of(context).more,
                 ),
               ],
       ),

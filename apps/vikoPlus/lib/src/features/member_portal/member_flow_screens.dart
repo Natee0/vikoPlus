@@ -10,6 +10,7 @@ import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -340,16 +341,75 @@ class MyProfileScreen extends ConsumerWidget {
             label: context.vt('Status'),
             value: activeGroup?.status ?? context.vt('New user'),
           ),
+          if (activeGroup != null && user != null) ...[
+            const SizedBox(height: AppSpacing.sm),
+            _MembershipDetails(groupId: activeGroup.id, userId: user.id),
+          ],
         ],
       ),
     );
   }
 }
 
+class _MembershipDetails extends ConsumerWidget {
+  const _MembershipDetails({required this.groupId, required this.userId});
+
+  final String groupId;
+  final String userId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<GroupMembersResult>(
+      future: ref.read(groupsRepositoryProvider).listMembers(groupId),
+      builder: (context, snapshot) {
+        final members = snapshot.data?.members ?? const [];
+        final matches = members.where((member) => member.userId == userId);
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.sm),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        if (matches.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final member = matches.first;
+        return Column(
+          children: [
+            _ProfileField(
+              label: context.vt('Member number'),
+              value: member.memberNumber ?? context.vt('Not provided'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _ProfileField(
+              label: context.vt('Phone number'),
+              value: member.phone ?? context.vt('Not provided'),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            _ProfileField(
+              label: context.vt('Email address'),
+              value: member.email ?? context.vt('Not provided'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class SelectContributionScreen extends ConsumerStatefulWidget {
-  const SelectContributionScreen({this.showBackButton = true, super.key});
+  const SelectContributionScreen({
+    this.showBackButton = true,
+    this.bottomNavigationIndex,
+    this.usePortalPaymentTabIndex = false,
+    super.key,
+  });
 
   final bool showBackButton;
+  final int? bottomNavigationIndex;
+  final bool usePortalPaymentTabIndex;
 
   @override
   ConsumerState<SelectContributionScreen> createState() =>
@@ -398,8 +458,12 @@ class _SelectContributionScreenState
 
     return VikoplusScreen(
       title: context.vt('Select Contribution'),
-      backRoute: '/member/dashboard',
+      backRoute: portalHomeRoute(activeGroup),
       showBackButton: widget.showBackButton,
+      bottomNavigationIndex: widget.bottomNavigationIndex ??
+          (widget.usePortalPaymentTabIndex
+              ? portalPaymentsTabIndex(activeGroup)
+              : null),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -533,10 +597,11 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
   @override
   Widget build(BuildContext context) {
     final payment = ref.watch(selectedContributionPaymentProvider);
+    final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
       title: context.vt('Payment Method'),
-      backRoute: '/member/payments/select',
+      backRoute: portalPaymentsRoute(activeGroup),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -566,7 +631,7 @@ class _PaymentMethodScreenState extends ConsumerState<PaymentMethodScreen> {
           const SizedBox(height: AppSpacing.md),
           FilledButton(
             onPressed: payment == null
-                ? () => context.go('/member/payments/select')
+                ? () => context.go(portalPaymentsRoute(activeGroup))
                 : () {
                     ref
                         .read(selectedContributionPaymentProvider.notifier)
@@ -649,7 +714,9 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
         ),
       );
     } finally {
-      if (mounted) setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 
@@ -738,6 +805,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
     final formatters = AppFormatters(
       Localizations.localeOf(context).toLanguageTag(),
     );
+    final activeGroup = ref.watch(activeGroupProvider);
     final selectedPayment = ref.watch(selectedContributionPaymentProvider);
     final selectedObligations = selectedPayment?.obligations ?? const [];
     final paymentMethod = selectedPayment?.method ?? method;
@@ -785,7 +853,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           FilledButton.icon(
-            onPressed: () => context.go('/member/contributions'),
+            onPressed: () => context.go(portalContributionsRoute(activeGroup)),
             icon: const Icon(Icons.savings_outlined),
             label: Text(context.vt('View Contributions')),
           ),
@@ -802,7 +870,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => context.go('/member/payments/select'),
+                  onPressed: () => context.go(portalPaymentsRoute(activeGroup)),
                   icon: const Icon(Icons.add_circle_outline),
                   label: Text(context.vt('Record New')),
                 ),
@@ -811,7 +879,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           TextButton.icon(
-            onPressed: () => context.go('/member/dashboard'),
+            onPressed: () => context.go(portalHomeRoute(activeGroup)),
             icon: const Icon(Icons.arrow_back),
             label: Text(context.vt('Return to Dashboard')),
           ),

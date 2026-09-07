@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../auth/auth_logout_controls.dart';
 import '../common/vikoplus_components.dart';
@@ -19,62 +20,69 @@ class MoreMenuScreen extends ConsumerWidget {
     final entries = <(IconData, String, String, String)>[
       (
         Icons.hub_outlined,
-        'My groups',
-        'Switch, create or join a group',
+        context.vt('My groups'),
+        context.vt('Switch, create or join a group'),
         '/groups',
       ),
       if (role == 'GROUP_ADMIN') ...[
         (
           Icons.tune_outlined,
-          'Admin settings',
-          'Group rules, member roles, historical records and audit logs',
+          context.vt('Admin settings'),
+          context.vt(
+            'Group rules, member roles, historical records and audit logs',
+          ),
           '/settings/admin',
         ),
         (
           Icons.credit_card_outlined,
-          'Billing overview',
-          'Group access subscription and payments',
+          context.vt('Billing overview'),
+          context.vt('Group access subscription and payments'),
           '/billing',
         ),
       ],
       if (isStaffPortalRole(role))
         (
           Icons.notifications_active_outlined,
-          'Reminder Centre',
-          'SMS reminders and delivery history',
+          context.vt('Reminder Centre'),
+          context.vt('SMS reminders and delivery history'),
           '/reminders',
         ),
       if (role == 'MEMBER' || isStaffPortalRole(role))
         (
           Icons.account_balance_wallet_outlined,
-          'My loans',
-          'Applications, guarantees and repayments',
+          context.vt('My loans'),
+          context.vt('Applications, guarantees and repayments'),
           '/loans',
         ),
       if (role == 'SECRETARY')
         (
           Icons.history_edu_outlined,
-          'Historical records',
-          'Import previous group records',
+          context.vt('Historical records'),
+          context.vt('Import previous group records'),
           '/groups/history?groupId=${Uri.encodeComponent(group!.id)}&returnTo=${Uri.encodeComponent(portalMoreRoute(group))}',
         ),
       (
         Icons.account_circle_outlined,
-        'My profile',
-        'Photo and account details',
+        context.vt('My profile'),
+        context.vt('Photo and account details'),
         '/profile/complete',
       ),
       (
         Icons.notifications_outlined,
-        'Notifications',
-        'Personal alert preferences',
+        context.vt('Notifications'),
+        context.vt('Personal alert preferences'),
         '/settings/notifications',
       ),
-      (Icons.language_outlined, 'Language', 'English or Swahili', '/language'),
+      (
+        Icons.language_outlined,
+        context.vt('Language'),
+        context.vt('English or Swahili'),
+        '/language',
+      ),
     ];
 
     return VikoplusScreen(
-      title: 'More',
+      title: context.vt('More'),
       bottomNavigationIndex: 4,
       showBottomNavigation: showBottomNavigation,
       child: Column(

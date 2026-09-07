@@ -205,8 +205,8 @@ class DashboardEmptyStateScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: AppSpacing.xs),
                 _SetupStepTile(
-                  title: context.vt('Invite Members'),
-                  route: '/members/invite',
+                  title: context.vt('Add/Invite Member'),
+                  route: '/members/add',
                 ),
               ],
             ),

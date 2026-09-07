@@ -30,7 +30,6 @@ import '../features/groups/my_groups_screen.dart';
 import '../features/groups/onboarding_success_screen.dart';
 import '../features/member_portal/member_flow_screens.dart';
 import '../features/member_management/add_member_screen.dart';
-import '../features/member_management/invite_members_screen.dart';
 import '../features/member_management/member_list_screen.dart';
 import '../features/member_management/member_profile_screen.dart';
 import '../features/loans/loan_screens.dart';
@@ -113,7 +112,9 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/groups/create',
-      builder: (context, state) => const CreateGroupScreen(),
+      builder: (context, state) => CreateGroupScreen(
+        returnTo: state.uri.queryParameters['returnTo'],
+      ),
     ),
     GoRoute(
       path: '/groups/join',
@@ -248,7 +249,7 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/contributions',
               builder: (context, state) => const PortalRouteGuard(
-                area: PortalArea.staff,
+                area: PortalArea.treasurer,
                 child: ContributionRegisterScreen(showBottomNavigation: false),
               ),
             ),
@@ -402,51 +403,61 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/loans/applications',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.group,
+        area: PortalArea.financeStaff,
         child: LoanApplicationsScreen(),
       ),
     ),
     GoRoute(
       path: '/loans/applications/:id',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.group,
+        area: PortalArea.financeStaff,
         child: LoanApplicationReviewScreen(
           applicationId: state.pathParameters['id'] ?? '',
         ),
       ),
     ),
     GoRoute(
+      path: '/payments/select',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.group,
+        child: SelectContributionScreen(
+          showBackButton: false,
+          usePortalPaymentTabIndex: true,
+        ),
+      ),
+    ),
+    GoRoute(
       path: '/member/payments/method',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: PaymentMethodScreen(),
       ),
     ),
     GoRoute(
       path: '/member/payments/review',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: ReviewPaymentScreen(),
       ),
     ),
     GoRoute(
       path: '/member/payments/review/mobile-money',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: ReviewPaymentScreen(method: 'Mobile money'),
       ),
     ),
     GoRoute(
       path: '/member/payments/review/cash',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: ReviewPaymentScreen(method: 'Cash to treasurer'),
       ),
     ),
     GoRoute(
       path: '/member/payments/success',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: PaymentSuccessfulScreen(
           paymentId: state.uri.queryParameters['paymentId'],
         ),
@@ -455,7 +466,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/member/payments/success/mobile-money',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: PaymentSuccessfulScreen(
           method: 'Mobile money',
           paymentId: state.uri.queryParameters['paymentId'],
@@ -465,7 +476,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/member/payments/success/cash',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.member,
+        area: PortalArea.group,
         child: PaymentSuccessfulScreen(
           method: 'Cash to treasurer',
           paymentId: state.uri.queryParameters['paymentId'],
@@ -480,13 +491,6 @@ final appRouter = GoRouter(
           receiptId: state.pathParameters['id'],
           backRoute: '/member/payments/success',
         ),
-      ),
-    ),
-    GoRoute(
-      path: '/members/invite',
-      builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.admin,
-        child: InviteMembersScreen(),
       ),
     ),
     GoRoute(
@@ -549,14 +553,14 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/contributions/receipt',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.staff,
+        area: PortalArea.treasurer,
         child: DigitalReceiptScreen(backRoute: '/contributions'),
       ),
     ),
     GoRoute(
       path: '/contributions/receipt/:id',
       builder: (context, state) => PortalRouteGuard(
-        area: PortalArea.staff,
+        area: PortalArea.treasurer,
         child: DigitalReceiptScreen(
           receiptId: state.pathParameters['id'],
           backRoute: '/contributions',

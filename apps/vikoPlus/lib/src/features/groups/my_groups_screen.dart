@@ -84,7 +84,7 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
               Expanded(
                 child: _GroupActionButton(
                   label: context.vt('Create group'),
-                  route: '/groups/create',
+                  route: '/groups/create?returnTo=${Uri.encodeComponent('/groups')}',
                   icon: Icons.add_circle_outline,
                   filled: true,
                 ),

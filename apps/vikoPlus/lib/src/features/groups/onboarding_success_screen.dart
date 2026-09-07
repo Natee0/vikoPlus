@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_components.dart';
@@ -16,7 +17,7 @@ class OnboardingSuccessScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeGroup = ref.watch(activeGroupProvider);
-    final groupName = activeGroup?.name ?? 'your group';
+    final groupName = activeGroup?.name ?? context.vt('your group');
     final billingRoute = groupId == null || groupId!.isEmpty
         ? '/billing/plans'
         : '/billing/plans?groupId=${Uri.encodeComponent(groupId!)}';
@@ -47,7 +48,7 @@ class OnboardingSuccessScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Welcome to $groupName!',
+            context.vtf('Welcome to {groupName}!', {'groupName': groupName}),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.displayLarge?.copyWith(
               color: AppColors.primary,
@@ -56,7 +57,9 @@ class OnboardingSuccessScreen extends ConsumerWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'You are the group administrator. Activate yearly group access before inviting members and managing contributions.',
+            context.vt(
+              'You are the group administrator. Activate yearly group access before inviting members and managing contributions.',
+            ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyLarge
                 ?.copyWith(color: AppColors.secondaryText),
@@ -70,27 +73,31 @@ class OnboardingSuccessScreen extends ConsumerWidget {
               border: Border.all(color: AppColors.outlineVariant),
               boxShadow: AppShadows.level1(),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SectionHeader(title: 'Next Steps'),
-                SizedBox(height: AppSpacing.sm),
+                SectionHeader(title: context.vt('Next Steps')),
+                const SizedBox(height: AppSpacing.sm),
                 _NextStep(
                   number: '1',
-                  title: 'Activate yearly group access',
-                  subtitle: 'TZS 10,000 per group per year.',
+                  title: context.vt('Activate yearly group access'),
+                  subtitle: context.vt('TZS 10,000 per group per year.'),
                 ),
-                SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.xs),
                 _NextStep(
                   number: '2',
-                  title: 'Invite members and assign roles',
-                  subtitle: 'Chairperson/admin controls member permissions.',
+                  title: context.vt('Invite members and assign roles'),
+                  subtitle: context.vt(
+                    'Chairperson/admin controls member permissions.',
+                  ),
                 ),
-                SizedBox(height: AppSpacing.xs),
+                const SizedBox(height: AppSpacing.xs),
                 _NextStep(
                   number: '3',
-                  title: 'Import historical records',
-                  subtitle: 'Admin or secretary can add old contribution data.',
+                  title: context.vt('Import historical records'),
+                  subtitle: context.vt(
+                    'Admin or secretary can add old contribution data.',
+                  ),
                 ),
               ],
             ),
@@ -99,7 +106,7 @@ class OnboardingSuccessScreen extends ConsumerWidget {
           FilledButton.icon(
             onPressed: () => context.go(billingRoute),
             icon: const Icon(Icons.workspace_premium_outlined, size: 18),
-            label: const Text('Choose plan'),
+            label: Text(context.vt('Choose plan')),
           ),
         ],
       ),

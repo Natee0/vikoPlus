@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -77,7 +78,9 @@ class _JoinGroupInvitationScreenState
   Future<void> _previewCode(String code) async {
     final trimmed = code.trim();
     if (trimmed.length < 4) {
-      setState(() => _errorMessage = 'Enter a valid invitation code.');
+      setState(
+        () => _errorMessage = context.vt('Enter a valid invitation code.'),
+      );
       return;
     }
 
@@ -189,7 +192,7 @@ class _JoinGroupInvitationScreenState
               ),
               const SizedBox(height: AppSpacing.md),
               Text(
-                'Enter Group Code',
+                context.vt('Enter Group Code'),
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: AppColors.onSurface,
                   fontWeight: FontWeight.w700,
@@ -197,7 +200,9 @@ class _JoinGroupInvitationScreenState
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Use the invitation code shared by your group administrator.',
+                context.vt(
+                  'Use the invitation code shared by your group administrator.',
+                ),
                 style: Theme.of(context).textTheme.bodyMedium
                     ?.copyWith(color: AppColors.onSurfaceVariant),
               ),
@@ -211,9 +216,9 @@ class _JoinGroupInvitationScreenState
                   Navigator.of(sheetContext).pop();
                   _previewCode(value);
                 },
-                decoration: const InputDecoration(
-                  hintText: 'Invitation code',
-                  prefixIcon: Icon(Icons.key_outlined),
+                decoration: InputDecoration(
+                  hintText: context.vt('Invitation code'),
+                  prefixIcon: const Icon(Icons.key_outlined),
                 ),
               ),
               const SizedBox(height: AppSpacing.md),
@@ -222,7 +227,7 @@ class _JoinGroupInvitationScreenState
                   Navigator.of(sheetContext).pop();
                   _previewCode(_codeController.text);
                 },
-                child: const Text('Verify group details'),
+                child: Text(context.vt('Verify group details')),
               ),
             ],
           ),
@@ -289,7 +294,8 @@ class _JoinGroupInvitationScreenState
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         Text(
-                          preview?.group.name ?? 'Join an existing group',
+                          preview?.group.name ??
+                              context.vt('Join an existing group'),
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.headlineMedium
                               ?.copyWith(
@@ -301,8 +307,10 @@ class _JoinGroupInvitationScreenState
                         Center(
                           child: _MemberCountChip(
                             label: preview == null
-                                ? 'Invitation required'
-                                : '${preview.group.membersCount} Members',
+                                ? context.vt('Invitation required')
+                                : context.vtf('{count} Members', {
+                                    'count': preview.group.membersCount,
+                                  }),
                           ),
                         ),
                         if (preview != null) ...[
@@ -318,14 +326,18 @@ class _JoinGroupInvitationScreenState
                             ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
-                            Localizations.localeOf(context).languageCode == 'sw'
-                                ? 'Ukijiunga, angalia ada na michango inayodaiwa. Lipa kwa kiongozi wa kikundi na uwasilishe taarifa za malipo ili mweka hazina athibitishe.'
-                                : 'After joining, review your fees and contributions. Pay your group leader and submit payment details for treasurer approval.',
+                            context.vt(
+                              'After joining, review your fees and contributions. Pay your group leader and submit payment details for treasurer approval.',
+                            ),
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: AppSpacing.sm),
                           Text(
-                            'You will join as ${_roleLabel(preview.roleOnJoin)}.',
+                            context.vtf('You will join as {role}.', {
+                              'role': context.vt(
+                                _roleLabel(preview.roleOnJoin),
+                              ),
+                            }),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(
@@ -351,8 +363,8 @@ class _JoinGroupInvitationScreenState
                                   )
                                 : Text(
                                     preview == null
-                                        ? 'Enter Code to Join'
-                                        : 'Join Group',
+                                        ? context.vt('Enter Code to Join')
+                                        : context.vt('Join Group'),
                                   ),
                           ),
                         ),
@@ -376,8 +388,8 @@ class _JoinGroupInvitationScreenState
                             ),
                             child: Text(
                               _isPreviewing
-                                  ? 'Checking code'
-                                  : 'Enter Group Code',
+                                  ? context.vt('Checking code')
+                                  : context.vt('Enter Group Code'),
                             ),
                           ),
                         ),

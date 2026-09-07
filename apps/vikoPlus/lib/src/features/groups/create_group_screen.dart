@@ -10,13 +10,16 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../core/uploads/uploads_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_design_widgets.dart';
 
 class CreateGroupScreen extends ConsumerStatefulWidget {
-  const CreateGroupScreen({super.key});
+  const CreateGroupScreen({this.returnTo, super.key});
+
+  final String? returnTo;
 
   @override
   ConsumerState<CreateGroupScreen> createState() => _CreateGroupScreenState();
@@ -67,7 +70,24 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       return;
     }
 
-    context.go('/create-or-join-group');
+    context.go(_fallbackBackRoute);
+  }
+
+  String get _fallbackBackRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
+    return '/create-or-join-group';
+  }
+
+  String _financialYearRoute(String groupId) {
+    final route = '/groups/financial-year?groupId=${Uri.encodeComponent(groupId)}';
+    final returnTo = widget.returnTo;
+    if (returnTo == null || returnTo.isEmpty) {
+      return route;
+    }
+    return '$route&returnTo=${Uri.encodeComponent(returnTo)}';
   }
 
   String _formatDate(DateTime value) {
@@ -96,7 +116,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       firstDate: DateTime(1970),
       lastDate: today,
     );
-    if (picked == null) return;
+    if (picked == null) {
+      return;
+    }
     setState(() {
       _establishedAt = picked;
       if (_historicalDataStartsAt != null &&
@@ -116,13 +138,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       firstDate: firstDate,
       lastDate: today,
     );
-    if (picked == null) return;
+    if (picked == null) {
+      return;
+    }
     setState(() => _historicalDataStartsAt = picked);
     _persistProfile();
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty && !_nameHasError) return;
+    if (_errorMessage.isEmpty && !_nameHasError) {
+      return;
+    }
     setState(() {
       _errorMessage = '';
       _nameHasError = false;
@@ -146,14 +172,18 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _pickLogo() async {
-    if (_isSubmitting || _isUploadingLogo) return;
+    if (_isSubmitting || _isUploadingLogo) {
+      return;
+    }
 
     final image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
       maxWidth: 1200,
       imageQuality: 84,
     );
-    if (image == null) return;
+    if (image == null) {
+      return;
+    }
 
     setState(() {
       _localLogoPath = image.path;
@@ -179,14 +209,19 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             groupId: groupId,
             image: XFile(_localLogoPath!),
           );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _logoObjectKey = image.objectKey;
         _logoUrl = image.url;
       });
+      ref.read(activeGroupProvider.notifier).updateGroupLogo(image.url);
       _persistProfile();
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -196,12 +231,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _submit() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting) {
+      return;
+    }
 
     final name = _nameController.text.trim();
     if (name.length < 2) {
       setState(() {
-        _errorMessage = 'Enter a valid group name.';
+        _errorMessage = context.vt('Enter a valid group name.');
         _nameHasError = true;
       });
       return;
@@ -217,10 +254,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       final existingGroupId = ref.read(groupSetupDraftProvider).createdGroupId;
       if (existingGroupId != null && existingGroupId.isNotEmpty) {
         await _uploadLogo(existingGroupId);
-        if (!mounted) return;
-        context.go(
-          '/groups/financial-year?groupId=${Uri.encodeComponent(existingGroupId)}',
-        );
+        if (!mounted) {
+          return;
+        }
+        context.go(_financialYearRoute(existingGroupId));
         return;
       }
       final group = await ref.read(groupsRepositoryProvider).createGroup(
@@ -233,7 +270,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
               historicalDataStartsAt: _historicalDataStartsAt,
             ),
           );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ref.read(activeGroupProvider.notifier).setGroup(
             GroupAccessSummary(
               id: group.id,
@@ -245,12 +284,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           );
       ref.read(groupSetupDraftProvider.notifier).markGroupCreated(group.id);
       await _uploadLogo(group.id);
-      if (!mounted) return;
-      context.go(
-        '/groups/financial-year?groupId=${Uri.encodeComponent(group.id)}',
-      );
+      if (!mounted) {
+        return;
+      }
+      context.go(_financialYearRoute(group.id));
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -266,7 +307,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
           _persistProfile();
-          context.go('/create-or-join-group');
+          context.go(_fallbackBackRoute);
         }
       },
       child: AnnotatedRegion<SystemUiOverlayStyle>(
@@ -281,7 +322,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                VikoplusTopBar(title: 'Create Group', onBack: _goBack),
+                VikoplusTopBar(
+                  title: context.vt('Create Group'),
+                  onBack: _goBack,
+                ),
                 Expanded(
                   child: VikoplusConstrainedContent(
                     child: ListView(
@@ -300,8 +344,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: AppSpacing.md),
                         _GroupTextField(
-                          label: 'Group Name',
-                          hint: 'Enter group name',
+                          label: context.vt('Group Name'),
+                          hint: context.vt('Enter group name'),
                           controller: _nameController,
                           textInputAction: TextInputAction.next,
                           hasError: _nameHasError,
@@ -321,9 +365,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _GroupTextField(
-                          label: 'Description',
-                          optionalLabel: '(Optional)',
-                          hint: 'What is this group about?',
+                          label: context.vt('Description'),
+                          optionalLabel: context.vt('(Optional)'),
+                          hint: context.vt('What is this group about?'),
                           controller: _descriptionController,
                           onChanged: (_) {
                             _clearError();
@@ -335,8 +379,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _GroupTextField(
-                          label: 'Location',
-                          hint: 'City or Region',
+                          label: context.vt('Location'),
+                          hint: context.vt('City or Region'),
                           controller: _locationController,
                           textInputAction: TextInputAction.next,
                           onChanged: (_) {
@@ -348,8 +392,8 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _DateField(
-                          label: 'Group Established Date',
-                          hint: 'When did this group start?',
+                          label: context.vt('Group Established Date'),
+                          hint: context.vt('When did this group start?'),
                           value: _establishedAt == null
                               ? null
                               : _formatDate(_establishedAt!),
@@ -357,9 +401,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         _DateField(
-                          label: 'Historical Records Start',
-                          optionalLabel: '(Optional)',
-                          hint: 'Earliest data to import',
+                          label: context.vt('Historical Records Start'),
+                          optionalLabel: context.vt('(Optional)'),
+                          hint: context.vt('Earliest data to import'),
                           value: _historicalDataStartsAt == null
                               ? null
                               : _formatDate(_historicalDataStartsAt!),
@@ -376,7 +420,9 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                   ),
                 ),
                 VikoplusBottomActionBar(
-                  label: _isSubmitting ? 'Creating group' : 'Continue',
+                  label: _isSubmitting
+                      ? context.vt('Creating group')
+                      : context.vt('Continue'),
                   isLoading: _isSubmitting,
                   onPressed: _submit,
                 ),
@@ -448,7 +494,9 @@ class _HistoryNoteCard extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Existing groups can keep their real start date and import previous contribution records after setup.',
+              context.vt(
+                'Existing groups can keep their real start date and import previous contribution records after setup.',
+              ),
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.35),
             ),
@@ -535,8 +583,8 @@ class _LogoUploader extends StatelessWidget {
         const SizedBox(height: AppSpacing.xs),
         Text(
           hasLocalPreview || hasRemotePreview
-              ? 'Change Group Logo'
-              : 'Upload Group Logo',
+              ? context.vt('Change Group Logo')
+              : context.vt('Upload Group Logo'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: AppColors.onSurfaceVariant,
             fontWeight: FontWeight.w600,
@@ -660,20 +708,34 @@ class _GroupTypeField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(label: 'Group Type'),
+        _FieldLabel(label: context.vt('Group Type')),
         const SizedBox(height: AppSpacing.xs),
         DropdownButtonFormField<String>(
           initialValue: value,
           icon: const Icon(Icons.keyboard_arrow_down),
-          decoration: const InputDecoration(
-            hintText: 'Select group type',
-            contentPadding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          decoration: InputDecoration(
+            hintText: context.vt('Select group type'),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.sm,
+            ),
           ),
-          items: const [
-            DropdownMenuItem(value: 'family', child: Text('Family')),
-            DropdownMenuItem(value: 'savings', child: Text('Savings')),
-            DropdownMenuItem(value: 'welfare', child: Text('Welfare')),
-            DropdownMenuItem(value: 'investment', child: Text('Investment')),
+          items: [
+            DropdownMenuItem(
+              value: 'family',
+              child: Text(context.vt('Family')),
+            ),
+            DropdownMenuItem(
+              value: 'savings',
+              child: Text(context.vt('Savings')),
+            ),
+            DropdownMenuItem(
+              value: 'welfare',
+              child: Text(context.vt('Welfare')),
+            ),
+            DropdownMenuItem(
+              value: 'investment',
+              child: Text(context.vt('Investment')),
+            ),
           ],
           onChanged: onChanged,
         ),
@@ -690,7 +752,7 @@ class _LockedCurrencyField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel(label: 'Primary Currency'),
+        _FieldLabel(label: context.vt('Primary Currency')),
         const SizedBox(height: AppSpacing.xs),
         Container(
           height: AppSizes.inputHeight,
@@ -709,7 +771,7 @@ class _LockedCurrencyField extends StatelessWidget {
               const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
-                  'TZS - Tanzanian Shilling (Locked)',
+                  context.vt('TZS - Tanzanian Shilling (Locked)'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(

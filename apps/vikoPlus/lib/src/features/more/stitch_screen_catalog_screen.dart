@@ -122,12 +122,7 @@ class StitchScreenCatalogScreen extends StatelessWidget {
               ),
               _CatalogLink('Member list', '/members', Icons.groups_2_outlined),
               _CatalogLink(
-                'Invite members',
-                '/members/invite',
-                Icons.group_add_outlined,
-              ),
-              _CatalogLink(
-                'Add member',
+                'Add/Invite member',
                 '/members/add',
                 Icons.person_add_alt_outlined,
               ),

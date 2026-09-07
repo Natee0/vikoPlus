@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import 'auth_widgets.dart';
@@ -39,7 +40,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   Future<void> _createAccount() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting || !_acceptedTerms) {
+      return;
+    }
 
     final fullName = _fullNameController.text.trim();
     final identity = _identityController.text.trim();
@@ -47,20 +50,28 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
     final confirmPassword = _confirmPasswordController.text;
 
     if (fullName.isEmpty || identity.isEmpty || password.isEmpty) {
-      setState(() => _errorMessage = 'Complete all required fields.');
+      setState(
+        () => _errorMessage = context.vt('Complete all required fields.'),
+      );
       return;
     }
     if (password.length < 8) {
-      setState(() => _errorMessage = 'Password must be at least 8 characters.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Password must be at least 8 characters.',
+        ),
+      );
       return;
     }
     if (password != confirmPassword) {
-      setState(() => _errorMessage = 'Passwords do not match.');
+      setState(() => _errorMessage = context.vt('Passwords do not match.'));
       return;
     }
     if (!_acceptedTerms) {
       setState(
-        () => _errorMessage = 'Accept the terms before creating an account.',
+        () => _errorMessage = context.vt(
+          'Accept the terms before creating an account.',
+        ),
       );
       return;
     }
@@ -78,7 +89,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             phone: _useEmail ? null : identity,
             password: password,
           );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       final query = Uri(
         queryParameters: {
           'challengeId': challengeId,
@@ -90,7 +103,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
       ).query;
       context.push('/verify-account?$query');
     } on AuthFailure catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = error.message);
     } finally {
       if (mounted) {
@@ -100,7 +115,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty) return;
+    if (_errorMessage.isEmpty) {
+      return;
+    }
     setState(() => _errorMessage = '');
   }
 
@@ -132,7 +149,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             const SizedBox(height: AppSpacing.md),
             AuthField(
               label: AppLocalizations.of(context).fullName,
-              hint: 'John Doe',
+              hint: context.vt('John Doe'),
               icon: Icons.person_outline,
               keyboardType: TextInputType.name,
               controller: _fullNameController,
@@ -239,7 +256,9 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               textInputAction: TextInputAction.done,
               onChanged: (_) => _clearError(),
               onSubmitted: (_) {
-                if (!isLoading) _createAccount();
+                if (!isLoading && _acceptedTerms) {
+                  _createAccount();
+                }
               },
               suffixIcon: IconButton(
                 tooltip: _obscureConfirmPassword
@@ -309,7 +328,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             AuthErrorMessage(message: _errorMessage),
             if (_errorMessage.isNotEmpty) const SizedBox(height: AppSpacing.sm),
             FilledButton.icon(
-              onPressed: isLoading ? null : _createAccount,
+              onPressed: isLoading || !_acceptedTerms ? null : _createAccount,
               iconAlignment: IconAlignment.end,
               icon: isLoading
                   ? const SizedBox(
@@ -318,12 +337,16 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.arrow_forward, size: 18),
-              label: Text(isLoading ? 'Creating account' : 'Create account'),
+              label: Text(
+                isLoading
+                    ? context.vt('Creating account')
+                    : context.vt('Create account'),
+              ),
             ),
             const SizedBox(height: 12),
             AuthTextLink(
-              text: 'Already have an account? ',
-              action: 'Log in',
+              text: context.vt('Already have an account? '),
+              action: context.vt('Log in'),
               onPressed: () => context.push('/sign-in'),
             ),
           ],

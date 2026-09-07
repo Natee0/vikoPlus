@@ -165,7 +165,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
             child: Column(
               children: [
                 VikoplusTopBar(
-                  title: context.vt('Add Member'),
+                  title: context.vt('Add/Invite Member'),
                   onBack: _goBack,
                 ),
                 Expanded(

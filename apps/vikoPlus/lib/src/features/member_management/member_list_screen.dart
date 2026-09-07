@@ -89,14 +89,9 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
       actions: [
         if (activeGroup?.role == 'GROUP_ADMIN') ...[
           IconButton(
-            tooltip: context.vt('Invite members'),
-            onPressed: () => context.push('/members/invite'),
-            icon: const Icon(Icons.person_add_alt_outlined),
-          ),
-          IconButton(
-            tooltip: context.vt('Add member manually'),
+            tooltip: context.vt('Add/Invite Member'),
             onPressed: () => context.push('/members/add'),
-            icon: const Icon(Icons.add_circle_outline),
+            icon: const Icon(Icons.person_add_alt_outlined),
           ),
         ],
       ],
@@ -118,20 +113,11 @@ class _MemberListScreenState extends ConsumerState<MemberListScreen> {
           ],
           if (activeGroup?.role == 'GROUP_ADMIN') ...[
             ActionTile(
-              title: context.vt('Invite members'),
+              title: context.vt('Add/Invite Member'),
               subtitle: context.vt(
-                'Share a role-based invitation code, link, SMS or WhatsApp',
+                'Create a member record and send the invitation automatically',
               ),
               icon: Icons.person_add_alt_outlined,
-              route: '/members/invite',
-            ),
-            const SizedBox(height: 12),
-            ActionTile(
-              title: context.vt('Add member manually'),
-              subtitle: context.vt(
-                'Create a member record and assign their group role',
-              ),
-              icon: Icons.add_circle_outline,
               route: '/members/add',
               color: AppColors.secondaryGreen,
             ),

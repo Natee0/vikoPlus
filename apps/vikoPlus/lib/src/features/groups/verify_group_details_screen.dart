@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -36,7 +37,9 @@ class _VerifyGroupDetailsScreenState
   }
 
   Future<JoinGroupPreview>? _loadPreview() {
-    if (_code.isEmpty) return null;
+    if (_code.isEmpty) {
+      return null;
+    }
     return ref.read(groupsRepositoryProvider).previewJoinCode(_code);
   }
 
@@ -49,7 +52,9 @@ class _VerifyGroupDetailsScreenState
   }
 
   Future<void> _join(JoinGroupPreview preview) async {
-    if (_isJoining) return;
+    if (_isJoining) {
+      return;
+    }
 
     try {
       setState(() {
@@ -59,7 +64,9 @@ class _VerifyGroupDetailsScreenState
       final result = await ref
           .read(groupsRepositoryProvider)
           .joinGroup(preview.invitationCode);
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ref.read(activeGroupProvider.notifier).setGroup(
             GroupAccessSummary(
               id: result.groupId,
@@ -69,10 +76,14 @@ class _VerifyGroupDetailsScreenState
               membersCount: preview.group.membersCount,
             ),
       );
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       context.go(routeForGroupRole(result.role));
     } on Object catch (error) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() => _errorMessage = AuthFailure.from(error).message);
     } finally {
       if (mounted) {
@@ -86,15 +97,17 @@ class _VerifyGroupDetailsScreenState
     final previewFuture = _previewFuture;
 
     return VikoplusScreen(
-      title: 'Verify Group',
+      title: context.vt('Verify Group'),
       backRoute: '/groups/join',
       onRefresh: _previewFuture == null ? null : _refresh,
       child: previewFuture == null
           ? EmptyStateCard(
               icon: Icons.key_off_outlined,
-              title: 'Invitation code required',
-              message: 'Enter an invitation code to verify a group.',
-              actionLabel: 'Enter Code',
+              title: context.vt('Invitation code required'),
+              message: context.vt(
+                'Enter an invitation code to verify a group.',
+              ),
+              actionLabel: context.vt('Enter Code'),
               onAction: () => context.go('/groups/join'),
             )
           : FutureBuilder<JoinGroupPreview>(
@@ -115,13 +128,13 @@ class _VerifyGroupDetailsScreenState
                     children: [
                       AuthErrorMessage(
                         message: AuthFailure.from(
-                          snapshot.error ?? 'Could not verify group.',
+                          snapshot.error ?? context.vt('Could not verify group.'),
                         ).message,
                       ),
                       const SizedBox(height: AppSpacing.md),
                       FilledButton(
                         onPressed: () => context.go('/groups/join'),
-                        child: const Text('Try Another Code'),
+                        child: Text(context.vt('Try Another Code')),
                       ),
                     ],
                   );
@@ -158,14 +171,26 @@ class _VerifyGroupDetailsScreenState
                           ),
                           const SizedBox(height: AppSpacing.xs),
                           StatusPill(
-                            label:
-                                '${preview.group.membersCount} ${preview.group.membersCount == 1 ? 'Member' : 'Members'}',
+                            label: context.vtf(
+                              preview.group.membersCount == 1
+                                  ? '{count} Member'
+                                  : '{count} Members',
+                              {'count': preview.group.membersCount},
+                            ),
                           ),
                           const SizedBox(height: AppSpacing.sm),
-                          StatusPill(label: 'Role: ${_roleLabel(preview.roleOnJoin)}'),
+                          StatusPill(
+                            label: context.vtf('Role: {role}', {
+                              'role': context.vt(
+                                _roleLabel(preview.roleOnJoin),
+                              ),
+                            }),
+                          ),
                           const SizedBox(height: AppSpacing.md),
                           Text(
-                            'Your invitation is valid. Join this group to access your member workspace.',
+                            context.vt(
+                              'Your invitation is valid. Join this group to access your member workspace.',
+                            ),
                             textAlign: TextAlign.center,
                             style: Theme.of(context).textTheme.bodyMedium
                                 ?.copyWith(color: AppColors.onSurfaceVariant),
@@ -185,7 +210,7 @@ class _VerifyGroupDetailsScreenState
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Text('Join Group'),
+                          : Text(context.vt('Join Group')),
                     ),
                   ],
                 );

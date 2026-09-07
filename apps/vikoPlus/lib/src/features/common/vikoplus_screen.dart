@@ -68,6 +68,7 @@ class VikoplusScreen extends ConsumerWidget {
         showBackButton ??
         (bottomNavigationIndex == null && effectiveBackRoute != null);
     final topActions = actions;
+    final recordsTab = activeGroup?.role == 'SECRETARY';
 
     final scaffold = Scaffold(
       backgroundColor: AppColors.background,
@@ -126,17 +127,34 @@ class VikoplusScreen extends ConsumerWidget {
           bottomNavigationIndex == null || !showBottomNavigation
           ? null
           : NavigationBar(
-              selectedIndex:
-                  activeGroup?.role != 'GROUP_ADMIN' &&
-                      bottomNavigationIndex! >= 3
-                  ? 3
-                  : bottomNavigationIndex!,
+              selectedIndex: bottomNavigationIndex!,
               onDestinationSelected: (index) {
-                if (activeGroup?.role != 'GROUP_ADMIN' && index == 3) {
+                final isAdmin = activeGroup?.role == 'GROUP_ADMIN';
+                if (index == bottomNavigationIndex) return;
+                if (isAdmin) {
+                  switch (index) {
+                    case 0:
+                      context.go(portalHomeRoute(activeGroup));
+                      break;
+                    case 1:
+                      context.go(portalMembersRoute(activeGroup));
+                      break;
+                    case 2:
+                      context.go(portalPaymentsRoute(activeGroup));
+                      break;
+                    case 3:
+                      context.go(portalReportsRoute(activeGroup));
+                      break;
+                    case 4:
+                      context.go(portalMoreRoute(activeGroup));
+                      break;
+                  }
+                  return;
+                }
+                if (index == 4) {
                   context.go(portalMoreRoute(activeGroup));
                   return;
                 }
-                if (index == bottomNavigationIndex) return;
 
                 switch (index) {
                   case 0:
@@ -149,9 +167,12 @@ class VikoplusScreen extends ConsumerWidget {
                     context.go(portalContributionsRoute(activeGroup));
                     break;
                   case 3:
-                    context.go(portalReportsRoute(activeGroup));
+                    context.go(portalPaymentsRoute(activeGroup));
                     break;
                   case 4:
+                    context.go(portalReportsRoute(activeGroup));
+                    break;
+                  case 5:
                     context.go(portalMoreRoute(activeGroup));
                     break;
                 }
@@ -167,10 +188,24 @@ class VikoplusScreen extends ConsumerWidget {
                   selectedIcon: Icon(Icons.groups_2),
                   label: AppLocalizations.of(context).members,
                 ),
+                if (activeGroup?.role != 'GROUP_ADMIN')
+                  NavigationDestination(
+                    icon: Icon(
+                      recordsTab
+                          ? Icons.history_edu_outlined
+                          : Icons.savings_outlined,
+                    ),
+                    selectedIcon: Icon(
+                      recordsTab ? Icons.history_edu : Icons.savings,
+                    ),
+                    label: recordsTab
+                        ? context.vt('Records')
+                        : AppLocalizations.of(context).registerTab,
+                  ),
                 NavigationDestination(
-                  icon: Icon(Icons.savings_outlined),
-                  selectedIcon: Icon(Icons.savings),
-                  label: AppLocalizations.of(context).registerTab,
+                  icon: Icon(Icons.payments_outlined),
+                  selectedIcon: Icon(Icons.payments),
+                  label: AppLocalizations.of(context).payments,
                 ),
                 if (activeGroup?.role == 'GROUP_ADMIN')
                   NavigationDestination(

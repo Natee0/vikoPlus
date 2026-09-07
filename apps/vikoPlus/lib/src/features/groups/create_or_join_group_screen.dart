@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/locale/locale_controller.dart';
 import '../../core/auth/auth_controller.dart';
+import '../../l10n/vikoplus_translations.dart';
 
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -22,6 +23,7 @@ class CreateOrJoinGroupScreen extends ConsumerStatefulWidget {
 class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
   bool _chooseLanguage = false;
   bool _savingLanguage = false;
+  bool _languageSuggestionShown = false;
 
   @override
   void initState() {
@@ -38,14 +40,38 @@ class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
         setState(() {
           _chooseLanguage = needed;
         });
+        _showLanguageSuggestion();
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _chooseLanguage = true;
         });
+        _showLanguageSuggestion();
       }
     }
+  }
+
+  void _showLanguageSuggestion() {
+    if (!_chooseLanguage || _languageSuggestionShown) {
+      return;
+    }
+    _languageSuggestionShown = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_chooseLanguage) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.vt('You can switch the app language here.')),
+          action: SnackBarAction(
+            label: context.vt('English'),
+            onPressed: () => _selectLanguage('en'),
+          ),
+          duration: const Duration(seconds: 8),
+        ),
+      );
+    });
   }
 
   Future<void> _selectLanguage(String code) async {
@@ -101,60 +127,9 @@ class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
                     AppSpacing.lg,
                   ),
                   children: [
-                    if (_chooseLanguage) ...[
-                      const Text(
-                        'Chagua lugha / Choose your language',
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          final stacked = constraints.maxWidth < 320;
-                          final buttons = [
-                            OutlinedButton(
-                              onPressed: _savingLanguage
-                                  ? null
-                                  : () => _selectLanguage('sw'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(
-                                  AppSizes.compactInputHeight,
-                                ),
-                              ),
-                              child: const Text('Kiswahili'),
-                            ),
-                            OutlinedButton(
-                              onPressed: _savingLanguage
-                                  ? null
-                                  : () => _selectLanguage('en'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(
-                                  AppSizes.compactInputHeight,
-                                ),
-                              ),
-                              child: const Text('English'),
-                            ),
-                          ];
-                          if (stacked) {
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                buttons[0],
-                                const SizedBox(height: AppSpacing.xs),
-                                buttons[1],
-                              ],
-                            );
-                          }
-                          return Row(
-                            children: [
-                              Expanded(child: buttons[0]),
-                              const SizedBox(width: AppSpacing.sm),
-                              Expanded(child: buttons[1]),
-                            ],
-                          );
-                        },
-                      ),
-                      if (_savingLanguage) const LinearProgressIndicator(),
-                      const SizedBox(height: AppSpacing.lg),
+                    if (_chooseLanguage && _savingLanguage) ...[
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: AppSpacing.md),
                     ],
                     Text(
                       sw ? 'Karibu Vikoplus' : 'Welcome to Vikoplus',
@@ -198,6 +173,17 @@ class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
                       iconBackground: AppColors.lightGreen,
                       iconColor: AppColors.primary,
                       onTap: () => context.push('/groups/join'),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    _GroupChoiceTile(
+                      title: context.vt('Complete Profile'),
+                      subtitle: context.vt(
+                        'Add your photo and account details',
+                      ),
+                      icon: Icons.account_circle_outlined,
+                      iconBackground: AppColors.surfaceContainer,
+                      iconColor: AppColors.primary,
+                      onTap: () => context.push('/profile/complete'),
                     ),
                     const SizedBox(height: AppSpacing.xl),
                     ClipRRect(

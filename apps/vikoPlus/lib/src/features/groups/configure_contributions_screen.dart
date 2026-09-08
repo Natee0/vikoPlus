@@ -26,9 +26,9 @@ class ConfigureContributionsScreen extends ConsumerStatefulWidget {
 
 class _ConfigureContributionsScreenState
     extends ConsumerState<ConfigureContributionsScreen> {
-  final _joiningFeeController = TextEditingController(text: '10000');
-  final _membershipFeeController = TextEditingController(text: '5000');
-  final _memberContributionController = TextEditingController(text: '20000');
+  final _joiningFeeController = TextEditingController();
+  final _membershipFeeController = TextEditingController();
+  final _memberContributionController = TextEditingController();
   String _membershipFeeFrequency = 'Yearly';
   String _memberContributionFrequency = 'Monthly';
   int _membershipDueDay = 1;
@@ -184,7 +184,9 @@ class _ConfigureContributionsScreenState
     if (_isSubmitting) return;
     if (groupId == null || groupId.isEmpty) {
       setState(
-        () => _errorMessage = 'Create a group before setting contributions.',
+        () => _errorMessage = context.vt(
+          'Create a group before setting contributions.',
+        ),
       );
       return;
     }
@@ -199,7 +201,9 @@ class _ConfigureContributionsScreenState
         memberContribution == null ||
         membershipFee <= 0 ||
         memberContribution <= 0) {
-      setState(() => _errorMessage = 'Enter valid contribution amounts.');
+      setState(
+        () => _errorMessage = context.vt('Enter valid contribution amounts.'),
+      );
       return;
     }
 
@@ -240,7 +244,7 @@ class _ConfigureContributionsScreenState
       context.go(_groupRoute('/groups/reminders', groupId));
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

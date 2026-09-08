@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
@@ -13,7 +14,7 @@ class AuthLogoutIconButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(authControllerProvider).isLoading;
     return IconButton(
-      tooltip: 'Logout',
+      tooltip: context.vt('Logout'),
       onPressed: isLoading
           ? null
           : () async {
@@ -71,7 +72,7 @@ class AuthLogoutTile extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isLoading ? 'Logging out' : 'Logout',
+                      context.vt(isLoading ? 'Logging out' : 'Logout'),
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: AppColors.onSurface,
                         fontWeight: FontWeight.w700,
@@ -79,7 +80,7 @@ class AuthLogoutTile extends ConsumerWidget {
                     ),
                     const SizedBox(height: AppSpacing.xxs),
                     Text(
-                      'End your session on this device',
+                      context.vt('End your session on this device'),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.secondaryText,
                       ),

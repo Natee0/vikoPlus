@@ -126,7 +126,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       }
       setState(() {
         _needsVerification = false;
-        _errorMessage = error.message;
+        _errorMessage = context.vt(error.message);
       });
     } finally {
       if (mounted) {

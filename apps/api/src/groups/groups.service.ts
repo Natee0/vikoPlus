@@ -14,6 +14,7 @@ import {
   ContributionFrequency,
   ContributionObligationStatus,
   ContributionPlanType,
+  GroupExpenseStatus,
   GroupContributionPaymentStatus,
   GroupLoanStatus,
   GroupMemberStatus,
@@ -44,6 +45,7 @@ import {
   AssignRoleDto,
   UpdateMemberStatusDto,
   ContributionSettingsDto,
+  CreateGroupExpenseDto,
   CreateGroupDto,
   CreateLoanApplicationDto,
   CreateReminderPackageCheckoutDto,
@@ -58,6 +60,7 @@ import {
   RegisterPushTokenDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
+  ReviewGroupExpenseDto,
   ReviewLoanApplicationDto,
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
@@ -753,7 +756,8 @@ export class GroupsService {
   async dashboard(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
     const now = new Date();
-    const [group, membersCount, paid, outstanding] = await Promise.all([
+    const [group, membersCount, paid, outstanding, expenses, activeLoans] =
+      await Promise.all([
       this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
       this.prisma.groupMember.count({ where: { groupId } }),
       this.prisma.groupContributionPayment.aggregate({
@@ -775,19 +779,210 @@ export class GroupsService {
         },
         _sum: { amountDueMinor: true, amountPaidMinor: true },
       }),
+      this.prisma.groupExpense.aggregate({
+        where: { groupId, status: GroupExpenseStatus.APPROVED },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.groupLoan.aggregate({
+        where: { groupId, status: GroupLoanStatus.ACTIVE },
+        _sum: { amountMinor: true, amountPaidMinor: true },
+      }),
     ]);
     const due = outstanding._sum.amountDueMinor ?? 0;
     const paidObligations = outstanding._sum.amountPaidMinor ?? 0;
+    const collectedMinor = paid._sum.amountMinor ?? 0;
+    const expensesMinor = expenses._sum.amountMinor ?? 0;
+    const loanPrincipalOutMinor = Math.max(
+      (activeLoans._sum.amountMinor ?? 0) -
+        (activeLoans._sum.amountPaidMinor ?? 0),
+      0,
+    );
     return {
       groupId,
       role: membership.role,
       groupName: group.name,
       metrics: {
         membersCount,
-        collectedMinor: paid._sum.amountMinor ?? 0,
+        collectedMinor,
         outstandingMinor: Math.max(due - paidObligations, 0),
+        expensesMinor,
+        loanPrincipalOutMinor,
+        cashBalanceMinor: Math.max(
+          collectedMinor - expensesMinor - loanPrincipalOutMinor,
+          0,
+        ),
       },
     };
+  }
+
+  async expenses(user: AuthenticatedUser, groupId: string) {
+    const membership = await this.requireMembership(user, groupId);
+    const canReview = membership.role === GroupRole.GROUP_ADMIN;
+    const [items, approved, pending, activeLoans] = await Promise.all([
+      this.prisma.groupExpense.findMany({
+        where: { groupId },
+        include: {
+          createdBy: { select: { displayName: true } },
+          reviewedBy: { select: { displayName: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.prisma.groupExpense.aggregate({
+        where: { groupId, status: GroupExpenseStatus.APPROVED },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.groupExpense.aggregate({
+        where: { groupId, status: GroupExpenseStatus.SUBMITTED },
+        _sum: { amountMinor: true },
+        _count: true,
+      }),
+      this.prisma.groupLoan.aggregate({
+        where: { groupId, status: GroupLoanStatus.ACTIVE },
+        _sum: { amountMinor: true, amountPaidMinor: true },
+      }),
+    ]);
+    return {
+      groupId,
+      canReview,
+      summary: {
+        approvedExpenseMinor: approved._sum.amountMinor ?? 0,
+        pendingExpenseMinor: pending._sum.amountMinor ?? 0,
+        pendingCount: pending._count,
+        loanPrincipalOutMinor: Math.max(
+          (activeLoans._sum.amountMinor ?? 0) -
+            (activeLoans._sum.amountPaidMinor ?? 0),
+          0,
+        ),
+      },
+      expenses: items.map((item) => this.groupExpenseSummary(item)),
+    };
+  }
+
+  async createExpense(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: CreateGroupExpenseDto,
+  ) {
+    const membership = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
+    const group = await this.prisma.group.findUniqueOrThrow({
+      where: { id: groupId },
+      select: { currency: true, name: true },
+    });
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await tx.groupExpense.create({
+        data: {
+          groupId,
+          createdByUserId: user.id,
+          category: input.category.trim(),
+          purpose: input.purpose.trim(),
+          beneficiary: this.optionalTrim(input.beneficiary),
+          amountMinor: input.amountMinor,
+          currency: input.currency?.trim().toUpperCase() || group.currency,
+          paymentRail: this.optionalTrim(input.paymentRail),
+          reference: this.optionalTrim(input.reference),
+          spentAt: input.spentAt ? new Date(input.spentAt) : new Date(),
+        },
+        include: {
+          createdBy: { select: { displayName: true } },
+          reviewedBy: { select: { displayName: true } },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          groupId,
+          action: AuditAction.GROUP_EXPENSE_SUBMITTED,
+          entityType: "GroupExpense",
+          entityId: expense.id,
+          newValue: {
+            category: expense.category,
+            amountMinor: expense.amountMinor,
+            createdByRole: membership.role,
+          },
+        },
+      });
+      const admins = await tx.groupMember.findMany({
+        where: {
+          groupId,
+          role: GroupRole.GROUP_ADMIN,
+          status: GroupMemberStatus.ACTIVE,
+          userId: { not: null },
+        },
+        select: { userId: true },
+      });
+      for (const admin of admins) {
+        await this.createUserNotification(tx, {
+          userId: admin.userId,
+          titleEn: "Expense pending approval",
+          titleSw: "Matumizi yanasubiri idhini",
+          bodyEn: `${membership.fullName} recorded an expense of ${expense.currency} ${expense.amountMinor}.`,
+          bodySw: `${membership.fullName} amerekodi matumizi ya ${expense.currency} ${expense.amountMinor}.`,
+        });
+      }
+      return this.groupExpenseSummary(expense);
+    });
+  }
+
+  async reviewExpense(
+    user: AuthenticatedUser,
+    groupId: string,
+    expenseId: string,
+    input: ReviewGroupExpenseDto,
+  ) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await tx.groupExpense.findFirst({
+        where: { id: expenseId, groupId },
+      });
+      if (!expense) throw new NotFoundException("Expense was not found.");
+      if (expense.status !== GroupExpenseStatus.SUBMITTED) {
+        throw new BadRequestException("Expense has already been reviewed.");
+      }
+      const status = input.approve
+        ? GroupExpenseStatus.APPROVED
+        : GroupExpenseStatus.REJECTED;
+      const updated = await tx.groupExpense.update({
+        where: { id: expense.id },
+        data: {
+          status,
+          reviewedByUserId: user.id,
+          reviewedAt: new Date(),
+          reviewNotes: this.optionalTrim(input.notes),
+        },
+        include: {
+          createdBy: { select: { displayName: true } },
+          reviewedBy: { select: { displayName: true } },
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          groupId,
+          action: input.approve
+            ? AuditAction.GROUP_EXPENSE_APPROVED
+            : AuditAction.GROUP_EXPENSE_REJECTED,
+          entityType: "GroupExpense",
+          entityId: expense.id,
+          previousValue: { status: expense.status },
+          newValue: { status, notes: input.notes },
+        },
+      });
+      if (expense.createdByUserId && expense.createdByUserId !== user.id) {
+        await this.createUserNotification(tx, {
+          userId: expense.createdByUserId,
+          titleEn: input.approve ? "Expense approved" : "Expense rejected",
+          titleSw: input.approve
+            ? "Matumizi yameidhinishwa"
+            : "Matumizi yamekataliwa",
+          bodyEn: `Your ${expense.currency} ${expense.amountMinor} expense has been ${input.approve ? "approved" : "rejected"}.`,
+          bodySw: `Matumizi yako ya ${expense.currency} ${expense.amountMinor} ${input.approve ? "yameidhinishwa" : "yamekataliwa"}.`,
+        });
+      }
+      return this.groupExpenseSummary(updated);
+    });
   }
 
   async listMembers(user: AuthenticatedUser, groupId: string) {
@@ -1216,7 +1411,13 @@ export class GroupsService {
           where: {
             groupId,
             status: GroupMemberStatus.ACTIVE,
-            role: { in: [GroupRole.TREASURER, GroupRole.SECRETARY] },
+            role: {
+              in: [
+                GroupRole.GROUP_ADMIN,
+                GroupRole.TREASURER,
+                GroupRole.SECRETARY,
+              ],
+            },
             id: { not: membership.id },
             userId: { not: null },
           },
@@ -1246,6 +1447,7 @@ export class GroupsService {
     input: RecordContributionPaymentDto,
   ) {
     const reviewer = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
       GroupRole.SECRETARY,
     ]);
@@ -1332,6 +1534,31 @@ export class GroupsService {
       where: { id: groupId },
       select: { establishedAt: true, historicalDataStartsAt: true },
     });
+    const requestedPlanTypes = Array.from(
+      new Set(
+        payments.map((payment) =>
+          (payment.contributionType ??
+            ContributionPlanType.RECURRING) as ContributionPlanType,
+        ),
+      ),
+    );
+    const plans = await this.prisma.contributionPlan.findMany({
+      where: {
+        groupId,
+        isActive: true,
+        type: { in: requestedPlanTypes },
+      },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, type: true },
+    });
+    const planByType = new Map(plans.map((plan) => [plan.type, plan]));
+    for (const type of requestedPlanTypes) {
+      if (!planByType.has(type)) {
+        throw new BadRequestException(
+          "Contribution plan for historical type is not configured.",
+        );
+      }
+    }
     const now = new Date();
     await Promise.all(
       payments.map((payment) =>
@@ -1352,10 +1579,14 @@ export class GroupsService {
       }
     });
 
-    const created = await this.prisma.$transaction(
-      payments.map((payment) => {
+    const created = await this.prisma.$transaction(async (tx) => {
+      const createdPayments: { id: string }[] = [];
+      for (const payment of payments) {
         const paidAt = new Date(payment.paidAt);
-        return this.prisma.groupContributionPayment.create({
+        const planType = (payment.contributionType ??
+          ContributionPlanType.RECURRING) as ContributionPlanType;
+        const plan = planByType.get(planType)!;
+        const createdPayment = await tx.groupContributionPayment.create({
           data: {
             groupId,
             groupMemberId: payment.memberId,
@@ -1370,8 +1601,18 @@ export class GroupsService {
             reviewedAt: new Date(),
           },
         });
-      }),
-    );
+        await tx.paymentAllocation.create({
+          data: {
+            paymentId: createdPayment.id,
+            planId: plan.id,
+            amountMinor: payment.amountMinor,
+            status: PaymentAllocationStatus.APPROVED,
+          },
+        });
+        createdPayments.push(createdPayment);
+      }
+      return createdPayments;
+    });
 
     await Promise.all(
       created.map((payment) =>
@@ -1405,6 +1646,7 @@ export class GroupsService {
     input: ReviewContributionPaymentDto,
   ) {
     const membership = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
       GroupRole.SECRETARY,
     ]);
@@ -1477,6 +1719,7 @@ export class GroupsService {
     input: ReviewContributionPaymentDto,
   ) {
     const membership = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
       GroupRole.SECRETARY,
     ]);
@@ -1530,6 +1773,7 @@ export class GroupsService {
     input: ReviewContributionPaymentDto,
   ) {
     const membership = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
       GroupRole.SECRETARY,
     ]);
@@ -2119,7 +2363,10 @@ export class GroupsService {
     applicationId: string,
     input: ReviewLoanApplicationDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
     const application = await this.prisma.loanApplication.findFirst({
       where: { id: applicationId, groupId },
       include: { member: true, guarantors: { include: { member: true } } },
@@ -2248,7 +2495,10 @@ export class GroupsService {
     applicationId: string,
     input: ReviewLoanApplicationDto,
   ) {
-    await this.requireMembership(user, groupId, [GroupRole.TREASURER]);
+    await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ]);
     const application = await this.prisma.loanApplication.findFirst({
       where: { id: applicationId, groupId },
       select: {
@@ -2386,7 +2636,7 @@ export class GroupsService {
           where: {
             groupId,
             status: GroupMemberStatus.ACTIVE,
-            role: GroupRole.TREASURER,
+            role: { in: [GroupRole.GROUP_ADMIN, GroupRole.TREASURER] },
             id: { not: membership.id },
             userId: { not: null },
           },
@@ -2428,7 +2678,7 @@ export class GroupsService {
           },
         },
       }),
-      membership.role === GroupRole.TREASURER
+      this.canReviewLoans(membership.role)
         ? this.prisma.loanRepayment.findMany({
             where: {
               groupId,
@@ -2498,6 +2748,7 @@ export class GroupsService {
     approve: boolean,
   ) {
     const membership = await this.requireMembership(user, groupId, [
+      GroupRole.GROUP_ADMIN,
       GroupRole.TREASURER,
     ]);
     return this.prisma.$transaction(
@@ -2583,11 +2834,15 @@ export class GroupsService {
   }
 
   private canReviewLoans(role: GroupRole): boolean {
-    return role === GroupRole.TREASURER;
+    return role === GroupRole.GROUP_ADMIN || role === GroupRole.TREASURER;
   }
 
   private canReviewContributionPayments(role: GroupRole): boolean {
-    return role === GroupRole.TREASURER || role === GroupRole.SECRETARY;
+    return (
+      role === GroupRole.GROUP_ADMIN ||
+      role === GroupRole.TREASURER ||
+      role === GroupRole.SECRETARY
+    );
   }
 
   private ensureContributionPaymentReviewer(
@@ -2595,6 +2850,9 @@ export class GroupsService {
     paymentMember: Pick<GroupMember, "role">,
   ): void {
     const paymentMemberRole = paymentMember.role;
+    if (reviewerRole === GroupRole.GROUP_ADMIN) {
+      return;
+    }
     const canReview =
       (reviewerRole === GroupRole.SECRETARY &&
         paymentMemberRole === GroupRole.TREASURER) ||
@@ -2622,6 +2880,42 @@ export class GroupsService {
       (principalMinor * monthlyInterestRateBps * termMonths) / 10000,
     );
     return principalMinor + interestMinor + processingFeeMinor;
+  }
+
+  private groupExpenseSummary(expense: {
+    id: string;
+    category: string;
+    purpose: string;
+    beneficiary: string | null;
+    amountMinor: number;
+    currency: string;
+    paymentRail: string | null;
+    reference: string | null;
+    status: GroupExpenseStatus;
+    spentAt: Date | null;
+    reviewedAt: Date | null;
+    reviewNotes: string | null;
+    createdAt: Date;
+    createdBy?: { displayName: string | null } | null;
+    reviewedBy?: { displayName: string | null } | null;
+  }) {
+    return {
+      id: expense.id,
+      category: expense.category,
+      purpose: expense.purpose,
+      beneficiary: expense.beneficiary,
+      amountMinor: expense.amountMinor,
+      currency: expense.currency,
+      paymentRail: expense.paymentRail,
+      reference: expense.reference,
+      status: expense.status,
+      spentAt: expense.spentAt,
+      reviewedAt: expense.reviewedAt,
+      reviewNotes: expense.reviewNotes,
+      createdAt: expense.createdAt,
+      createdByName: expense.createdBy?.displayName ?? null,
+      reviewedByName: expense.reviewedBy?.displayName ?? null,
+    };
   }
 
   private loanSummary(loan: {
@@ -3288,7 +3582,6 @@ export class GroupsService {
         dueAt: { lte: new Date() },
         status: {
           in: [
-            ContributionObligationStatus.UPCOMING,
             ContributionObligationStatus.DUE,
             ContributionObligationStatus.PARTIALLY_PAID,
             ContributionObligationStatus.OVERDUE,

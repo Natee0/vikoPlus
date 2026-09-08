@@ -69,7 +69,7 @@ class _ConfigureRemindersScreenState
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _errorMessage = AuthFailure.from(error).message);
+        setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
       }
     } finally {
       if (mounted) {
@@ -156,7 +156,7 @@ class _ConfigureRemindersScreenState
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isStartingCheckout = false);
@@ -269,7 +269,7 @@ class _ConfigureRemindersScreenState
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

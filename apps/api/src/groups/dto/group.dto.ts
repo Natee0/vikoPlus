@@ -356,6 +356,11 @@ export class HistoricalContributionPaymentDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(["JOINING_FEE", "MEMBERSHIP_FEE", "RECURRING"])
+  contributionType?: "JOINING_FEE" | "MEMBERSHIP_FEE" | "RECURRING";
+
+  @IsOptional()
+  @IsString()
   @MaxLength(100)
   reference?: string;
 }
@@ -493,4 +498,54 @@ export class RecordLoanRepaymentDto {
   @IsOptional()
   @IsDateString()
   paidAt?: string;
+}
+
+export class CreateGroupExpenseDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(80)
+  category!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(500)
+  purpose!: string;
+
+  @IsInt()
+  @Min(1)
+  amountMinor!: number;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  beneficiary?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  paymentRail?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  reference?: string;
+
+  @IsOptional()
+  @IsDateString()
+  spentAt?: string;
+}
+
+export class ReviewGroupExpenseDto {
+  @IsBoolean()
+  approve!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 }

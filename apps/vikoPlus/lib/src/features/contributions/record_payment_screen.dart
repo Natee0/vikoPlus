@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -48,7 +49,11 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
   Future<void> _record(GroupAccessSummary activeGroup) async {
     final memberId = widget.memberId;
     if (memberId == null || memberId.isEmpty) {
-      setState(() => _errorMessage = 'Select a member before recording payment.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Select a member before recording payment.',
+        ),
+      );
       return;
     }
 
@@ -97,11 +102,14 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
             ? '/contributions'
             : '/contributions/receipt/${Uri.encodeComponent(receiptId)}',
       );
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(
-        () => _errorMessage =
-            'Payment was not recorded. Confirm your staff role and try again.',
+        () => _errorMessage = context.vt(
+          error is FormatException
+              ? error.message
+              : 'Payment was not recorded. Confirm your staff role and try again.',
+        ),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -116,7 +124,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
     final activeGroup = ref.watch(activeGroupProvider);
 
     return VikoplusScreen(
-      title: 'Record Payment',
+      title: context.vt('Record Payment'),
       backRoute: '/contributions/record/select-member',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,12 +132,12 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
           const _StepIndicator(),
           const SizedBox(height: AppSpacing.md),
           if (activeGroup == null)
-            const AuthErrorMessage(
-              message: 'Select a group before recording payment.',
+            AuthErrorMessage(
+              message: context.vt('Select a group before recording payment.'),
             )
           else if (widget.memberId == null || widget.memberId!.isEmpty)
-            const AuthErrorMessage(
-              message: 'Select a member before recording payment.',
+            AuthErrorMessage(
+              message: context.vt('Select a member before recording payment.'),
             )
           else
             FutureBuilder<GroupMemberSummary>(
@@ -147,8 +155,10 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                   );
                 }
                 if (snapshot.hasError || member == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load this member. Please select again.',
+                  return AuthErrorMessage(
+                    message: context.vt(
+                      'Could not load this member. Please select again.',
+                    ),
                   );
                 }
                 return _SelectedMemberCard(member: member);
@@ -156,7 +166,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
             ),
           const SizedBox(height: AppSpacing.md),
           Text(
-            'Contribution Purpose',
+            context.vt('Contribution Purpose'),
             style: Theme.of(context).textTheme.labelLarge
                 ?.copyWith(color: AppColors.onSurfaceVariant),
           ),
@@ -176,21 +186,35 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                   );
                 }
                 if (snapshot.hasError) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load this member contributions.',
+                  return AuthErrorMessage(
+                    message: context.vt(
+                      'Could not load this member contributions.',
+                    ),
                   );
                 }
-                final obligations = (snapshot.data?.obligations ?? const [])
+                final allMemberObligations =
+                    (snapshot.data?.obligations ?? const [])
+                        .where(
+                          (obligation) =>
+                              obligation.memberId == widget.memberId,
+                        )
+                        .toList();
+                final obligations = allMemberObligations
                     .where(
-                      (obligation) =>
-                          obligation.memberId == widget.memberId &&
-                          obligation.isPayable,
+                      (obligation) => obligation.isPayable,
                     )
+                    .toList();
+                final upcoming = allMemberObligations
+                    .where((obligation) => obligation.isUpcoming)
                     .toList();
                 _initializeObligations(obligations);
                 if (obligations.isEmpty) {
-                  return const AuthErrorMessage(
-                    message: 'This member has no outstanding contributions.',
+                  return AuthErrorMessage(
+                    message: context.vt(
+                      upcoming.isNotEmpty
+                          ? 'No contributions are due yet. Upcoming items will activate on their collection date.'
+                          : 'This member has no outstanding contributions.',
+                    ),
                   );
                 }
                 final selected = obligations
@@ -214,6 +238,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                           _ContributionTypeChip(
                             label:
                                 '${obligation.planName}\n${obligation.periodLabel}',
+                            status: context.vt('Due'),
                             selected:
                                 _selectedObligationIds.contains(obligation.id),
                             onTap: () {
@@ -228,6 +253,13 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                               });
                             },
                           ),
+                        for (final obligation in upcoming)
+                          _ContributionTypeChip(
+                            label:
+                                '${obligation.planName}\n${obligation.periodLabel}',
+                            status: context.vt('Upcoming'),
+                            disabled: true,
+                          ),
                       ],
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -235,9 +267,9 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                       key: ValueKey(amountMinor),
                       readOnly: true,
                       initialValue: formatters.money(amountMinor),
-                      decoration: const InputDecoration(
-                        labelText: 'Amount from selected purpose',
-                        prefixIcon: Icon(Icons.savings_outlined),
+                      decoration: InputDecoration(
+                        labelText: context.vt('Amount from selected purpose'),
+                        prefixIcon: const Icon(Icons.savings_outlined),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.md),
@@ -250,19 +282,19 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
               },
             ),
           const SizedBox(height: AppSpacing.sm),
-          const TextField(
+          TextField(
             decoration: InputDecoration(
-              labelText: 'Payment Date',
+              labelText: context.vt('Payment Date'),
               hintText: '2026-09-02',
-              prefixIcon: Icon(Icons.calendar_month_outlined),
+              prefixIcon: const Icon(Icons.calendar_month_outlined),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String>(
             initialValue: _method,
-            decoration: const InputDecoration(
-              labelText: 'Payment Method',
-              prefixIcon: Icon(Icons.payments_outlined),
+            decoration: InputDecoration(
+              labelText: context.vt('Payment Method'),
+              prefixIcon: const Icon(Icons.payments_outlined),
             ),
             items: const [
               DropdownMenuItem(
@@ -283,10 +315,10 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: _referenceController,
-            decoration: const InputDecoration(
-              labelText: 'Transaction Reference',
+            decoration: InputDecoration(
+              labelText: context.vt('Transaction Reference'),
               hintText: 'e.g. MPESA-7A8B9C',
-              prefixIcon: Icon(Icons.confirmation_number_outlined),
+              prefixIcon: const Icon(Icons.confirmation_number_outlined),
             ),
             textCapitalization: TextCapitalization.characters,
           ),
@@ -298,7 +330,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
               Expanded(
                 child: OutlinedButton(
                   onPressed: () => context.go('/contributions/record'),
-                  child: const Text('Cancel'),
+                  child: Text(context.vt('Cancel')),
                 ),
               ),
               const SizedBox(width: AppSpacing.sm),
@@ -314,7 +346,7 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                           height: 18,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text('Record Payment'),
+                      : Text(context.vt('Record Payment')),
                 ),
               ),
             ],
@@ -437,19 +469,23 @@ class _SelectedMemberCard extends StatelessWidget {
 class _ContributionTypeChip extends StatelessWidget {
   const _ContributionTypeChip({
     required this.label,
+    this.status,
     this.selected = false,
+    this.disabled = false,
     this.onTap,
   });
 
   final String label;
+  final String? status;
   final bool selected;
+  final bool disabled;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadii.md),
-      onTap: onTap,
+      onTap: disabled ? null : onTap,
       child: Container(
         constraints: const BoxConstraints(minHeight: 56, minWidth: 142),
         padding: const EdgeInsets.symmetric(
@@ -458,23 +494,44 @@ class _ContributionTypeChip extends StatelessWidget {
         ),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected
+          color: disabled
+              ? AppColors.surfaceContainerLow
+              : selected
               ? AppColors.secondaryContainer.withValues(alpha: 0.7)
               : AppColors.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(AppRadii.md),
           border: Border.all(
-            color: selected ? AppColors.primary : AppColors.outlineVariant,
+            color: selected && !disabled
+                ? AppColors.primary
+                : AppColors.outlineVariant,
           ),
         ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: selected
-                ? AppColors.onSecondaryContainer
-                : AppColors.onSurface,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: disabled
+                    ? AppColors.onSurfaceVariant
+                    : selected
+                    ? AppColors.onSecondaryContainer
+                    : AppColors.onSurface,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            if (status != null) ...[
+              const SizedBox(height: AppSpacing.xxs),
+              Text(
+                status!,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: disabled ? AppColors.onSurfaceVariant : AppColors.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

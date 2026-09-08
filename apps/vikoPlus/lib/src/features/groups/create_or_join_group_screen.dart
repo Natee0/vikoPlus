@@ -63,7 +63,24 @@ class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.vt('You can switch the app language here.')),
+          content: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.vt('You can switch the app language here.'),
+                ),
+              ),
+              IconButton(
+                tooltip: context.vt('Close'),
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                },
+                icon: const Icon(Icons.close, size: 18),
+                color: AppColors.onPrimaryContainer,
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
           action: SnackBarAction(
             label: context.vt('English'),
             onPressed: () => _selectLanguage('en'),
@@ -91,7 +108,7 @@ class _CreateOrJoinGroupState extends ConsumerState<CreateOrJoinGroupScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AuthFailure.from(error).message)),
+          SnackBar(content: Text(context.vt(AuthFailure.from(error).message))),
         );
       }
     } finally {

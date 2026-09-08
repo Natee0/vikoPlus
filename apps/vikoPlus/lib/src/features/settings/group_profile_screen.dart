@@ -58,7 +58,7 @@ class _GroupProfileScreenState extends ConsumerState<GroupProfileScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);

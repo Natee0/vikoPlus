@@ -50,6 +50,11 @@ export type ContributionReport = {
   totalOutstandingMinor: number;
   joiningFeesPaidMinor: number;
   recurringPaidMinor: number;
+  approvedExpensesMinor: number;
+  pendingExpensesMinor: number;
+  activeLoanPrincipalMinor: number;
+  activeLoanOutstandingMinor: number;
+  netCashBalanceMinor: number;
   periodTotals: ContributionPeriodTotal[];
   memberAnalysis: MemberContributionAnalysis[];
 };
@@ -133,6 +138,11 @@ export function calculateContributionReport(
     totalOutstandingMinor,
     joiningFeesPaidMinor,
     recurringPaidMinor,
+    approvedExpensesMinor: 0,
+    pendingExpensesMinor: 0,
+    activeLoanPrincipalMinor: 0,
+    activeLoanOutstandingMinor: 0,
+    netCashBalanceMinor: totalPaidMinor,
     periodTotals: Array.from(periods.values()).sort(
       (left, right) => left.sortOrder - right.sortOrder,
     ),

@@ -31,11 +31,12 @@ class PortalRouteGuard extends ConsumerWidget {
     final role = activeGroup?.role;
     final allowed = switch (area) {
       PortalArea.admin => role == 'GROUP_ADMIN',
-      PortalArea.treasurer => role == 'TREASURER',
-      PortalArea.secretary => role == 'SECRETARY',
+      PortalArea.treasurer => role == 'GROUP_ADMIN' || role == 'TREASURER',
+      PortalArea.secretary => role == 'GROUP_ADMIN' || role == 'SECRETARY',
       PortalArea.staff => isStaffPortalRole(role),
       PortalArea.financeStaff => role == 'GROUP_ADMIN' || role == 'TREASURER',
-      PortalArea.paymentReviewer => role == 'TREASURER' || role == 'SECRETARY',
+      PortalArea.paymentReviewer =>
+        role == 'GROUP_ADMIN' || role == 'TREASURER' || role == 'SECRETARY',
       PortalArea.records => role == 'GROUP_ADMIN' || role == 'SECRETARY',
       PortalArea.member => role == 'MEMBER',
       PortalArea.group => role == 'MEMBER' || isStaffPortalRole(role),

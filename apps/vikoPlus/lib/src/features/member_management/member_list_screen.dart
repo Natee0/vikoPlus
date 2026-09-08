@@ -255,7 +255,7 @@ class _MemberListBody extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               AuthErrorMessage(
-                message: AuthFailure.from(snapshot.error!).message,
+                message: context.vt(AuthFailure.from(snapshot.error!).message),
               ),
               const SizedBox(height: 12),
               OutlinedButton.icon(

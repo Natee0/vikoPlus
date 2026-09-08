@@ -8,6 +8,7 @@ import '../../core/billing/billing_repository.dart';
 import '../../core/config/app_config.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -97,7 +98,7 @@ class _SubscriptionPlanScreenState
       );
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isStartingCheckout = false);

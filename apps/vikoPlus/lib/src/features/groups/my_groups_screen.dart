@@ -132,7 +132,9 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AuthErrorMessage(
-                      message: AuthFailure.from(snapshot.error!).message,
+                      message: context.vt(
+                        AuthFailure.from(snapshot.error!).message,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton.icon(
@@ -224,7 +226,7 @@ class _EmptyGroupsCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           Text(
-            'No groups yet',
+            context.vt('No groups yet'),
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
               color: AppColors.onSurface,
               fontWeight: FontWeight.w800,
@@ -232,7 +234,7 @@ class _EmptyGroupsCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.xs),
           Text(
-            'Create a group or join one with an invitation code.',
+            context.vt('Create a group or join one with an invitation code.'),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.35),

@@ -170,6 +170,12 @@ enum LoanRepaymentStatus {
   REJECTED
 }
 
+enum GroupExpenseStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 enum AuditAction {
   ACCOUNT_VERIFIED
   PASSWORD_RESET_REQUESTED
@@ -213,6 +219,9 @@ enum AuditAction {
   LOAN_REPAYMENT_SUBMITTED
   LOAN_REPAYMENT_APPROVED
   LOAN_REPAYMENT_REJECTED
+  GROUP_EXPENSE_SUBMITTED
+  GROUP_EXPENSE_APPROVED
+  GROUP_EXPENSE_REJECTED
 }
 
 model User {
@@ -241,6 +250,8 @@ model User {
   reviewedLoanApplications LoanApplication[] @relation("LoanApplicationsReviewedBy")
   createdLoanRepayments LoanRepayment[] @relation("LoanRepaymentsCreatedBy")
   reviewedLoanRepayments LoanRepayment[] @relation("LoanRepaymentsReviewedBy")
+  createdGroupExpenses GroupExpense[] @relation("GroupExpensesCreatedBy")
+  reviewedGroupExpenses GroupExpense[] @relation("GroupExpensesReviewedBy")
   reminderPackagePurchases ReminderPackagePurchase[] @relation("ReminderPackagePurchasesCreatedBy")
 }
 
@@ -333,6 +344,7 @@ model Group {
   loanApplications    LoanApplication[]
   loans               GroupLoan[]
   loanRepayments      LoanRepayment[]
+  expenses            GroupExpense[]
 }
 
 model GroupMember {
@@ -462,6 +474,33 @@ model LoanRepayment {
   @@index([loanId])
   @@index([groupId])
   @@index([groupMemberId])
+}
+
+model GroupExpense {
+  id               String             @id @default(cuid())
+  groupId          String
+  createdByUserId  String?
+  reviewedByUserId String?
+  category         String
+  purpose          String
+  beneficiary      String?
+  amountMinor      Int
+  currency         String             @default("TZS")
+  paymentRail      String?
+  reference        String?
+  status           GroupExpenseStatus @default(SUBMITTED)
+  spentAt          DateTime?
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  group            Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdBy        User?              @relation("GroupExpensesCreatedBy", fields: [createdByUserId], references: [id])
+  reviewedBy       User?              @relation("GroupExpensesReviewedBy", fields: [reviewedByUserId], references: [id])
+
+  @@index([groupId])
+  @@index([status])
+  @@index([createdByUserId])
 }
 
 model GroupInvitation {

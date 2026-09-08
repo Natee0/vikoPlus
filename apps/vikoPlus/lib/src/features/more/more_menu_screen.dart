@@ -20,14 +20,14 @@ class MoreMenuScreen extends ConsumerWidget {
     final entries = <(IconData, String, String, String)>[
       (
         Icons.hub_outlined,
-        context.vt('My groups'),
+        context.vt('My Groups'),
         context.vt('Switch, create or join a group'),
         '/groups',
       ),
       if (role == 'GROUP_ADMIN') ...[
         (
           Icons.tune_outlined,
-          context.vt('Admin settings'),
+          context.vt('Admin Settings'),
           context.vt(
             'Group rules, member roles, historical records and audit logs',
           ),
@@ -40,6 +40,20 @@ class MoreMenuScreen extends ConsumerWidget {
           '/billing',
         ),
       ],
+      if (isStaffPortalRole(role))
+        (
+          Icons.fact_check_outlined,
+          context.vt('Review payments'),
+          context.vt('Approve or reject submitted contributions'),
+          '/contributions',
+        ),
+      if (role == 'GROUP_ADMIN' || role == 'TREASURER')
+        (
+          Icons.receipt_long_outlined,
+          context.vt('Group expenses'),
+          context.vt('Record group spending for approval'),
+          '/expenses',
+        ),
       if (isStaffPortalRole(role))
         (
           Icons.notifications_active_outlined,
@@ -63,7 +77,7 @@ class MoreMenuScreen extends ConsumerWidget {
         ),
       (
         Icons.account_circle_outlined,
-        context.vt('My profile'),
+        context.vt('My Profile'),
         context.vt('Photo and account details'),
         '/profile/complete',
       ),

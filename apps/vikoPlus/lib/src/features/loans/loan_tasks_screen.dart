@@ -84,7 +84,9 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
           .decideTask(_groupId!, task, approve);
       if (mounted) await _refresh();
     } catch (error) {
-      if (mounted) setState(() => _error = AuthFailure.from(error).message);
+      if (mounted) {
+        setState(() => _error = context.vt(AuthFailure.from(error).message));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -109,7 +111,7 @@ class _LoanTasksScreenState extends ConsumerState<LoanTasksScreen> {
             AuthErrorMessage(message: _error),
             if (snapshot.hasError)
               AuthErrorMessage(
-                message: AuthFailure.from(snapshot.error!).message,
+                message: context.vt(AuthFailure.from(snapshot.error!).message),
               )
             else if (snapshot.connectionState == ConnectionState.waiting)
               const Center(child: CircularProgressIndicator())

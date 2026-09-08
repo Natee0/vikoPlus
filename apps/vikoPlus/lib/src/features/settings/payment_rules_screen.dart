@@ -56,7 +56,7 @@ class _PaymentRulesState extends ConsumerState<ContributionPenaltiesScreen> {
       });
     } catch (error) {
       if (mounted) {
-        setState(() => _error = AuthFailure.from(error).message);
+        setState(() => _error = context.vt(AuthFailure.from(error).message));
       }
     } finally {
       if (mounted) {
@@ -106,7 +106,7 @@ class _PaymentRulesState extends ConsumerState<ContributionPenaltiesScreen> {
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _error = AuthFailure.from(error).message);
+        setState(() => _error = context.vt(AuthFailure.from(error).message));
       }
     } finally {
       if (mounted) {

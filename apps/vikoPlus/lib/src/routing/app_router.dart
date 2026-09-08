@@ -53,6 +53,7 @@ import '../features/settings/group_profile_screen.dart';
 import 'portal_route_guard.dart';
 import '../features/dashboard/staff_portal_screen.dart';
 import '../features/dashboard/treasurer_dashboard_screen.dart';
+import '../features/expenses/group_expenses_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -426,6 +427,13 @@ final appRouter = GoRouter(
         child: LoanApplicationReviewScreen(
           applicationId: state.pathParameters['id'] ?? '',
         ),
+      ),
+    ),
+    GoRoute(
+      path: '/expenses',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.financeStaff,
+        child: GroupExpensesScreen(),
       ),
     ),
     GoRoute(

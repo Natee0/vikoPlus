@@ -106,7 +106,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.message);
+      setState(() => _errorMessage = context.vt(error.message));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

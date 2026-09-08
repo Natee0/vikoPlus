@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -83,7 +84,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
       );
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isSending = false);
@@ -144,7 +145,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
               onBack: () => context.go('/dashboard'),
             ),
             VikoplusTopBar(
-              title: 'Send Reminder',
+              title: context.vt('Send Reminder'),
               onBack: () => context.go('/reminders'),
               showBorder: false,
             ),
@@ -161,7 +162,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                     _AudienceCard(isSingleMember: widget.memberId != null),
                     const SizedBox(height: AppSpacing.md),
                     Text(
-                      'Channel',
+                      context.vt('Channel'),
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: AppColors.onSurfaceVariant,
                         fontWeight: FontWeight.w700,
@@ -194,7 +195,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                       children: [
                         Expanded(
                           child: Text(
-                            'Message',
+                            context.vt('Message'),
                             style: Theme.of(context).textTheme.labelMedium
                                 ?.copyWith(
                                   color: AppColors.onSurfaceVariant,
@@ -205,7 +206,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                         TextButton.icon(
                           onPressed: () => context.go('/reminders/templates'),
                           icon: const Icon(Icons.copy_all_outlined, size: 16),
-                          label: const Text('Use Template'),
+                          label: Text(context.vt('Use Template')),
                         ),
                       ],
                     ),
@@ -219,9 +220,9 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                           _successMessage = '';
                         });
                       },
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         counterText: '',
-                        hintText: 'Write reminder message',
+                        hintText: context.vt('Write reminder message'),
                         alignLabelWithHint: true,
                       ),
                     ),
@@ -244,7 +245,7 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         Text(
-                          'Message Preview',
+                          context.vt('Message Preview'),
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(fontWeight: FontWeight.w700),
                         ),
@@ -273,7 +274,9 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.send_outlined),
-                      label: Text(_isSending ? 'Sending' : 'Send Reminder'),
+                      label: Text(
+                        context.vt(_isSending ? 'Sending' : 'Send Reminder'),
+                      ),
                     ),
                   ],
                 ),

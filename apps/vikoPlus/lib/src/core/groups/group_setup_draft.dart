@@ -108,9 +108,9 @@ class FinancialYearDraft {
 
 class ContributionSettingsDraft {
   const ContributionSettingsDraft({
-    this.joiningFee = '10000',
-    this.membershipFee = '5000',
-    this.memberContribution = '20000',
+    this.joiningFee = '',
+    this.membershipFee = '',
+    this.memberContribution = '',
     this.membershipFeeFrequency = 'Yearly',
     this.memberContributionFrequency = 'Monthly',
     this.membershipDueDay = 1,

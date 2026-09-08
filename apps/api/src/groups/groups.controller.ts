@@ -19,6 +19,7 @@ import {
   AssignRoleDto,
   UpdateMemberStatusDto,
   ContributionSettingsDto,
+  CreateGroupExpenseDto,
   CreateGroupDto,
   CreateLoanApplicationDto,
   CreateReminderPackageCheckoutDto,
@@ -35,6 +36,7 @@ import {
   RegisterPushTokenDto,
   ReminderSettingsDto,
   ReviewContributionPaymentDto,
+  ReviewGroupExpenseDto,
   ReviewLoanApplicationDto,
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
@@ -161,6 +163,35 @@ export class GroupsController {
     @Param("groupId") groupId: string,
   ) {
     return this.groups.dashboard(user, groupId);
+  }
+
+  @Get("groups/:groupId/expenses")
+  expenses(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.expenses(user, groupId);
+  }
+
+  @Post("groups/:groupId/expenses")
+  @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
+  createExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: CreateGroupExpenseDto,
+  ) {
+    return this.groups.createExpense(user, groupId, body);
+  }
+
+  @Post("groups/:groupId/expenses/:expenseId/review")
+  @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 120000 } })
+  reviewExpense(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Param("expenseId") expenseId: string,
+    @Body() body: ReviewGroupExpenseDto,
+  ) {
+    return this.groups.reviewExpense(user, groupId, expenseId, body);
   }
 
   @Get("groups/:groupId/members")

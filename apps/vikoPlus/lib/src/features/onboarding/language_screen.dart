@@ -7,6 +7,7 @@ import '../../core/locale/locale_controller.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
@@ -120,7 +121,7 @@ class LanguageScreen extends ConsumerWidget {
     } catch (error) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(AuthFailure.from(error).message)),
+          SnackBar(content: Text(context.vt(AuthFailure.from(error).message))),
         );
       }
       return;

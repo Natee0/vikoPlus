@@ -33,10 +33,151 @@ const _swahili = <String, String>{
   'Verification session expired. Sign in again.':
       'Muda wa uthibitisho umeisha. Ingia tena.',
   'Cancel': 'Ghairi',
+  'Close': 'Funga',
   'Confirm': 'Thibitisha',
   'Continue': 'Endelea',
   'Try Again': 'Jaribu tena',
   'Retry': 'Jaribu tena',
+  'API connection is not configured.':
+      'Muunganisho wa API haujawekwa.',
+  'This action is temporarily unavailable. Please try again later.':
+      'Kitendo hiki hakipatikani kwa muda. Tafadhali jaribu tena baadaye.',
+  'Bad gateway. Please try again.':
+      'Kuna tatizo la lango la seva. Tafadhali jaribu tena.',
+  'Service unavailable. Please try again.':
+      'Huduma haipatikani kwa sasa. Tafadhali jaribu tena.',
+  'Gateway timeout. Please try again.':
+      'Seva imechelewa kujibu. Tafadhali jaribu tena.',
+  'Server error. Please try again.':
+      'Kuna tatizo la seva. Tafadhali jaribu tena.',
+  'Check the details and try again.':
+      'Kagua taarifa ulizoingiza kisha jaribu tena.',
+  'Session expired. Please sign in again.':
+      'Muda wa kipindi umeisha. Tafadhali ingia tena.',
+  'You are not allowed to perform this action.':
+      'Huna ruhusa ya kufanya kitendo hiki.',
+  'The requested record was not found.':
+      'Rekodi uliyoomba haijapatikana.',
+  'This record already exists.':
+      'Rekodi hii tayari ipo.',
+  'Some details are invalid. Please check and try again.':
+      'Baadhi ya taarifa si sahihi. Tafadhali kagua kisha jaribu tena.',
+  'Too many requests. Please wait and try again.':
+      'Maombi ni mengi mno. Tafadhali subiri kisha jaribu tena.',
+  'Network request failed.':
+      'Ombi la mtandao limeshindwa.',
+  'Something went wrong. Please try again.':
+      'Kuna jambo halijaenda sawa. Tafadhali jaribu tena.',
+  'Connection timed out. Check your internet and try again.':
+      'Muunganisho umechelewa. Kagua intaneti yako kisha jaribu tena.',
+  'Internet connection problem. Check your connection and try again.':
+      'Kuna tatizo la intaneti. Kagua muunganisho wako kisha jaribu tena.',
+  'Request cancelled. Please try again.':
+      'Ombi limeghairiwa. Tafadhali jaribu tena.',
+  'Secure connection failed. Please try again later.':
+      'Muunganisho salama umeshindikana. Tafadhali jaribu tena baadaye.',
+  'At least one field must be provided.':
+      'Weka angalau taarifa moja.',
+  'Access plan code already exists.':
+      'Msimbo wa mpango wa ufikiaji tayari upo.',
+  'Access plan was not found.':
+      'Mpango wa ufikiaji haujapatikana.',
+  'Reminder package code already exists.':
+      'Msimbo wa kifurushi cha vikumbusho tayari upo.',
+  'Invalid credentials.':
+      'Taarifa za kuingia si sahihi.',
+  'Account identity is already registered or pending verification.':
+      'Akaunti hii tayari imesajiliwa au inasubiri uthibitisho.',
+  'OTP challenge could not be created.':
+      'Imeshindikana kutengeneza uthibitisho wa OTP.',
+  'Verification code expired or invalid.':
+      'Msimbo wa uthibitisho umeisha muda au si sahihi.',
+  'Too many verification attempts.':
+      'Umejaribu kuthibitisha mara nyingi mno.',
+  'Invalid verification code.':
+      'Msimbo wa uthibitisho si sahihi.',
+  'Verification session expired or invalid.':
+      'Kipindi cha uthibitisho kimeisha muda au si sahihi.',
+  'Account is already verified.':
+      'Akaunti tayari imethibitishwa.',
+  'Password reset session expired.':
+      'Kipindi cha kuweka upya nenosiri kimeisha.',
+  'New password must be different from the current password.':
+      'Nenosiri jipya lazima liwe tofauti na la sasa.',
+  'Refresh token expired or invalid.':
+      'Kipindi cha kuingia kimeisha au si sahihi.',
+  'Phone or email is required.':
+      'Namba ya simu au barua pepe inahitajika.',
+  'Image file is required.':
+      'Faili la picha linahitajika.',
+  'Only JPG, PNG, and WebP images are allowed.':
+      'Picha za JPG, PNG na WebP pekee ndizo zinaruhusiwa.',
+  'Image must be 5MB or smaller.':
+      'Picha lazima iwe MB 5 au chini.',
+  'Group billing access denied.':
+      'Huna ruhusa ya kufikia malipo ya huduma ya kikundi.',
+  'Invalid billing webhook signature':
+      'Sahihi ya webhook ya malipo si sahihi.',
+  'Bearer token is required.':
+      'Tokeni ya kuingia inahitajika.',
+  'Platform admin access is required.':
+      'Ufikiaji wa msimamizi wa mfumo unahitajika.',
+  'Invalid bearer token.':
+      'Tokeni ya kuingia si sahihi.',
+  'Bearer token expired or invalid.':
+      'Tokeni ya kuingia imeisha muda au si sahihi.',
+  'Invalid bearer token signature.':
+      'Sahihi ya tokeni ya kuingia si sahihi.',
+  'Account verification is required.':
+      'Uthibitisho wa akaunti unahitajika.',
+  'This payment must be reviewed by the other payment reviewer role.':
+      'Malipo haya lazima yakaguliwe na jukumu lingine la ukaguzi wa malipo.',
+  'Payment cannot be approved from this state.':
+      'Malipo haya hayawezi kuidhinishwa katika hali hii.',
+  'Only pending payments can be rejected.':
+      'Ni malipo yanayosubiri pekee yanaweza kukataliwa.',
+  'Only pending payments can be corrected.':
+      'Ni malipo yanayosubiri pekee yanaweza kuombewa marekebisho.',
+  'Submit your own payment request for another reviewer to verify.':
+      'Wasilisha ombi lako la malipo ili mkaguzi mwingine alithibitishe.',
+  'Loan applications':
+      'Maombi ya mikopo',
+  'Review guarantors, approve loans, and disburse funds':
+      'Kagua wadhamini, idhinisha mikopo, na toa fedha',
+  'Loan application not found.':
+      'Ombi la mkopo halijapatikana.',
+  'Another treasurer must review your loan application.':
+      'Mkaguzi mwingine lazima ahakiki ombi lako la mkopo.',
+  'The applicant must be an active group member.':
+      'Mwombaji lazima awe mwanachama hai wa kikundi.',
+  'At least two active guarantors must confirm before approval.':
+      'Angalau wadhamini wawili hai lazima wathibitishe kabla ya idhini.',
+  'Only submitted applications can be approved.':
+      'Ni maombi yaliyowasilishwa pekee yanaweza kuidhinishwa.',
+  'Approved amount cannot exceed the requested amount.':
+      'Kiasi kilichoidhinishwa hakiwezi kuzidi kiasi kilichoombwa.',
+  'Applicant no longer meets the borrowing requirements.':
+      'Mwombaji hakidhi tena masharti ya kukopa.',
+  'Application has already been reviewed.':
+      'Ombi hili tayari limehakikiwa.',
+  'Only submitted applications can be rejected.':
+      'Ni maombi yaliyowasilishwa pekee yanaweza kukataliwa.',
+  'Loan not found.':
+      'Mkopo haujapatikana.',
+  'Only active loans can receive repayments.':
+      'Ni mikopo hai pekee inaweza kupokea marejesho.',
+  'Amount exceeds the balance remaining after pending repayments.':
+      'Kiasi kimezidi salio lililobaki baada ya marejesho yanayosubiri.',
+  'Guarantee request is unavailable or already answered.':
+      'Ombi la udhamini halipatikani au tayari limejibiwa.',
+  'Repayment not found.':
+      'Marejesho hayajapatikana.',
+  'Another treasurer must verify your repayment.':
+      'Mkaguzi mwingine lazima athibitishe marejesho yako.',
+  'Repayment has already been reviewed.':
+      'Marejesho haya tayari yamehakikiwa.',
+  'Repayment exceeds the active loan balance.':
+      'Marejesho yamezidi salio la mkopo hai.',
   'Add another group admin before changing this admin role.':
       'Ongeza msimamizi mwingine wa kikundi kabla ya kubadilisha jukumu la msimamizi huyu.',
   'Choose Group': 'Chagua kikundi',
@@ -65,6 +206,11 @@ const _swahili = <String, String>{
   'Sent: {value}': 'Imetumwa: {value}',
   'Not sent': 'Haijatumwa',
   'Send reminder': 'Tuma kikumbusho',
+  'Send Reminder': 'Tuma kikumbusho',
+  'Channel': 'Njia ya kutuma',
+  'Message': 'Ujumbe',
+  'Use Template': 'Tumia kiolezo',
+  'Write reminder message': 'Andika ujumbe wa kikumbusho',
   'Campaigns ({count})': 'Kampeni ({count})',
   'No campaigns sent yet.': 'Hakuna kampeni iliyotumwa bado.',
   '{channel} - {count} recipients': '{channel} - wapokeaji {count}',
@@ -143,6 +289,7 @@ const _swahili = <String, String>{
       'Shughuli za usimamizi wa kikundi zitaonekana hapa.',
   'Currency & Fees': 'Sarafu na ada',
   'Primary currency': 'Sarafu kuu',
+  'Primary Currency': 'Sarafu kuu',
   'Group access': 'Ufikiaji wa kikundi',
   'SMS reminders': 'Vikumbusho vya SMS',
   'WhatsApp reminders': 'Vikumbusho vya WhatsApp',
@@ -452,8 +599,12 @@ const _swahili = <String, String>{
   'Choose a group to open, create a new group, or join one using an invitation.':
       'Chagua kikundi cha kufungua, unda kikundi kipya, au jiunge kwa mwaliko.',
   'Create group': 'Unda kikundi',
+  'Create Group': 'Unda kikundi',
   'Join group': 'Jiunge na kikundi',
   'Groups you can access': 'Vikundi unavyoweza kufikia',
+  'No groups yet': 'Bado hakuna vikundi',
+  'Create a group or join one with an invitation code.':
+      'Unda kikundi au jiunge na kikundi kwa msimbo wa mwaliko.',
   'Try again': 'Jaribu tena',
   'Open a group before managing members.':
       'Fungua kikundi kabla ya kusimamia wanachama.',
@@ -644,6 +795,70 @@ const _swahili = <String, String>{
   'Already have an account? ': 'Tayari una akaunti? ',
   'Log in': 'Ingia',
   'Enter group name': 'Weka jina la kikundi',
+  'Enter a valid group name.': 'Weka jina sahihi la kikundi.',
+  'API returned an empty response.':
+      'Seva haijarudisha taarifa. Tafadhali jaribu tena.',
+  'Image upload failed.': 'Upakiaji wa picha umeshindikana.',
+  'Image upload response was invalid.':
+      'Jibu la upakiaji wa picha si sahihi.',
+  'Group image access denied.':
+      'Huna ruhusa ya kupakia picha ya kikundi hiki.',
+  'Group access denied.':
+      'Huna ruhusa ya kufikia kikundi hiki.',
+  'Role is not allowed for this action.':
+      'Jukumu lako haliruhusiwi kufanya kitendo hiki.',
+  'Enter your full name.':
+      'Weka jina lako kamili.',
+  'Push token is required.':
+      'Tokeni ya taarifa inahitajika.',
+  'Enter a positive penalty amount.':
+      'Weka kiasi cha faini kilicho sahihi.',
+  'Invitation was not found or has expired.':
+      'Mwaliko haujapatikana au muda wake umeisha.',
+  'Select a reminder schedule.':
+      'Chagua ratiba ya vikumbusho.',
+  'Member number range exhausted.':
+      'Namba za wanachama zimeisha kwenye mpangilio huu.',
+  'Member not found.':
+      'Mwanachama hajapatikana.',
+  'Receipt not found.':
+      'Risiti haijapatikana.',
+  'Reminder package was not found.':
+      'Kifurushi cha vikumbusho hakijapatikana.',
+  'Select active members from this group.':
+      'Chagua wanachama hai kutoka kikundi hiki.',
+  'Briq SMS reminder delivery failed.':
+      'Utumaji wa vikumbusho vya SMS kupitia Briq umeshindikana.',
+  'You cannot guarantee your own loan.':
+      'Huwezi kudhamini mkopo wako mwenyewe.',
+  'Notification not found.':
+      'Taarifa haijapatikana.',
+  'Contribution frequency is not supported.':
+      'Mzunguko huu wa michango haujasaidiwa.',
+  'This invitation has already been accepted.':
+      'Mwaliko huu tayari umekubaliwa.',
+  'This invitation belongs to another user.':
+      'Mwaliko huu ni wa mtumiaji mwingine.',
+  'name must be longer than or equal to 2 characters':
+      'Jina la kikundi lazima liwe na angalau herufi 2.',
+  'name must be shorter than or equal to 100 characters':
+      'Jina la kikundi lisizidi herufi 100.',
+  'name should not be empty': 'Jina la kikundi linahitajika.',
+  'name must be a string': 'Jina la kikundi lazima liwe maandishi.',
+  'type must be shorter than or equal to 50 characters':
+      'Aina ya kikundi isizidi herufi 50.',
+  'description must be shorter than or equal to 500 characters':
+      'Maelezo yasizidi herufi 500.',
+  'location must be shorter than or equal to 100 characters':
+      'Eneo lisizidi herufi 100.',
+  'currency must be longer than or equal to 3 characters':
+      'Sarafu lazima iwe na herufi 3.',
+  'currency must be shorter than or equal to 3 characters':
+      'Sarafu lazima iwe na herufi 3.',
+  'establishedAt must be a valid ISO 8601 date string':
+      'Tarehe ya kuanzishwa si sahihi.',
+  'historicalDataStartsAt must be a valid ISO 8601 date string':
+      'Tarehe ya kuanza kumbukumbu za zamani si sahihi.',
   'Description': 'Maelezo',
   '(Optional)': '(Si lazima)',
   'What is this group about?': 'Kikundi hiki kinahusu nini?',
@@ -723,6 +938,27 @@ const _swahili = <String, String>{
   'Choose plan': 'Chagua mpango',
   'Contribution Register': 'Rejesta ya michango',
   'Record payment': 'Rekodi malipo',
+  'Record Payment': 'Rekodi malipo',
+  'Select a group before recording payment.':
+      'Chagua kikundi kabla ya kurekodi malipo.',
+  'Select a member before recording payment.':
+      'Chagua mwanachama kabla ya kurekodi malipo.',
+  'Could not load this member. Please select again.':
+      'Imeshindikana kupakia mwanachama huyu. Tafadhali chagua tena.',
+  'Contribution Purpose': 'Sababu ya mchango',
+  'Could not load this member contributions.':
+      'Imeshindikana kupakia michango ya mwanachama huyu.',
+  'This member has no outstanding contributions.':
+      'Mwanachama huyu hana michango inayodaiwa.',
+  'Select at least one payable contribution.':
+      'Chagua angalau mchango mmoja unaoweza kulipwa.',
+  'Amount from selected purpose': 'Kiasi kutokana na michango iliyochaguliwa',
+  'Payment Date': 'Tarehe ya malipo',
+  'Transaction Reference': 'Kumbukumbu ya muamala',
+  'Payment was not recorded. Confirm your staff role and try again.':
+      'Malipo hayakurekodiwa. Thibitisha jukumu lako kisha jaribu tena.',
+  'Some selected contributions are not payable.':
+      'Baadhi ya michango iliyochaguliwa haiwezi kulipwa sasa.',
   'No group selected': 'Hakuna kikundi kilichochaguliwa',
   'Select a group to view contribution payments.':
       'Chagua kikundi ili kuona malipo ya michango.',
@@ -787,4 +1023,99 @@ const _swahili = <String, String>{
   'Pay your own group contributions': 'Lipa michango yako ya kikundi',
   'Group records snapshot': 'Muhtasari wa kumbukumbu za kikundi',
   'Records': 'Kumbukumbu',
+  'Group expenses': 'Matumizi ya kikundi',
+  'Record expense': 'Rekodi matumizi',
+  'Record group spending for approval':
+      'Rekodi matumizi ya kikundi kwa ajili ya idhini',
+  'Record and approve group spending':
+      'Rekodi na idhinisha matumizi ya kikundi',
+  'Record and review group spending':
+      'Rekodi na hakiki matumizi ya kikundi',
+  'Group money position': 'Hali ya fedha za kikundi',
+  'Approved expenses': 'Matumizi yaliyoidhinishwa',
+  'Pending expenses': 'Matumizi yanayosubiri',
+  'Loans out': 'Mikopo iliyotolewa',
+  'Expense history': 'Historia ya matumizi',
+  'Expense category': 'Aina ya matumizi',
+  'Example: Condolences, bank charges':
+      'Mfano: Rambirambi, ada za benki',
+  'Disbursement amount': 'Kiasi cha kutoa',
+  'Beneficiary or recipient': 'Mnufaika au mpokeaji',
+  'Beneficiary': 'Mnufaika',
+  'Payment rail': 'Njia ya malipo',
+  'Reference': 'Kumbukumbu',
+  'Submit expense': 'Wasilisha matumizi',
+  'No group expenses recorded yet.':
+      'Hakuna matumizi ya kikundi yaliyorekodiwa bado.',
+  'Open a group before recording expenses.':
+      'Fungua kikundi kabla ya kurekodi matumizi.',
+  'Could not load expenses.': 'Matumizi hayajapakiwa.',
+  'Enter a valid expense amount.': 'Weka kiasi sahihi cha matumizi.',
+  'Enter the expense category.': 'Weka aina ya matumizi.',
+  'Enter the expense purpose.': 'Weka sababu ya matumizi.',
+  'Expense was not found.': 'Matumizi hayajapatikana.',
+  'Expense has already been reviewed.': 'Matumizi haya tayari yamehakikiwa.',
+  'Contribution plan for historical type is not configured.':
+      'Mpango wa mchango wa aina hii haujawekwa kwenye kikundi.',
+  'Expense pending approval': 'Matumizi yanasubiri idhini',
+  'Expense approved': 'Matumizi yameidhinishwa',
+  'Expense rejected': 'Matumizi yamekataliwa',
+  'Cash balance': 'Salio la fedha',
+  'Net group cash': 'Salio halisi la kikundi',
+  'Expenses': 'Matumizi',
+  'Condolences & Benevolent': 'Rambirambi na msaada',
+  'Medical Emergency': 'Dharura ya matibabu',
+  'Meeting & Hall Venue': 'Mkutano na ukumbi',
+  'Admin & Bank Charges': 'Ada za uendeshaji na benki',
+  'M-Pesa B2C Payout': 'Malipo ya M-Pesa B2C',
+  'SUBMITTED': 'Imewasilishwa',
+  'APPROVED': 'Imeidhinishwa',
+  'REJECTED': 'Imekataliwa',
+  'Logout': 'Toka',
+  'Logging out': 'Inatoka',
+  'End your session on this device':
+      'Maliza kipindi chako kwenye kifaa hiki',
+  'Single Payment': 'Malipo moja',
+  'Contribution type': 'Aina ya mchango',
+  'Amount Paid': 'Kiasi kilicholipwa',
+  'Receipt, book page, or old ledger note':
+      'Risiti, ukurasa wa daftari, au rejea ya kumbukumbu za zamani',
+  'Bulk Import': 'Ingiza kwa wingi',
+  'Paste CSV rows prepared from the old ledger. Each row should include member number, contribution type, amount, method, paid date, and reference.':
+      'Bandika mistari ya CSV kutoka kumbukumbu za zamani. Kila mstari uwe na namba ya mwanachama, aina ya mchango, kiasi, njia, tarehe ya malipo, na rejea.',
+  'Share CSV template': 'Shiriki kiolezo cha CSV',
+  'CSV rows': 'Mistari ya CSV',
+  'Method': 'Njia',
+  'Paid date': 'Tarehe ya malipo',
+  'Import rules': 'Masharti ya kuingiza kumbukumbu',
+  'Only group admin and secretary can import.':
+      'Msimamizi wa kikundi na katibu pekee wanaweza kuingiza kumbukumbu.',
+  'Imported records are approved manual payments.':
+      'Kumbukumbu zilizoingizwa huhesabiwa kama malipo yaliyothibitishwa.',
+  'Payment dates must be inside group history.':
+      'Tarehe za malipo lazima ziwe ndani ya historia ya kikundi.',
+  'Receipts and audit logs are created.':
+      'Risiti na kumbukumbu za ukaguzi hutengenezwa.',
+  'Save Historical Payment': 'Hifadhi malipo ya zamani',
+  'Import Records': 'Ingiza kumbukumbu',
+  'Skip Historical Records': 'Ruka kumbukumbu za zamani',
+  'CSV must include a header and at least one row.':
+      'CSV lazima iwe na vichwa vya safu na angalau mstari mmoja.',
+  'CSV is missing a required column.':
+      'CSV haina safu muhimu inayohitajika.',
+  'CSV has an empty required field.':
+      'CSV ina sehemu muhimu iliyo tupu.',
+  'CSV has no importable rows.':
+      'CSV haina mistari inayoweza kuingizwa.',
+  'CSV row member was not found.':
+      'Mwanachama kwenye mstari wa CSV hajapatikana.',
+  'CSV row has an invalid amount.':
+      'Mstari wa CSV una kiasi kisicho sahihi.',
+  'CSV row has an invalid paid date.':
+      'Mstari wa CSV una tarehe ya malipo isiyo sahihi.',
+  'CSV row has an invalid contribution type.':
+      'Mstari wa CSV una aina ya mchango isiyo sahihi.',
+  'RECURRING': 'Mchango wa kawaida',
+  'JOINING_FEE': 'Ada ya kujiunga',
+  'MEMBERSHIP_FEE': 'Ada ya uanachama',
 };

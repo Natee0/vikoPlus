@@ -212,6 +212,37 @@ class _ReportSummaryBlock extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             InfoCard(
+              title: context.vt('Net group cash'),
+              value: formatters.money(report.netCashBalanceMinor),
+              icon: Icons.account_balance_wallet_outlined,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: InfoCard(
+                    title: context.vt('Expenses'),
+                    value: formatters.compactMoney(
+                      report.approvedExpensesMinor,
+                    ),
+                    icon: Icons.receipt_long_outlined,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: InfoCard(
+                    title: context.vt('Loans out'),
+                    value: formatters.compactMoney(
+                      report.activeLoanOutstandingMinor,
+                    ),
+                    icon: Icons.account_balance_outlined,
+                    accentColor: AppColors.gold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            InfoCard(
               title: context.vt('Export format'),
               value: context.vt(exportFormatLabel),
               icon: Icons.file_download_outlined,

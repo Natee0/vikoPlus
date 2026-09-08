@@ -9,6 +9,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/auth/auth_secure_storage.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../common/profile_avatar.dart';
 import '../../core/api/api_client.dart';
 import '../../routing/portal_route_guard.dart';
@@ -68,7 +69,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       if (mounted) context.go(portalMoreRoute(ref.read(activeGroupProvider)));
     } catch (error) {
       if (mounted) {
-        setState(() => _errorMessage = AuthFailure.from(error).message);
+        setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
       }
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -104,7 +105,7 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       ref.invalidate(profileProvider);
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) {
         setState(() => _isUploading = false);

@@ -6,6 +6,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../auth/auth_logout_controls.dart';
 import '../auth/auth_widgets.dart';
@@ -114,6 +115,22 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           SectionHeader(title: loc.quickActions),
           const SizedBox(height: 12),
           ActionTile(
+            title: loc.reviewPayments,
+            subtitle: context.vt('Approve or reject submitted contributions'),
+            icon: Icons.fact_check_outlined,
+            route: '/contributions',
+            color: AppColors.secondaryGreen,
+          ),
+          const SizedBox(height: 12),
+          ActionTile(
+            title: context.vt('Group expenses'),
+            subtitle: context.vt('Record and approve group spending'),
+            icon: Icons.receipt_long_outlined,
+            route: '/expenses',
+            color: AppColors.secondaryGreen,
+          ),
+          const SizedBox(height: 12),
+          ActionTile(
             title: loc.loans,
             subtitle: loc.loanReviewDescription,
             icon: Icons.account_balance_wallet_outlined,
@@ -202,8 +219,8 @@ class _AdminMetricsBlock extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             InfoCard(
-              title: totalTitle,
-              value: formatters.money(metrics.collectedMinor),
+              title: context.vt('Cash balance'),
+              value: formatters.money(metrics.cashBalanceMinor),
               icon: Icons.savings_outlined,
             ),
             const SizedBox(height: 12),
@@ -211,7 +228,7 @@ class _AdminMetricsBlock extends StatelessWidget {
               children: [
                 Expanded(
                   child: InfoCard(
-                    title: 'Outstanding',
+                    title: context.vt('Outstanding'),
                     value: formatters.compactMoney(metrics.outstandingMinor),
                     icon: Icons.pending_actions_outlined,
                     accentColor: AppColors.warning,

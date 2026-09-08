@@ -77,6 +77,21 @@ export class ContributionReportDto {
   @ApiProperty()
   recurringPaidMinor!: number;
 
+  @ApiProperty()
+  approvedExpensesMinor!: number;
+
+  @ApiProperty()
+  pendingExpensesMinor!: number;
+
+  @ApiProperty()
+  activeLoanPrincipalMinor!: number;
+
+  @ApiProperty()
+  activeLoanOutstandingMinor!: number;
+
+  @ApiProperty()
+  netCashBalanceMinor!: number;
+
   @ApiProperty({ type: [ContributionPeriodTotalDto] })
   periodTotals!: ContributionPeriodTotalDto[];
 

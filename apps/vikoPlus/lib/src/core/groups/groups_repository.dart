@@ -220,6 +220,40 @@ class GroupsRepository {
     return GroupDashboardResult.fromJson(_responseBody(response.data));
   }
 
+  Future<GroupExpensesResult> expenses(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/expenses',
+    );
+    return GroupExpensesResult.fromJson(_responseBody(response.data));
+  }
+
+  Future<GroupExpenseSummary> createExpense(
+    String groupId,
+    GroupExpenseInput input,
+  ) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/expenses',
+      data: input.toJson(),
+    );
+    return GroupExpenseSummary.fromJson(_responseBody(response.data));
+  }
+
+  Future<GroupExpenseSummary> reviewExpense(
+    String groupId,
+    String expenseId, {
+    required bool approve,
+    String? notes,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/expenses/$expenseId/review',
+      data: {
+        'approve': approve,
+        if (_nonEmpty(notes) != null) 'notes': _nonEmpty(notes),
+      },
+    );
+    return GroupExpenseSummary.fromJson(_responseBody(response.data));
+  }
+
   Future<ContributionReportResult> contributionReport(
     String groupId, {
     String? financialYearId,
@@ -291,6 +325,16 @@ class GroupsRepository {
     await _dio.post<Map<String, dynamic>>(
       '/groups/$groupId/contributions/historical-payments',
       data: input.toJson(),
+    );
+  }
+
+  Future<void> importHistoricalPayments(
+    String groupId,
+    List<HistoricalPaymentInput> payments,
+  ) async {
+    await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/contributions/historical-payments/bulk',
+      data: {'payments': payments.map((item) => item.toJson()).toList()},
     );
   }
 
@@ -1028,6 +1072,9 @@ class GroupDashboardMetrics {
     required this.membersCount,
     required this.collectedMinor,
     required this.outstandingMinor,
+    required this.expensesMinor,
+    required this.loanPrincipalOutMinor,
+    required this.cashBalanceMinor,
   });
 
   factory GroupDashboardMetrics.fromJson(Map<String, dynamic> json) {
@@ -1035,12 +1082,184 @@ class GroupDashboardMetrics {
       membersCount: json['membersCount'] as int? ?? 0,
       collectedMinor: json['collectedMinor'] as int? ?? 0,
       outstandingMinor: json['outstandingMinor'] as int? ?? 0,
+      expensesMinor: json['expensesMinor'] as int? ?? 0,
+      loanPrincipalOutMinor: json['loanPrincipalOutMinor'] as int? ?? 0,
+      cashBalanceMinor: json['cashBalanceMinor'] as int? ?? 0,
     );
   }
 
   final int membersCount;
   final int collectedMinor;
   final int outstandingMinor;
+  final int expensesMinor;
+  final int loanPrincipalOutMinor;
+  final int cashBalanceMinor;
+}
+
+class GroupExpensesResult {
+  const GroupExpensesResult({
+    required this.groupId,
+    required this.canReview,
+    required this.summary,
+    required this.expenses,
+  });
+
+  factory GroupExpensesResult.fromJson(Map<String, dynamic> json) {
+    final summary = json['summary'];
+    final items = json['expenses'];
+    return GroupExpensesResult(
+      groupId: _requiredString(json, 'groupId'),
+      canReview: json['canReview'] as bool? ?? false,
+      summary: GroupExpensesSummary.fromJson(
+        summary is Map ? Map<String, dynamic>.from(summary) : const {},
+      ),
+      expenses: items is List
+          ? items
+                .whereType<Map>()
+                .map(
+                  (item) => GroupExpenseSummary.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+    );
+  }
+
+  final String groupId;
+  final bool canReview;
+  final GroupExpensesSummary summary;
+  final List<GroupExpenseSummary> expenses;
+}
+
+class GroupExpensesSummary {
+  const GroupExpensesSummary({
+    required this.approvedExpenseMinor,
+    required this.pendingExpenseMinor,
+    required this.pendingCount,
+    required this.loanPrincipalOutMinor,
+  });
+
+  factory GroupExpensesSummary.fromJson(Map<String, dynamic> json) {
+    return GroupExpensesSummary(
+      approvedExpenseMinor: json['approvedExpenseMinor'] as int? ?? 0,
+      pendingExpenseMinor: json['pendingExpenseMinor'] as int? ?? 0,
+      pendingCount: json['pendingCount'] as int? ?? 0,
+      loanPrincipalOutMinor: json['loanPrincipalOutMinor'] as int? ?? 0,
+    );
+  }
+
+  final int approvedExpenseMinor;
+  final int pendingExpenseMinor;
+  final int pendingCount;
+  final int loanPrincipalOutMinor;
+}
+
+class GroupExpenseSummary {
+  const GroupExpenseSummary({
+    required this.id,
+    required this.category,
+    required this.purpose,
+    this.beneficiary,
+    required this.amountMinor,
+    required this.currency,
+    this.paymentRail,
+    this.reference,
+    required this.status,
+    this.spentAt,
+    this.reviewedAt,
+    this.reviewNotes,
+    required this.createdAt,
+    this.createdByName,
+    this.reviewedByName,
+  });
+
+  factory GroupExpenseSummary.fromJson(Map<String, dynamic> json) {
+    return GroupExpenseSummary(
+      id: _requiredString(json, 'id'),
+      category: json['category'] as String? ?? 'Expense',
+      purpose: json['purpose'] as String? ?? '',
+      beneficiary: json['beneficiary'] as String?,
+      amountMinor: json['amountMinor'] as int? ?? 0,
+      currency: json['currency'] as String? ?? 'TZS',
+      paymentRail: json['paymentRail'] as String?,
+      reference: json['reference'] as String?,
+      status: json['status'] as String? ?? 'SUBMITTED',
+      spentAt: _parseDate(json['spentAt']),
+      reviewedAt: _parseDate(json['reviewedAt']),
+      reviewNotes: json['reviewNotes'] as String?,
+      createdAt: _parseDate(json['createdAt']) ?? DateTime.now(),
+      createdByName: json['createdByName'] as String?,
+      reviewedByName: json['reviewedByName'] as String?,
+    );
+  }
+
+  final String id;
+  final String category;
+  final String purpose;
+  final String? beneficiary;
+  final int amountMinor;
+  final String currency;
+  final String? paymentRail;
+  final String? reference;
+  final String status;
+  final DateTime? spentAt;
+  final DateTime? reviewedAt;
+  final String? reviewNotes;
+  final DateTime createdAt;
+  final String? createdByName;
+  final String? reviewedByName;
+}
+
+class GroupExpenseInput {
+  const GroupExpenseInput({
+    required this.category,
+    required this.purpose,
+    required this.amountMinor,
+    this.currency,
+    this.beneficiary,
+    this.paymentRail,
+    this.reference,
+    this.spentAt,
+  });
+
+  final String category;
+  final String purpose;
+  final int amountMinor;
+  final String? currency;
+  final String? beneficiary;
+  final String? paymentRail;
+  final String? reference;
+  final DateTime? spentAt;
+
+  Map<String, dynamic> toJson() {
+    final currencyValue = _nonEmpty(currency);
+    final beneficiaryValue = _nonEmpty(beneficiary);
+    final paymentRailValue = _nonEmpty(paymentRail);
+    final referenceValue = _nonEmpty(reference);
+    final json = <String, dynamic>{
+      'category': category,
+      'purpose': purpose,
+      'amountMinor': amountMinor,
+    };
+    if (currencyValue != null) {
+      json['currency'] = currencyValue;
+    }
+    if (beneficiaryValue != null) {
+      json['beneficiary'] = beneficiaryValue;
+    }
+    if (paymentRailValue != null) {
+      json['paymentRail'] = paymentRailValue;
+    }
+    if (referenceValue != null) {
+      json['reference'] = referenceValue;
+    }
+    final spentAtValue = spentAt;
+    if (spentAtValue != null) {
+      json['spentAt'] = spentAtValue.toIso8601String();
+    }
+    return json;
+  }
 }
 
 class GroupMembersResult {
@@ -1113,6 +1332,7 @@ class HistoricalPaymentInput {
     required this.method,
     required this.paidAt,
     this.reference,
+    this.contributionType,
   });
 
   final String memberId;
@@ -1120,6 +1340,7 @@ class HistoricalPaymentInput {
   final String method;
   final DateTime paidAt;
   final String? reference;
+  final String? contributionType;
 
   Map<String, dynamic> toJson() {
     final trimmedReference = reference?.trim();
@@ -1128,6 +1349,8 @@ class HistoricalPaymentInput {
       'amountMinor': amountMinor,
       'method': method,
       'paidAt': paidAt.toIso8601String(),
+      if (contributionType != null && contributionType!.isNotEmpty)
+        'contributionType': contributionType,
       if (trimmedReference != null && trimmedReference.isNotEmpty)
         'reference': trimmedReference,
     };
@@ -1339,6 +1562,11 @@ class ContributionReportResult {
     required this.totalOutstandingMinor,
     required this.joiningFeesPaidMinor,
     required this.recurringPaidMinor,
+    required this.approvedExpensesMinor,
+    required this.pendingExpensesMinor,
+    required this.activeLoanPrincipalMinor,
+    required this.activeLoanOutstandingMinor,
+    required this.netCashBalanceMinor,
     required this.periodTotals,
     required this.memberAnalysis,
   });
@@ -1366,6 +1594,12 @@ class ContributionReportResult {
       totalOutstandingMinor: json['totalOutstandingMinor'] as int? ?? 0,
       joiningFeesPaidMinor: json['joiningFeesPaidMinor'] as int? ?? 0,
       recurringPaidMinor: json['recurringPaidMinor'] as int? ?? 0,
+      approvedExpensesMinor: json['approvedExpensesMinor'] as int? ?? 0,
+      pendingExpensesMinor: json['pendingExpensesMinor'] as int? ?? 0,
+      activeLoanPrincipalMinor: json['activeLoanPrincipalMinor'] as int? ?? 0,
+      activeLoanOutstandingMinor:
+          json['activeLoanOutstandingMinor'] as int? ?? 0,
+      netCashBalanceMinor: json['netCashBalanceMinor'] as int? ?? 0,
       periodTotals: periodItems is List
           ? periodItems
                 .whereType<Map>()
@@ -1394,6 +1628,11 @@ class ContributionReportResult {
   final int totalOutstandingMinor;
   final int joiningFeesPaidMinor;
   final int recurringPaidMinor;
+  final int approvedExpensesMinor;
+  final int pendingExpensesMinor;
+  final int activeLoanPrincipalMinor;
+  final int activeLoanOutstandingMinor;
+  final int netCashBalanceMinor;
   final List<ContributionPeriodTotal> periodTotals;
   final List<MemberContributionAnalysis> memberAnalysis;
   final List<ContributionRegisterCell> register;

@@ -8,6 +8,7 @@ import '../../core/groups/groups_repository.dart';
 import '../../core/loans/loans_repository.dart';
 import '../../core/auth/profile_provider.dart';
 import '../../core/formatters/app_formatters.dart';
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_logout_controls.dart';
@@ -262,6 +263,13 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                         .allocatePaymentDescription,
                     icon: Icons.add_card_outlined,
                     route: '/contributions/record',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  ActionTile(
+                    title: context.vt('Group expenses'),
+                    subtitle: context.vt('Record group spending for approval'),
+                    icon: Icons.receipt_long_outlined,
+                    route: '/expenses',
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   ActionTile(

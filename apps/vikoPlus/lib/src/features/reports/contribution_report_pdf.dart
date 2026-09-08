@@ -163,6 +163,10 @@ Future<Uint8List> buildContributionReportPdf({
         joiningLabel,
         tr('Recurring fees', 'Ada za vipindi'),
         tr('Outstanding', 'Deni'),
+        tr('Approved expenses', 'Matumizi yaliyoidhinishwa'),
+        tr('Loan principal out', 'Mikopo iliyotolewa'),
+        tr('Unreturned loan balance', 'Salio la mikopo lisilorejeshwa'),
+        tr('Net group cash', 'Salio halisi la kikundi'),
       ],
       [
         [
@@ -171,9 +175,21 @@ Future<Uint8List> buildContributionReportPdf({
           number.format(joining),
           number.format(recurring),
           number.format(sum((m) => m.outstandingMinor)),
+          number.format(report.approvedExpensesMinor),
+          number.format(report.activeLoanPrincipalMinor),
+          number.format(report.activeLoanOutstandingMinor),
+          number.format(report.netCashBalanceMinor),
         ],
       ],
     ),
+    if (report.pendingExpensesMinor > 0)
+      pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 6),
+        child: pw.Text(
+          '${tr('Pending expenses', 'Matumizi yanayosubiri idhini')}: ${number.format(report.pendingExpensesMinor)}',
+          style: const pw.TextStyle(fontSize: 9),
+        ),
+      ),
     heading(
       tr('Configured contribution rates', 'Viwango vya michango vilivyowekwa'),
     ),

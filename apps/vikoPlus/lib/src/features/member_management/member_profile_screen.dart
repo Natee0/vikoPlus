@@ -117,7 +117,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
       await _refresh();
     } on Object catch (error) {
       if (mounted) {
-        setState(() => _errorMessage = AuthFailure.from(error).message);
+        setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
       }
     } finally {
       if (mounted) {
@@ -310,7 +310,7 @@ class _ApiMemberProfileState extends ConsumerState<_ApiMemberProfile> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 AuthErrorMessage(
-                  message: AuthFailure.from(snapshot.error!).message,
+                  message: context.vt(AuthFailure.from(snapshot.error!).message),
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 OutlinedButton.icon(

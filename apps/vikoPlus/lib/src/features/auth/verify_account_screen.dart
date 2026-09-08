@@ -192,7 +192,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
       context.go(route);
     } on AuthFailure catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = error.message);
+      setState(() => _errorMessage = context.vt(error.message));
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -229,7 +229,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
       if (!mounted) {
         return;
       }
-      setState(() => _errorMessage = error.message);
+      setState(() => _errorMessage = context.vt(error.message));
     } finally {
       if (mounted) {
         setState(() => _isResending = false);

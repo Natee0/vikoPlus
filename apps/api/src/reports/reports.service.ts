@@ -5,6 +5,9 @@ import {
 } from "@nestjs/common";
 import {
   ContributionObligationStatus,
+  GroupContributionPaymentStatus,
+  GroupExpenseStatus,
+  GroupLoanStatus,
   GroupMemberStatus,
   GroupRole,
 } from "@prisma/client";
@@ -55,7 +58,7 @@ export class ReportsService {
       financialYearId ?? (await this.findActiveFinancialYearId(groupId));
 
     if (!selectedFinancialYearId) {
-      return calculateContributionReport([]);
+      return this.withGroupCashTotals(groupId, calculateContributionReport([]));
     }
 
     const obligations = await this.prisma.memberContributionObligation.findMany(
@@ -84,19 +87,48 @@ export class ReportsService {
         },
       },
     );
+    const historicalAllocations = await this.prisma.paymentAllocation.findMany({
+      where: {
+        obligationId: null,
+        payment: {
+          groupId,
+          status: GroupContributionPaymentStatus.APPROVED,
+          member: {
+            ...(canSeeAllMembers ? {} : { id: membership.id }),
+          },
+        },
+      },
+      include: {
+        payment: { include: { member: true } },
+        plan: true,
+      },
+    });
 
     const report = calculateContributionReport(
-      obligations.map((obligation) => ({
-        memberId: obligation.member.id,
-        memberNumber: obligation.member.memberNumber,
-        memberName: obligation.member.fullName,
-        planType: obligation.plan.type,
-        periodLabel: obligation.period?.label ?? null,
-        periodId: obligation.period?.id ?? null,
-        periodSortOrder: obligation.period?.sortOrder ?? null,
-        amountDueMinor: obligation.amountDueMinor,
-        amountPaidMinor: obligation.amountPaidMinor,
-      })),
+      [
+        ...obligations.map((obligation) => ({
+          memberId: obligation.member.id,
+          memberNumber: obligation.member.memberNumber,
+          memberName: obligation.member.fullName,
+          planType: obligation.plan.type,
+          periodLabel: obligation.period?.label ?? null,
+          periodId: obligation.period?.id ?? null,
+          periodSortOrder: obligation.period?.sortOrder ?? null,
+          amountDueMinor: obligation.amountDueMinor,
+          amountPaidMinor: obligation.amountPaidMinor,
+        })),
+        ...historicalAllocations.map((allocation) => ({
+          memberId: allocation.payment.member.id,
+          memberNumber: allocation.payment.member.memberNumber,
+          memberName: allocation.payment.member.fullName,
+          planType: allocation.plan.type,
+          periodLabel: null,
+          periodId: null,
+          periodSortOrder: null,
+          amountDueMinor: allocation.amountMinor,
+          amountPaidMinor: allocation.amountMinor,
+        })),
+      ],
     );
     const plans = await this.prisma.contributionPlan.findMany({
       where: {
@@ -119,7 +151,7 @@ export class ReportsService {
       },
       orderBy: { createdAt: "asc" },
     });
-    return { ...report, rates: plans };
+    return this.withGroupCashTotals(groupId, { ...report, rates: plans });
   }
 
   async exportContributionReport(
@@ -181,6 +213,31 @@ export class ReportsService {
         report.joiningFeesPaidMinor.toString(),
       ],
       ["Summary", "Recurring paid minor", report.recurringPaidMinor.toString()],
+      [
+        "Summary",
+        "Approved expenses minor",
+        report.approvedExpensesMinor.toString(),
+      ],
+      [
+        "Summary",
+        "Pending expenses minor",
+        report.pendingExpensesMinor.toString(),
+      ],
+      [
+        "Summary",
+        "Active loan principal minor",
+        report.activeLoanPrincipalMinor.toString(),
+      ],
+      [
+        "Summary",
+        "Active loan outstanding minor",
+        report.activeLoanOutstandingMinor.toString(),
+      ],
+      [
+        "Summary",
+        "Net group cash balance minor",
+        report.netCashBalanceMinor.toString(),
+      ],
       [],
       ["Period totals", "Period", "Paid minor"],
       ...report.periodTotals.map((period) => [
@@ -221,6 +278,43 @@ export class ReportsService {
   private csvCell(value: string): string {
     if (!/[",\n\r]/.test(value)) return value;
     return `"${value.replaceAll('"', '""')}"`;
+  }
+
+  private async withGroupCashTotals(
+    groupId: string,
+    report: ContributionReport,
+  ): Promise<ContributionReport> {
+    const [approvedExpenses, pendingExpenses, activeLoans] = await Promise.all([
+      this.prisma.groupExpense.aggregate({
+        where: { groupId, status: GroupExpenseStatus.APPROVED },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.groupExpense.aggregate({
+        where: { groupId, status: GroupExpenseStatus.SUBMITTED },
+        _sum: { amountMinor: true },
+      }),
+      this.prisma.groupLoan.aggregate({
+        where: { groupId, status: GroupLoanStatus.ACTIVE },
+        _sum: { amountMinor: true, amountPaidMinor: true },
+      }),
+    ]);
+    const approvedExpensesMinor = approvedExpenses._sum.amountMinor ?? 0;
+    const activeLoanPrincipalMinor = activeLoans._sum.amountMinor ?? 0;
+    const activeLoanOutstandingMinor = Math.max(
+      activeLoanPrincipalMinor - (activeLoans._sum.amountPaidMinor ?? 0),
+      0,
+    );
+    return {
+      ...report,
+      approvedExpensesMinor,
+      pendingExpensesMinor: pendingExpenses._sum.amountMinor ?? 0,
+      activeLoanPrincipalMinor,
+      activeLoanOutstandingMinor,
+      netCashBalanceMinor: Math.max(
+        report.totalPaidMinor - approvedExpensesMinor - activeLoanOutstandingMinor,
+        0,
+      ),
+    };
   }
 
   private async requireMembership(user: AuthenticatedUser, groupId: string) {

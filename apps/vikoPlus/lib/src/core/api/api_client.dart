@@ -60,6 +60,7 @@ final apiClientProvider = Provider<Dio>((ref) {
         final refreshToken = ref.read(authSessionProvider).refreshToken;
         if (refreshToken == null || refreshToken.isEmpty) {
           ref.read(authSessionProvider.notifier).clear();
+          await ref.read(authSecureStorageProvider).clearSession();
           handler.next(error);
           return;
         }

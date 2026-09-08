@@ -111,7 +111,9 @@ class _ContributionRegisterScreenState
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final canReviewPayments =
-        activeGroup?.role == 'TREASURER' || activeGroup?.role == 'SECRETARY';
+        activeGroup?.role == 'GROUP_ADMIN' ||
+        activeGroup?.role == 'TREASURER' ||
+        activeGroup?.role == 'SECRETARY';
     _ensurePaymentsFuture(activeGroup?.id);
 
     return VikoplusScreen(
@@ -132,7 +134,8 @@ class _ContributionRegisterScreenState
         children: [
           StatusPill(label: activeGroup?.name ?? context.vt('No group selected')),
           const SizedBox(height: 16),
-          if (activeGroup?.role == 'TREASURER')
+          if (activeGroup?.role == 'GROUP_ADMIN' ||
+              activeGroup?.role == 'TREASURER')
             ActionTile(
               title: context.vt('Loan applications'),
               subtitle: context.vt(
@@ -442,6 +445,9 @@ bool _isPendingReview(String status) {
 }
 
 bool _canReviewPayment(String reviewerRole, String paymentMemberRole) {
+  if (reviewerRole == 'GROUP_ADMIN') {
+    return true;
+  }
   if (reviewerRole == 'SECRETARY') {
     return paymentMemberRole == 'TREASURER';
   }

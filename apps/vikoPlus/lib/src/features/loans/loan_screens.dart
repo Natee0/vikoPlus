@@ -147,7 +147,7 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
       context.go('/loans');
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -345,7 +345,7 @@ class _LoanRepaymentScreenState extends ConsumerState<LoanRepaymentScreen> {
       context.go('/loans');
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -606,7 +606,7 @@ class _LoanApplicationReviewScreenState
       context.go('/loans/applications');
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -734,7 +734,7 @@ class _LoanFutureScreenState<T> extends State<_LoanFutureScreen<T>> {
           }
           if (snapshot.hasError) {
             return _ErrorState(
-              message: AuthFailure.from(snapshot.error!).message,
+              message: context.vt(AuthFailure.from(snapshot.error!).message),
             );
           }
           final data = snapshot.data;

@@ -62,7 +62,9 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       context.push('/forgot-password/verify');
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = AuthFailure.from(error).message);
+      setState(
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);

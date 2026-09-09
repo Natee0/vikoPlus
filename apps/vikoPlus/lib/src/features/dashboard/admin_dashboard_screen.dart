@@ -14,6 +14,7 @@ import '../common/info_card.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 import '../notifications/notification_icon_button.dart';
+import 'dashboard_monthly_trend_card.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({this.showBottomNavigation = true, super.key});
@@ -69,6 +70,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
       Localizations.localeOf(context).toLanguageTag(),
     );
     final activeGroup = ref.watch(activeGroupProvider);
+    final dashboardFuture = _dashboardFor(activeGroup?.id);
 
     return VikoplusScreen(
       title: activeGroup?.name ?? loc.adminDashboard,
@@ -102,7 +104,7 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           ),
           const SizedBox(height: 16),
           _AdminMetricsBlock(
-            dashboardFuture: _dashboardFor(activeGroup?.id),
+            dashboardFuture: dashboardFuture,
             formatters: formatters,
             totalTitle: loc.totalContributions,
             membersTitle: loc.members,
@@ -110,7 +112,10 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           const SizedBox(height: 16),
           SectionHeader(title: loc.monthlyTrend),
           const SizedBox(height: 12),
-          const _MonthlyTrendPlaceholder(),
+          _AdminMonthlyTrendBlock(
+            dashboardFuture: dashboardFuture,
+            formatters: formatters,
+          ),
           const SizedBox(height: 16),
           SectionHeader(title: loc.quickActions),
           const SizedBox(height: 12),
@@ -251,27 +256,32 @@ class _AdminMetricsBlock extends StatelessWidget {
   }
 }
 
-class _MonthlyTrendPlaceholder extends StatelessWidget {
-  const _MonthlyTrendPlaceholder();
+class _AdminMonthlyTrendBlock extends StatelessWidget {
+  const _AdminMonthlyTrendBlock({
+    required this.dashboardFuture,
+    required this.formatters,
+  });
+
+  final Future<GroupDashboardResult>? dashboardFuture;
+  final AppFormatters formatters;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.show_chart, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                'Monthly trend will appear after approved contribution payments are available.',
-                style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: AppColors.onSurfaceVariant),
-              ),
-            ),
-          ],
-        ),
+    final future = dashboardFuture;
+    if (future == null) {
+      return DashboardMonthlyTrendCard(
+        trend: const [],
+        formatters: formatters,
+      );
+    }
+    return FutureBuilder<GroupDashboardResult>(
+      future: future,
+      builder: (context, snapshot) => DashboardMonthlyTrendCard(
+        trend: snapshot.data?.metrics.monthlyTrend ?? const [],
+        formatters: formatters,
+        loading:
+            !snapshot.hasData &&
+            snapshot.connectionState == ConnectionState.waiting,
       ),
     );
   }

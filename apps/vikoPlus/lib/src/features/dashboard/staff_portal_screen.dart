@@ -12,6 +12,7 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 import '../notifications/notification_icon_button.dart';
+import 'dashboard_monthly_trend_card.dart';
 
 class StaffPortalScreen extends ConsumerStatefulWidget {
   const StaffPortalScreen({super.key});
@@ -109,6 +110,16 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
                       message: context.vt('Could not load dashboard metrics.'),
                     ),
                   ],
+                  const SizedBox(height: AppSpacing.md),
+                  SectionHeader(title: context.vt('Monthly trend')),
+                  const SizedBox(height: AppSpacing.xs),
+                  DashboardMonthlyTrendCard(
+                    trend: metrics?.monthlyTrend ?? const [],
+                    formatters: formatters,
+                    loading:
+                        !snapshot.hasData &&
+                        snapshot.connectionState == ConnectionState.waiting,
+                  ),
                 ],
               );
             },

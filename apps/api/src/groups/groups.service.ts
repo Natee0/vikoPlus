@@ -762,8 +762,15 @@ export class GroupsService {
   async dashboard(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
     const now = new Date();
-    const [group, membersCount, paid, outstanding, expenses, activeLoans] =
-      await Promise.all([
+    const [
+      group,
+      membersCount,
+      paid,
+      outstanding,
+      expenses,
+      activeLoans,
+      monthlyTrend,
+    ] = await Promise.all([
         this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
         this.prisma.groupMember.count({ where: { groupId } }),
         this.prisma.groupContributionPayment.aggregate({
@@ -793,6 +800,7 @@ export class GroupsService {
           where: { groupId, status: GroupLoanStatus.ACTIVE },
           _sum: { amountMinor: true, amountPaidMinor: true },
         }),
+        this.monthlyContributionTrend(groupId, now),
       ]);
     const due = outstanding._sum.amountDueMinor ?? 0;
     const paidObligations = outstanding._sum.amountPaidMinor ?? 0;
@@ -817,6 +825,7 @@ export class GroupsService {
           collectedMinor - expensesMinor - loanPrincipalOutMinor,
           0,
         ),
+        monthlyTrend,
       },
     };
   }
@@ -4228,6 +4237,44 @@ export class GroupsService {
       [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
     }
     return chars.join("");
+  }
+
+  private async monthlyContributionTrend(groupId: string, now: Date) {
+    const start = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const buckets = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(start.getFullYear(), start.getMonth() + index, 1);
+      return {
+        month: this.monthKey(date),
+        label: date.toLocaleString("en-US", { month: "short" }),
+        amountMinor: 0,
+        paymentsCount: 0,
+      };
+    });
+    const bucketByMonth = new Map(buckets.map((bucket) => [bucket.month, bucket]));
+    const payments = await this.prisma.groupContributionPayment.findMany({
+      where: {
+        groupId,
+        status: GroupContributionPaymentStatus.APPROVED,
+        OR: [{ paidAt: { gte: start } }, { paidAt: null, createdAt: { gte: start } }],
+      },
+      select: { amountMinor: true, paidAt: true, createdAt: true },
+    });
+
+    for (const payment of payments) {
+      const paidOn = payment.paidAt ?? payment.createdAt;
+      const bucket = bucketByMonth.get(this.monthKey(paidOn));
+      if (!bucket) {
+        continue;
+      }
+      bucket.amountMinor += payment.amountMinor;
+      bucket.paymentsCount += 1;
+    }
+
+    return buckets;
+  }
+
+  private monthKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   }
 
   private daysFromNow(days: number): Date {

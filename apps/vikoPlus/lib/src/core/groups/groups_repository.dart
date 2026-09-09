@@ -1087,9 +1087,11 @@ class GroupDashboardMetrics {
     required this.expensesMinor,
     required this.loanPrincipalOutMinor,
     required this.cashBalanceMinor,
+    required this.monthlyTrend,
   });
 
   factory GroupDashboardMetrics.fromJson(Map<String, dynamic> json) {
+    final trend = json['monthlyTrend'];
     return GroupDashboardMetrics(
       membersCount: json['membersCount'] as int? ?? 0,
       collectedMinor: json['collectedMinor'] as int? ?? 0,
@@ -1097,6 +1099,16 @@ class GroupDashboardMetrics {
       expensesMinor: json['expensesMinor'] as int? ?? 0,
       loanPrincipalOutMinor: json['loanPrincipalOutMinor'] as int? ?? 0,
       cashBalanceMinor: json['cashBalanceMinor'] as int? ?? 0,
+      monthlyTrend: trend is List
+          ? trend
+                .whereType<Map>()
+                .map(
+                  (item) => GroupMonthlyTrend.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
     );
   }
 
@@ -1106,6 +1118,30 @@ class GroupDashboardMetrics {
   final int expensesMinor;
   final int loanPrincipalOutMinor;
   final int cashBalanceMinor;
+  final List<GroupMonthlyTrend> monthlyTrend;
+}
+
+class GroupMonthlyTrend {
+  const GroupMonthlyTrend({
+    required this.month,
+    required this.label,
+    required this.amountMinor,
+    required this.paymentsCount,
+  });
+
+  factory GroupMonthlyTrend.fromJson(Map<String, dynamic> json) {
+    return GroupMonthlyTrend(
+      month: json['month'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      amountMinor: json['amountMinor'] as int? ?? 0,
+      paymentsCount: json['paymentsCount'] as int? ?? 0,
+    );
+  }
+
+  final String month;
+  final String label;
+  final int amountMinor;
+  final int paymentsCount;
 }
 
 class GroupExpensesResult {

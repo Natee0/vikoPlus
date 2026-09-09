@@ -758,36 +758,36 @@ export class GroupsService {
     const now = new Date();
     const [group, membersCount, paid, outstanding, expenses, activeLoans] =
       await Promise.all([
-      this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
-      this.prisma.groupMember.count({ where: { groupId } }),
-      this.prisma.groupContributionPayment.aggregate({
-        where: { groupId, status: "APPROVED" },
-        _sum: { amountMinor: true },
-      }),
-      this.prisma.memberContributionObligation.aggregate({
-        where: {
-          member: { groupId },
-          dueAt: { lte: now },
-          status: {
-            in: [
-              ContributionObligationStatus.UPCOMING,
-              ContributionObligationStatus.DUE,
-              ContributionObligationStatus.PARTIALLY_PAID,
-              ContributionObligationStatus.OVERDUE,
-            ],
+        this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
+        this.prisma.groupMember.count({ where: { groupId } }),
+        this.prisma.groupContributionPayment.aggregate({
+          where: { groupId, status: "APPROVED" },
+          _sum: { amountMinor: true },
+        }),
+        this.prisma.memberContributionObligation.aggregate({
+          where: {
+            member: { groupId },
+            dueAt: { lte: now },
+            status: {
+              in: [
+                ContributionObligationStatus.UPCOMING,
+                ContributionObligationStatus.DUE,
+                ContributionObligationStatus.PARTIALLY_PAID,
+                ContributionObligationStatus.OVERDUE,
+              ],
+            },
           },
-        },
-        _sum: { amountDueMinor: true, amountPaidMinor: true },
-      }),
-      this.prisma.groupExpense.aggregate({
-        where: { groupId, status: GroupExpenseStatus.APPROVED },
-        _sum: { amountMinor: true },
-      }),
-      this.prisma.groupLoan.aggregate({
-        where: { groupId, status: GroupLoanStatus.ACTIVE },
-        _sum: { amountMinor: true, amountPaidMinor: true },
-      }),
-    ]);
+          _sum: { amountDueMinor: true, amountPaidMinor: true },
+        }),
+        this.prisma.groupExpense.aggregate({
+          where: { groupId, status: GroupExpenseStatus.APPROVED },
+          _sum: { amountMinor: true },
+        }),
+        this.prisma.groupLoan.aggregate({
+          where: { groupId, status: GroupLoanStatus.ACTIVE },
+          _sum: { amountMinor: true, amountPaidMinor: true },
+        }),
+      ]);
     const due = outstanding._sum.amountDueMinor ?? 0;
     const paidObligations = outstanding._sum.amountPaidMinor ?? 0;
     const collectedMinor = paid._sum.amountMinor ?? 0;
@@ -1534,11 +1534,11 @@ export class GroupsService {
       where: { id: groupId },
       select: { establishedAt: true, historicalDataStartsAt: true },
     });
-    const requestedPlanTypes = Array.from(
+    const requestedPlanKeys = Array.from(
       new Set(
-        payments.map((payment) =>
-          (payment.contributionType ??
-            ContributionPlanType.RECURRING) as ContributionPlanType,
+        payments.map(
+          (payment) =>
+            payment.contributionType ?? ContributionPlanType.RECURRING,
         ),
       ),
     );
@@ -1546,14 +1546,30 @@ export class GroupsService {
       where: {
         groupId,
         isActive: true,
-        type: { in: requestedPlanTypes },
+        OR: [
+          { type: ContributionPlanType.JOINING_FEE },
+          { name: "Membership fee" },
+          { name: { startsWith: "Member contribution" } },
+        ],
       },
       orderBy: { createdAt: "asc" },
-      select: { id: true, type: true },
+      select: { id: true, type: true, name: true },
     });
-    const planByType = new Map(plans.map((plan) => [plan.type, plan]));
-    for (const type of requestedPlanTypes) {
-      if (!planByType.has(type)) {
+    const planByKey = new Map<string, { id: string }>();
+    for (const plan of plans) {
+      if (plan.type === ContributionPlanType.JOINING_FEE) {
+        planByKey.set("JOINING_FEE", plan);
+      } else if (plan.name === "Membership fee") {
+        planByKey.set("MEMBERSHIP_FEE", plan);
+      } else if (
+        plan.name.startsWith("Member contribution") &&
+        !planByKey.has("RECURRING")
+      ) {
+        planByKey.set("RECURRING", plan);
+      }
+    }
+    for (const key of requestedPlanKeys) {
+      if (!planByKey.has(key)) {
         throw new BadRequestException(
           "Contribution plan for historical type is not configured.",
         );
@@ -1572,9 +1588,11 @@ export class GroupsService {
           "Historical payment dates cannot be future dates.",
         );
       }
-      if (group.establishedAt && paidAt < group.establishedAt) {
+      const earliestHistoricalDate =
+        group.historicalDataStartsAt ?? group.establishedAt;
+      if (earliestHistoricalDate && paidAt < earliestHistoricalDate) {
         throw new BadRequestException(
-          "Historical payment dates cannot be before the group established date.",
+          "Historical payment dates cannot be before the group historical start date.",
         );
       }
     });
@@ -1583,9 +1601,8 @@ export class GroupsService {
       const createdPayments: { id: string }[] = [];
       for (const payment of payments) {
         const paidAt = new Date(payment.paidAt);
-        const planType = (payment.contributionType ??
-          ContributionPlanType.RECURRING) as ContributionPlanType;
-        const plan = planByType.get(planType)!;
+        const planKey = payment.contributionType ?? "RECURRING";
+        const plan = planByKey.get(planKey)!;
         const createdPayment = await tx.groupContributionPayment.create({
           data: {
             groupId,
@@ -1606,7 +1623,7 @@ export class GroupsService {
             paymentId: createdPayment.id,
             planId: plan.id,
             amountMinor: payment.amountMinor,
-            status: PaymentAllocationStatus.APPROVED,
+            status: PaymentAllocationStatus.APPLIED,
           },
         });
         createdPayments.push(createdPayment);
@@ -1751,8 +1768,10 @@ export class GroupsService {
         userId: payment.member.userId,
         titleEn: "Payment rejected",
         titleSw: "Malipo yamekataliwa",
-        bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} was rejected. ${input.reason ?? ""}`.trim(),
-        bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yamekataliwa. ${input.reason ?? ""}`.trim(),
+        bodyEn:
+          `Your payment of ${payment.currency} ${payment.amountMinor} was rejected. ${input.reason ?? ""}`.trim(),
+        bodySw:
+          `Malipo yako ya ${payment.currency} ${payment.amountMinor} yamekataliwa. ${input.reason ?? ""}`.trim(),
       });
       await this.auditPaymentReview(
         user,
@@ -1806,8 +1825,10 @@ export class GroupsService {
         userId: payment.member.userId,
         titleEn: "Payment needs correction",
         titleSw: "Malipo yanahitaji marekebisho",
-        bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} needs correction. ${input.reason ?? ""}`.trim(),
-        bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yanahitaji marekebisho. ${input.reason ?? ""}`.trim(),
+        bodyEn:
+          `Your payment of ${payment.currency} ${payment.amountMinor} needs correction. ${input.reason ?? ""}`.trim(),
+        bodySw:
+          `Malipo yako ya ${payment.currency} ${payment.amountMinor} yanahitaji marekebisho. ${input.reason ?? ""}`.trim(),
       });
       await this.auditPaymentReview(
         user,
@@ -2537,8 +2558,10 @@ export class GroupsService {
         userId: updated.member.userId,
         titleEn: "Loan rejected",
         titleSw: "Mkopo umekataliwa",
-        bodyEn: `Your loan request for ${updated.currency} ${updated.amountMinor} was rejected. ${input.reason ?? input.notes ?? ""}`.trim(),
-        bodySw: `Ombi lako la mkopo wa ${updated.currency} ${updated.amountMinor} limekataliwa. ${input.reason ?? input.notes ?? ""}`.trim(),
+        bodyEn:
+          `Your loan request for ${updated.currency} ${updated.amountMinor} was rejected. ${input.reason ?? input.notes ?? ""}`.trim(),
+        bodySw:
+          `Ombi lako la mkopo wa ${updated.currency} ${updated.amountMinor} limekataliwa. ${input.reason ?? input.notes ?? ""}`.trim(),
       });
     });
     await this.prisma.auditLog.create({
@@ -2820,7 +2843,9 @@ export class GroupsService {
         });
         await this.createUserNotification(tx, {
           userId: repayment.member.userId,
-          titleEn: approve ? "Loan repayment approved" : "Loan repayment rejected",
+          titleEn: approve
+            ? "Loan repayment approved"
+            : "Loan repayment rejected",
           titleSw: approve
             ? "Marejesho ya mkopo yameidhinishwa"
             : "Marejesho ya mkopo yamekataliwa",

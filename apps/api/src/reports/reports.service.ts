@@ -60,6 +60,13 @@ export class ReportsService {
     if (!selectedFinancialYearId) {
       return this.withGroupCashTotals(groupId, calculateContributionReport([]));
     }
+    const selectedFinancialYear = await this.prisma.financialYear.findUnique({
+      where: { id: selectedFinancialYearId },
+      select: { startsAt: true, endsAt: true },
+    });
+    if (!selectedFinancialYear) {
+      return this.withGroupCashTotals(groupId, calculateContributionReport([]));
+    }
 
     const obligations = await this.prisma.memberContributionObligation.findMany(
       {
@@ -93,6 +100,10 @@ export class ReportsService {
         payment: {
           groupId,
           status: GroupContributionPaymentStatus.APPROVED,
+          paidAt: {
+            gte: selectedFinancialYear.startsAt,
+            lte: selectedFinancialYear.endsAt,
+          },
           member: {
             ...(canSeeAllMembers ? {} : { id: membership.id }),
           },

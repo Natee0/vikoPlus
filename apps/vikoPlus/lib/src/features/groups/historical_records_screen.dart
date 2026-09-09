@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/group_setup_draft.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
@@ -229,7 +230,7 @@ class _HistoricalRecordsScreenState
       [
         sampleMember?.memberNumber ?? 'MBR-0001',
         sampleMember?.fullName ?? 'Amina Mwangi',
-        sampleMember?.phone ?? '255712345678',
+        _csvText(sampleMember?.phone ?? '255712345678'),
         sampleMember?.email ?? 'amina@example.com',
         'RECURRING',
         '5000',
@@ -326,7 +327,11 @@ class _HistoricalRecordsScreenState
       throw const FormatException('CSV must include a header and at least one row.');
     }
     final headers = rows.first.map((item) => item.trim().toLowerCase()).toList();
-    final memberNumberIndex = _headerIndex(headers, 'member_number');
+    final memberNumberIndex = _headerIndex(
+      headers,
+      'member_number',
+      required: false,
+    );
     final memberIdIndex = _headerIndex(headers, 'member_id', required: false);
     final phoneIndex = _headerIndex(headers, 'phone', required: false);
     final emailIndex = _headerIndex(headers, 'email', required: false);
@@ -344,7 +349,7 @@ class _HistoricalRecordsScreenState
     final byPhone = {
       for (final member in members)
         if ((member.phone ?? '').trim().isNotEmpty)
-          member.phone!.trim().toLowerCase(): member,
+          _normalizeCsvText(member.phone!).toLowerCase(): member,
     };
     final byEmail = {
       for (final member in members)
@@ -359,13 +364,17 @@ class _HistoricalRecordsScreenState
         continue;
       }
       final memberId = _cell(row, memberIdIndex, required: false);
-      final memberNumber = _cell(row, memberNumberIndex)!;
+      final memberNumber = _cell(row, memberNumberIndex, required: false);
       final phone = _cell(row, phoneIndex, required: false);
       final email = _cell(row, emailIndex, required: false);
       final member =
           (memberId == null ? null : byId[memberId]) ??
-          byMemberNumber[memberNumber.toLowerCase()] ??
-          (phone == null ? null : byPhone[phone.toLowerCase()]) ??
+          (memberNumber == null
+              ? null
+              : byMemberNumber[memberNumber.toLowerCase()]) ??
+          (phone == null
+              ? null
+              : byPhone[_normalizeCsvText(phone).toLowerCase()]) ??
           (email == null ? null : byEmail[email.toLowerCase()]);
       if (member == null) {
         throw const FormatException('CSV row member was not found.');
@@ -436,6 +445,17 @@ class _HistoricalRecordsScreenState
     };
   }
 
+  String _normalizeCsvText(String value) {
+    final trimmed = value.trim();
+    if (trimmed.startsWith('="') && trimmed.endsWith('"')) {
+      return trimmed.substring(2, trimmed.length - 1);
+    }
+    if (trimmed.startsWith("'")) {
+      return trimmed.substring(1);
+    }
+    return trimmed;
+  }
+
   List<List<String>> _parseCsvRows(String source) {
     final normalized = source.replaceFirst('\uFEFF', '');
     final rows = <List<String>>[];
@@ -478,6 +498,11 @@ class _HistoricalRecordsScreenState
     return '"${value.replaceAll('"', '""')}"';
   }
 
+  String _csvText(String value) {
+    final normalized = _normalizeCsvText(value);
+    return '="$normalized"';
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
@@ -514,7 +539,9 @@ class _HistoricalRecordsScreenState
           if (_bulkMode)
             _BulkImportCard(
               controller: _bulkCsvController,
+              membersFuture: _membersFuture,
               onShareTemplate: _shareCsvTemplate,
+              parseCsv: _parseHistoricalCsv,
             )
           else
             _MembersLoader(
@@ -860,11 +887,19 @@ class _SinglePaymentCard extends StatelessWidget {
 class _BulkImportCard extends StatelessWidget {
   const _BulkImportCard({
     required this.controller,
+    required this.membersFuture,
     required this.onShareTemplate,
+    required this.parseCsv,
   });
 
   final TextEditingController controller;
+  final Future<GroupMembersResult>? membersFuture;
   final VoidCallback onShareTemplate;
+  final List<HistoricalPaymentInput> Function(
+    String csv,
+    List<GroupMemberSummary> members,
+  )
+  parseCsv;
 
   @override
   Widget build(BuildContext context) {
@@ -896,13 +931,155 @@ class _BulkImportCard extends StatelessWidget {
             decoration: InputDecoration(
               labelText: context.vt('CSV rows'),
               hintText:
-                  'member_number,full_name,phone,email,contribution_type,amount,method,paid_at,reference\nMBR-0001,Amina Mwangi,255712345678,amina@example.com,RECURRING,5000,CASH,2026-09-09,OLD-LEDGER-001',
+                  'member_number,full_name,phone,email,contribution_type,amount,method,paid_at,reference\nMBR-0001,Amina Mwangi,="255712345678",amina@example.com,RECURRING,5000,CASH,2026-09-09,OLD-LEDGER-001',
               alignLabelWithHint: true,
               prefixIcon: const Icon(Icons.content_paste_outlined),
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
+          _BulkImportPreview(
+            controller: controller,
+            membersFuture: membersFuture,
+            parseCsv: parseCsv,
+          ),
+          const SizedBox(height: AppSpacing.sm),
           const _ImportColumnMap(),
+        ],
+      ),
+    );
+  }
+}
+
+class _BulkImportPreview extends StatelessWidget {
+  const _BulkImportPreview({
+    required this.controller,
+    required this.membersFuture,
+    required this.parseCsv,
+  });
+
+  final TextEditingController controller;
+  final Future<GroupMembersResult>? membersFuture;
+  final List<HistoricalPaymentInput> Function(
+    String csv,
+    List<GroupMemberSummary> members,
+  )
+  parseCsv;
+
+  @override
+  Widget build(BuildContext context) {
+    final future = membersFuture;
+    if (future == null) {
+      return const SizedBox.shrink();
+    }
+
+    return FutureBuilder<GroupMembersResult>(
+      future: future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const LinearProgressIndicator(minHeight: 2);
+        }
+        if (!snapshot.hasData) {
+          return const SizedBox.shrink();
+        }
+
+        return AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            final csv = controller.text.trim();
+            if (csv.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            try {
+              final records = parseCsv(csv, snapshot.data!.members);
+              return _CsvPreviewCard(records: records);
+            } on FormatException catch (error) {
+              return AuthErrorMessage(message: context.vt(error.message));
+            }
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CsvPreviewCard extends StatelessWidget {
+  const _CsvPreviewCard({required this.records});
+
+  final List<HistoricalPaymentInput> records;
+
+  @override
+  Widget build(BuildContext context) {
+    final formatters = AppFormatters(
+      Localizations.localeOf(context).toLanguageTag(),
+    );
+    final total = records.fold<int>(
+      0,
+      (sum, record) => sum + record.amountMinor,
+    );
+    final countsByType = <String, int>{};
+    for (final record in records) {
+      final type = record.contributionType ?? 'RECURRING';
+      countsByType[type] = (countsByType[type] ?? 0) + 1;
+    }
+
+    return _Panel(
+      color: AppColors.surfaceContainerLow,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.preview_outlined, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  context.vt('CSV preview'),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              Text(
+                '${records.length} ${context.vt('records ready')}',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            context.vt('Total amount'),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          Text(
+            formatters.money(total),
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            context.vt('Records by type'),
+            style: Theme.of(context).textTheme.labelLarge
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Wrap(
+            spacing: AppSpacing.xs,
+            runSpacing: AppSpacing.xs,
+            children: countsByType.entries
+                .map(
+                  (entry) => Chip(
+                    label: Text('${context.vt(entry.key)}: ${entry.value}'),
+                    backgroundColor: AppColors.surfaceContainerLowest,
+                    side: BorderSide.none,
+                  ),
+                )
+                .toList(),
+          ),
         ],
       ),
     );

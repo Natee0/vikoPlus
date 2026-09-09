@@ -231,6 +231,22 @@ class VikoplusScreen extends ConsumerWidget {
             ),
     );
 
+    final rootBackRoute = bottomNavigationIndex == 0 && activeGroup != null
+        ? '/groups'
+        : null;
+
+    if (rootBackRoute != null && effectiveBackRoute == null) {
+      return PopScope(
+        canPop: context.canPop(),
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop) {
+            context.go(rootBackRoute);
+          }
+        },
+        child: scaffold,
+      );
+    }
+
     if (!preferBackRoute || effectiveBackRoute == null) {
       return scaffold;
     }

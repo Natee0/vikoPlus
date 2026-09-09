@@ -127,7 +127,7 @@ class GroupsRepository {
   Future<JoinGroupPreview> previewJoinCode(String code) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/groups/join/preview',
-      queryParameters: {'code': code.trim()},
+      queryParameters: {'code': _normalizeInvitationCode(code)},
     );
     return JoinGroupPreview.fromJson(_responseBody(response.data));
   }
@@ -135,9 +135,13 @@ class GroupsRepository {
   Future<JoinGroupResult> joinGroup(String invitationCode) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/groups/join',
-      data: {'invitationCode': invitationCode.trim()},
+      data: {'invitationCode': _normalizeInvitationCode(invitationCode)},
     );
     return JoinGroupResult.fromJson(_responseBody(response.data));
+  }
+
+  String _normalizeInvitationCode(String code) {
+    return code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
   }
 
   Future<void> saveFinancialYear(

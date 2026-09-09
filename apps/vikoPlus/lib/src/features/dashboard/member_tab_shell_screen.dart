@@ -12,10 +12,22 @@ class MemberTabShellScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        if (navigationShell.currentIndex == 0) {
+          context.go('/groups');
+          return;
+        }
+        navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        body: navigationShell,
+        bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: (index) {
           if (index == navigationShell.currentIndex) return;
@@ -44,6 +56,7 @@ class MemberTabShellScreen extends StatelessWidget {
             label: AppLocalizations.of(context).account,
           ),
         ],
+        ),
       ),
     );
   }

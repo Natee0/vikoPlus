@@ -84,8 +84,8 @@ class _JoinGroupInvitationScreenState
   }
 
   Future<void> _previewCode(String code) async {
-    final trimmed = code.trim();
-    if (trimmed.length < 4) {
+    final trimmed = code.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase();
+    if (trimmed.length != 6) {
       setState(
         () => _errorMessage = context.vt('Enter a valid invitation code.'),
       );
@@ -122,8 +122,11 @@ class _JoinGroupInvitationScreenState
       return;
     }
 
-    final code = (_preview?.invitationCode ?? _codeController.text).trim();
-    if (code.length < 4) {
+    final code = (_preview?.invitationCode ?? _codeController.text)
+        .trim()
+        .replaceAll(RegExp(r'\s+'), '')
+        .toUpperCase();
+    if (code.length != 6) {
       _showCodeSheet(context);
       return;
     }
@@ -220,6 +223,10 @@ class _JoinGroupInvitationScreenState
                 controller: _codeController,
                 autofocus: true,
                 textCapitalization: TextCapitalization.characters,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')),
+                  LengthLimitingTextInputFormatter(6),
+                ],
                 onChanged: (_) => _clearError(),
                 onSubmitted: (value) {
                   Navigator.of(sheetContext).pop();

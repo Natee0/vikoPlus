@@ -13,12 +13,13 @@ import {
   IsString,
   IsUrl,
   Length,
+  Matches,
   MaxLength,
   Min,
   Max,
   ValidateNested,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 
 export class UpdateLanguageDto {
   @IsIn(["en", "sw"])
@@ -91,16 +92,24 @@ export class CreateGroupDto {
 }
 
 export class PreviewJoinCodeDto {
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.replace(/\s+/g, "").toUpperCase() : value,
+  )
   @IsString()
   @IsNotEmpty()
-  @Length(4, 64)
+  @Length(6, 6)
+  @Matches(/^[A-Z0-9]{6}$/)
   code!: string;
 }
 
 export class JoinGroupDto {
+  @Transform(({ value }) =>
+    typeof value === "string" ? value.replace(/\s+/g, "").toUpperCase() : value,
+  )
   @IsString()
   @IsNotEmpty()
-  @Length(4, 64)
+  @Length(6, 6)
+  @Matches(/^[A-Z0-9]{6}$/)
   invitationCode!: string;
 }
 

@@ -21,10 +21,22 @@ class AdminTabShellScreen extends ConsumerWidget {
     final group = ref.watch(activeGroupProvider);
     final recordsTab = group?.role == 'SECRETARY';
     final isAdmin = group?.role == 'GROUP_ADMIN';
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      body: navigationShell,
-      bottomNavigationBar: NavigationBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) {
+          return;
+        }
+        if (navigationShell.currentIndex == 0) {
+          context.go('/groups');
+          return;
+        }
+        navigationShell.goBranch(0);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.surface,
+        body: navigationShell,
+        bottomNavigationBar: NavigationBar(
         selectedIndex: switch (navigationShell.currentIndex) {
           3 => isAdmin ? 3 : 4,
           4 => 4,
@@ -105,6 +117,7 @@ class AdminTabShellScreen extends ConsumerWidget {
             label: AppLocalizations.of(context).more,
           ),
         ],
+        ),
       ),
     );
   }

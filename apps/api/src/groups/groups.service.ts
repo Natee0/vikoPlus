@@ -28,7 +28,7 @@ import {
   UserIdentityType,
 } from "@prisma/client";
 import type { GroupMember, Prisma } from "@prisma/client";
-import { createHash, randomBytes } from "crypto";
+import { createHash, randomBytes, randomInt } from "crypto";
 import { ConfigService } from "@nestjs/config";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
@@ -364,8 +364,9 @@ export class GroupsService {
   }
 
   async previewJoinCode(invitationCode: string) {
+    const code = this.normalizeInvitationCode(invitationCode);
     const invitation = await this.prisma.groupInvitation.findUnique({
-      where: { tokenHash: this.hash(invitationCode) },
+      where: { tokenHash: this.hash(code) },
       include: {
         group: { include: { _count: { select: { members: true } } } },
       },
@@ -378,7 +379,7 @@ export class GroupsService {
       throw new NotFoundException("Invitation was not found or has expired.");
     }
     return {
-      invitationCode,
+      invitationCode: code,
       group: {
         id: invitation.group.id,
         name: invitation.group.name,
@@ -395,10 +396,11 @@ export class GroupsService {
   }
 
   async joinGroup(user: AuthenticatedUser, input: JoinGroupDto) {
+    const code = this.normalizeInvitationCode(input.invitationCode);
     return this.prisma.$transaction(
       async (tx) => {
         const invitation = await tx.groupInvitation.findUnique({
-          where: { tokenHash: this.hash(input.invitationCode) },
+          where: { tokenHash: this.hash(code) },
           include: { group: true, member: true },
         });
         if (
@@ -1063,9 +1065,9 @@ export class GroupsService {
     }
 
     const role = input.role ?? GroupRole.MEMBER;
-    const token = randomBytes(18).toString("base64url");
-    const { member, invitation } = await this.prisma.$transaction(
+    const { member, invitation, token } = await this.prisma.$transaction(
       async (tx) => {
+        const token = await this.uniqueInvitationCode(tx);
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${groupId}))`;
         const numbers = await tx.groupMember.findMany({
           where: { groupId },
@@ -1108,7 +1110,11 @@ export class GroupsService {
             expiresAt: this.daysFromNow(14),
           },
         });
-        return { member: createdMember, invitation: createdInvitation };
+        return {
+          member: createdMember,
+          invitation: createdInvitation,
+          token,
+        };
       },
     );
 
@@ -1165,7 +1171,7 @@ export class GroupsService {
     await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
     const invitations = await Promise.all(
       input.recipients.map(async (recipient) => {
-        const token = randomBytes(18).toString("base64url");
+        const token = await this.uniqueInvitationCode(this.prisma);
         const invitation = await this.prisma.groupInvitation.create({
           data: {
             groupId,
@@ -4184,6 +4190,44 @@ export class GroupsService {
 
   private hash(value: string): string {
     return createHash("sha256").update(value.trim()).digest("hex");
+  }
+
+  private normalizeInvitationCode(value: string): string {
+    return value.trim().replace(/\s+/g, "").toUpperCase();
+  }
+
+  private async uniqueInvitationCode(
+    client: Pick<Prisma.TransactionClient, "groupInvitation">,
+  ): Promise<string> {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = this.invitationCode();
+      const existing = await client.groupInvitation.findUnique({
+        where: { tokenHash: this.hash(code) },
+        select: { id: true },
+      });
+      if (!existing) {
+        return code;
+      }
+    }
+    throw new ConflictException("Could not generate a unique invitation code.");
+  }
+
+  private invitationCode(): string {
+    const letters = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const digits = "23456789";
+    const alphabet = `${letters}${digits}`;
+    const chars = [
+      letters[randomInt(letters.length)],
+      digits[randomInt(digits.length)],
+    ];
+    while (chars.length < 6) {
+      chars.push(alphabet[randomInt(alphabet.length)]);
+    }
+    for (let index = chars.length - 1; index > 0; index -= 1) {
+      const swapIndex = randomInt(index + 1);
+      [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
+    }
+    return chars.join("");
   }
 
   private daysFromNow(days: number): Date {

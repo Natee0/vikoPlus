@@ -278,6 +278,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       ref.read(activeGroupProvider.notifier).setGroup(
             GroupAccessSummary(
               id: group.id,
+              membershipId: group.membershipId,
               name: group.name,
               role: group.currentUserRole,
               status: 'ACTIVE',

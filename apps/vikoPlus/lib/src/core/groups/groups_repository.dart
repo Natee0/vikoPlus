@@ -552,6 +552,7 @@ class CreateGroupInput {
 class CreateGroupResult {
   const CreateGroupResult({
     required this.id,
+    this.membershipId,
     required this.name,
     required this.currency,
     required this.currentUserRole,
@@ -561,6 +562,7 @@ class CreateGroupResult {
   factory CreateGroupResult.fromJson(Map<String, dynamic> json) {
     return CreateGroupResult(
       id: _requiredString(json, 'id'),
+      membershipId: json['membershipId'] as String?,
       name: _requiredString(json, 'name'),
       currency: json['currency'] as String? ?? 'TZS',
       currentUserRole: json['currentUserRole'] as String? ?? 'GROUP_ADMIN',
@@ -569,6 +571,7 @@ class CreateGroupResult {
   }
 
   final String id;
+  final String? membershipId;
   final String name;
   final String currency;
   final String currentUserRole;
@@ -604,6 +607,7 @@ class GroupAccessSummary {
     required this.role,
     required this.status,
     required this.membersCount,
+    this.membershipId,
     this.logoUrl,
   });
 
@@ -614,6 +618,7 @@ class GroupAccessSummary {
       role: json['role'] as String? ?? 'MEMBER',
       status: json['status'] as String? ?? 'ACTIVE',
       membersCount: json['membersCount'] as int? ?? 0,
+      membershipId: json['membershipId'] as String?,
       logoUrl: json['logoUrl'] as String?,
     );
   }
@@ -624,6 +629,7 @@ class GroupAccessSummary {
     String? role,
     String? status,
     int? membersCount,
+    String? membershipId,
     String? logoUrl,
   }) {
     return GroupAccessSummary(
@@ -632,6 +638,7 @@ class GroupAccessSummary {
       role: role ?? this.role,
       status: status ?? this.status,
       membersCount: membersCount ?? this.membersCount,
+      membershipId: membershipId ?? this.membershipId,
       logoUrl: logoUrl ?? this.logoUrl,
     );
   }
@@ -641,6 +648,7 @@ class GroupAccessSummary {
   final String role;
   final String status;
   final int membersCount;
+  final String? membershipId;
   final String? logoUrl;
 }
 

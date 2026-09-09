@@ -70,6 +70,7 @@ class _VerifyGroupDetailsScreenState
       ref.read(activeGroupProvider.notifier).setGroup(
             GroupAccessSummary(
               id: result.groupId,
+              membershipId: result.membershipId,
               name: preview.group.name,
               role: result.role,
               status: result.status,

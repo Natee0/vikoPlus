@@ -18,6 +18,19 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
+List<ContributionObligationSummary> _myObligations(
+  List<ContributionObligationSummary> obligations,
+  GroupAccessSummary activeGroup,
+) {
+  final membershipId = activeGroup.membershipId;
+  if (membershipId == null || membershipId.isEmpty) {
+    return obligations;
+  }
+  return obligations
+      .where((obligation) => obligation.memberId == membershipId)
+      .toList();
+}
+
 class MemberDashboardNewUserScreen extends ConsumerWidget {
   const MemberDashboardNewUserScreen({super.key});
 
@@ -107,7 +120,10 @@ class MyContributionsScreen extends ConsumerWidget {
                   );
                 }
 
-                final obligations = snapshot.data!.obligations;
+                final obligations = _myObligations(
+                  snapshot.data!.obligations,
+                  activeGroup,
+                );
                 final totalPaid = obligations.fold<int>(
                   0,
                   (total, item) => total + item.amountPaidMinor,
@@ -215,7 +231,11 @@ class DuesArrearsScreen extends ConsumerWidget {
                   );
                 }
 
-                final outstanding = snapshot.data!.obligations
+                final obligations = _myObligations(
+                  snapshot.data!.obligations,
+                  activeGroup,
+                );
+                final outstanding = obligations
                     .where((item) => item.isPayable)
                     .toList();
                 final totalOutstanding = outstanding.fold<int>(
@@ -510,7 +530,10 @@ class _SelectContributionScreenState
                   );
                 }
 
-                final allObligations = snapshot.data?.obligations ?? const [];
+                final allObligations = _myObligations(
+                  snapshot.data?.obligations ?? const [],
+                  activeGroup,
+                );
                 final obligations = allObligations
                     .where((obligation) => obligation.isPayable)
                     .toList();

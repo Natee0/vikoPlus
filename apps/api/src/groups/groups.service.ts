@@ -287,6 +287,7 @@ export class GroupsService {
     return {
       groups: memberships.map((membership) => ({
         id: membership.groupId,
+        membershipId: membership.id,
         name: membership.group.name,
         role: membership.role,
         status: membership.status,
@@ -350,6 +351,9 @@ export class GroupsService {
     });
     return {
       id: group.id,
+      membershipId:
+        group.members.find((member) => member.userId === user.id)?.id ??
+        group.members[0]?.id,
       name: group.name,
       currency: group.currency,
       establishedAt: group.establishedAt,

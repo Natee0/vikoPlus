@@ -120,6 +120,7 @@ class _AddMemberScreenState extends ConsumerState<AddMemberScreen> {
           .setGroup(
             GroupAccessSummary(
               id: activeGroup.id,
+              membershipId: activeGroup.membershipId,
               name: activeGroup.name,
               role: activeGroup.role,
               status: activeGroup.status,

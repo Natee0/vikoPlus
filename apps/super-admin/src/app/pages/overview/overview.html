@@ -1,0 +1,69 @@
+<section class="page-heading">
+  <div>
+    <p>Executive Overview</p>
+    <h1>Platform Overview</h1>
+    <span>High-level financial volume, tenant growth, and ecosystem health.</span>
+  </div>
+  <div class="heading-actions">
+    <button>Last 30 days</button>
+    <button>Export snapshot</button>
+    <button class="primary">Register group</button>
+  </div>
+</section>
+
+<section class="stats-grid">
+  @if (isLoading) {
+    <article class="notice-card">Loading platform metrics...</article>
+  }
+  @if (errorMessage) {
+    <article class="notice-card warning">{{ errorMessage }}</article>
+  }
+  @for (stat of stats; track stat.label) {
+    <article class="stat-card">
+      <span>{{ stat.label }}</span>
+      <strong>{{ stat.value }}</strong>
+      <small>{{ stat.delta }}</small>
+    </article>
+  }
+</section>
+
+<section class="chart-card">
+  <header>
+    <div>
+      <h2>Financial Trajectory</h2>
+      <p>Aggregated contribution inflow, disbursement outflow, and group balance trend.</p>
+    </div>
+    <span>Net surplus +48%</span>
+  </header>
+  <div class="chart">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="chart-summary">
+    <strong>Inflow MTD: KES 42.6M</strong>
+    <strong>Loans MTD: KES 14.8M</strong>
+    <strong>Default risk: 3.8%</strong>
+  </div>
+</section>
+
+<section class="two-column">
+  <article class="table-card">
+    <header>
+      <h2>Recent Group Activity and Registrations</h2>
+      <button>View all groups</button>
+    </header>
+    <sa-group-table [rows]="groups" />
+  </article>
+  <article class="side-stack">
+    <div>
+      <h2>Gateway Integrations</h2>
+      <p>M-Pesa API Gateway</p>
+      <p>Bank Settlement API</p>
+      <p>SMS and Notification</p>
+    </div>
+    <div>
+      <h2>Compliance Review</h2>
+      <p>High Frequency Member Transfers</p>
+      <p>Contribution Pattern Review</p>
+    </div>
+  </article>
+</section>

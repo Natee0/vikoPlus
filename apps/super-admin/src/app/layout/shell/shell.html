@@ -1,0 +1,42 @@
+<main class="portal">
+  <aside class="sidebar">
+    <a class="brand compact" routerLink="/console/overview">
+      <span class="brand-mark">V</span>
+      <span>
+        <strong>Vikoplus</strong>
+        <small>Platform Admin</small>
+      </span>
+    </a>
+
+    <nav>
+      <a routerLink="/console/overview" routerLinkActive="active">Overview</a>
+      <a routerLink="/console/groups" routerLinkActive="active">Groups & Chamas</a>
+      <a routerLink="/console/users" routerLinkActive="active">Users & Access</a>
+      <a routerLink="/console/packages" routerLinkActive="active">Packages & Billing</a>
+      <a href="#">Financial Health</a>
+      <a href="#">Audit Logs</a>
+      <a href="#">Settings</a>
+    </nav>
+
+    <div class="operator">
+      <span>EK</span>
+      <div>
+        <strong>Evans Kiprop</strong>
+        <small>Super Admin</small>
+      </div>
+    </div>
+  </aside>
+
+  <section class="content-shell">
+    <header class="topbar">
+      <input type="search" placeholder="Search groups, users, invoices..." />
+      <div class="topbar-actions">
+        <button>KES</button>
+        <button>USD</button>
+        <button>Refresh</button>
+        <button type="button" (click)="signOut()">Sign out</button>
+      </div>
+    </header>
+    <router-outlet />
+  </section>
+</main>

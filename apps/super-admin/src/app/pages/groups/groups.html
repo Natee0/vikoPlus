@@ -1,0 +1,34 @@
+<section class="page-heading">
+  <div>
+    <p>Institutions / Groups Registry</p>
+    <h1>Groups and SACCOs</h1>
+    <span>Manage community chamas, institutions, SACCOs, and multi-tenant saving portfolios.</span>
+  </div>
+  <div class="heading-actions">
+    <button>Export</button>
+    <button class="primary">Add New Group</button>
+  </div>
+</section>
+
+<section class="stats-grid compact-stats">
+  <article class="stat-card"><span>Total Groups</span><strong>1,248</strong><small>+8.4%</small></article>
+  <article class="stat-card"><span>Active SACCOs</span><strong>1,162</strong><small>93% active</small></article>
+  <article class="stat-card"><span>Pending Verification</span><strong>68</strong><small>18 urgent</small></article>
+  <article class="stat-card"><span>Total Group Balance</span><strong>KES 482.9M</strong><small>+12.4%</small></article>
+</section>
+
+<article class="table-card">
+  @if (isLoading) {
+    <p class="inline-notice">Loading groups...</p>
+  }
+  @if (errorMessage) {
+    <p class="inline-notice warning">{{ errorMessage }}</p>
+  }
+  <div class="filters">
+    <input type="search" placeholder="Filter by group name, code or keyword..." />
+    <button>All Types</button>
+    <button>All Statuses</button>
+    <button>All Countries</button>
+  </div>
+  <sa-group-table [rows]="groups" />
+</article>

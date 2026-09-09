@@ -1,0 +1,40 @@
+<main class="auth-page">
+  <header class="auth-topbar">
+    <a class="brand" routerLink="/login">
+      <img class="brand-logo" src="/vikoPlus-logo.png" alt="Vikoplus logo" />
+      <span>
+        <strong>Vikoplus</strong>
+        <small>Super Admin</small>
+      </span>
+    </a>
+  </header>
+
+  <form class="login-card" (ngSubmit)="submit()">
+    <img class="login-logo" src="/vikoPlus-logo.png" alt="Vikoplus logo" />
+    <h1>Sign In</h1>
+    <p>Use your super admin credentials to continue.</p>
+
+    <label>
+      <span>Email or phone</span>
+      <input name="email" type="email" [(ngModel)]="email" />
+    </label>
+
+    <label>
+      <span>Password</span>
+      <input name="password" type="password" [(ngModel)]="password" />
+    </label>
+
+    <label class="remember">
+      <input name="remember" type="checkbox" [(ngModel)]="remember" />
+      <span>Remember this workstation (8h lease)</span>
+    </label>
+
+    @if (errorMessage) {
+      <p class="error-banner">{{ errorMessage }}</p>
+    }
+
+    <button class="primary-action" type="submit" [disabled]="isSubmitting">
+      {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
+    </button>
+  </form>
+</main>

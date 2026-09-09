@@ -1,0 +1,38 @@
+<table>
+  <thead>
+    <tr>
+      <th>Group Name</th>
+      <th>Type</th>
+      <th>Country</th>
+      <th>Primary Contact</th>
+      <th>Members</th>
+      <th>Balance</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for (group of rows; track group.name) {
+      <tr>
+        <td>
+          <strong>{{ group.name }}</strong>
+          <small>{{ group.contact }}</small>
+        </td>
+        <td>{{ group.type }}</td>
+        <td>{{ group.country }}</td>
+        <td>{{ group.contact }}</td>
+        <td>{{ group.members }}</td>
+        <td>{{ group.balance }}</td>
+        <td>
+          <span
+            class="status"
+            [class.active]="group.status === 'Active'"
+            [class.pending]="group.status === 'Pending'"
+            [class.flagged]="group.status === 'Flagged'"
+          >
+            {{ group.status }}
+          </span>
+        </td>
+      </tr>
+    }
+  </tbody>
+</table>

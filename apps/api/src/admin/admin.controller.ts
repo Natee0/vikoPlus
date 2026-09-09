@@ -32,6 +32,16 @@ export class AdminController {
     return this.admin.metrics();
   }
 
+  @Get("groups")
+  groups() {
+    return this.admin.groups();
+  }
+
+  @Get("users")
+  users() {
+    return this.admin.users();
+  }
+
   @Get("pricing")
   pricing() {
     return this.admin.packageSettings();

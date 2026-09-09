@@ -1,0 +1,42 @@
+<section class="page-heading">
+  <div>
+    <p>Packages and Billing</p>
+    <h1>Subscription Plans</h1>
+    <span>Manage pricing tiers, billing cycles, and feature access for groups.</span>
+  </div>
+  <div class="heading-actions">
+    <button>KES</button>
+    <button>Monthly</button>
+    <button class="primary">Create Plan</button>
+  </div>
+</section>
+
+<section class="stats-grid compact-stats">
+  <article class="stat-card"><span>Active Paid Plans</span><strong>1,120</strong><small>+14.8%</small></article>
+  <article class="stat-card"><span>Active Trials</span><strong>128</strong><small>32 groups expiring</small></article>
+  <article class="stat-card"><span>Average MRR / Group</span><strong>KES 11,200</strong><small>+7.4%</small></article>
+  <article class="stat-card"><span>Group Retention</span><strong>99.2%</strong><small>0.8% monthly churn</small></article>
+</section>
+
+<section class="plans">
+  @if (isLoading) {
+    <article class="notice-card">Loading packages...</article>
+  }
+  @if (errorMessage) {
+    <article class="notice-card warning">{{ errorMessage }}</article>
+  }
+  @for (plan of plans; track plan.name) {
+    <article [class.featured]="plan.featured">
+      <small>{{ plan.badge }}</small>
+      <h2>{{ plan.name }}</h2>
+      <p>{{ plan.description }}</p>
+      <strong>{{ plan.price }}</strong>
+      <ul>
+        @for (feature of plan.features; track feature) {
+          <li>{{ feature }}</li>
+        }
+      </ul>
+      <button>{{ plan.featured ? 'Edit Plan' : 'Build Plan' }}</button>
+    </article>
+  }
+</section>

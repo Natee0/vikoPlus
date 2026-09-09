@@ -32,6 +32,102 @@ export class AdminService {
     return this.pricing.adminPackages();
   }
 
+  async groups() {
+    const groups = await this.prisma.group.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      include: {
+        _count: { select: { members: true, invitations: true } },
+        subscriptions: {
+          orderBy: { updatedAt: "desc" },
+          take: 1,
+          include: { plan: true },
+        },
+        payments: {
+          where: { status: GroupContributionPaymentStatus.APPROVED },
+          select: { amountMinor: true },
+        },
+        members: {
+          where: { role: "GROUP_ADMIN" },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { fullName: true, email: true, phone: true },
+        },
+      },
+    });
+
+    return {
+      groups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        type: group.type ?? "Community group",
+        country: group.location ?? "Not set",
+        primaryContact:
+          group.members[0]?.fullName ??
+          group.members[0]?.email ??
+          group.members[0]?.phone ??
+          "Not assigned",
+        membersCount: group._count.members,
+        pendingInvitations: group._count.invitations,
+        balanceMinor: group.payments.reduce(
+          (total, payment) => total + payment.amountMinor,
+          0,
+        ),
+        currency: group.currency,
+        subscriptionState: group.subscriptions[0]?.state ?? "NONE",
+        planName: group.subscriptions[0]?.plan.name ?? "No plan",
+        status: group.subscriptions[0]?.state === "ACTIVE" ? "Active" : "Pending",
+        createdAt: group.createdAt,
+        updatedAt: group.updatedAt,
+      })),
+    };
+  }
+
+  async users() {
+    const users = await this.prisma.user.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 100,
+      include: {
+        identities: true,
+        memberships: {
+          orderBy: { updatedAt: "desc" },
+          take: 1,
+          include: { group: true },
+        },
+      },
+    });
+
+    return {
+      users: users.map((user) => {
+        const verifiedIdentity = user.identities.find(
+          (identity) => identity.isVerified,
+        );
+        const primaryIdentity = verifiedIdentity ?? user.identities[0];
+        const membership = user.memberships[0];
+        return {
+          id: user.id,
+          name: user.displayName ?? "Unnamed user",
+          email:
+            user.identities.find((identity) => identity.type === "EMAIL")
+              ?.value ?? null,
+          phone:
+            user.identities.find((identity) => identity.type === "PHONE")
+              ?.value ?? null,
+          primaryIdentity: primaryIdentity?.value ?? null,
+          role: user.isPlatformAdmin
+            ? "Super Admin"
+            : (membership?.role ?? "Member"),
+          groupName: membership?.group.name ?? "System Platform",
+          kycStatus: verifiedIdentity ? "Verified" : "Pending",
+          twoFactorStatus: user.securityPinHash ? "Enabled" : "Disabled",
+          preferredLocale: user.preferredLocale,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        };
+      }),
+    };
+  }
+
   async createAccessPlan(user: AuthenticatedUser, input: CreateAccessPlanDto) {
     const code = this.normalizeCode(input.code);
     await this.ensureAccessPlanCodeAvailable(code);

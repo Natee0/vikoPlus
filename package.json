@@ -3,13 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/api"
+    "apps/api",
+    "apps/super-admin"
   ],
   "scripts": {
     "api:dev": "npm --workspace apps/api run start:dev",
     "api:test": "npm --workspace apps/api test",
     "api:lint": "npm --workspace apps/api run lint",
     "api:prisma:generate": "npm --workspace apps/api run prisma:generate",
+    "super-admin:dev": "npm --workspace apps/super-admin start",
+    "super-admin:build": "npm --workspace apps/super-admin run build",
     "android:get": "cd apps/vikoPlus && flutter pub get",
     "android:test": "cd apps/vikoPlus && flutter test",
     "android:analyze": "cd apps/vikoPlus && flutter analyze",
@@ -28,6 +31,7 @@
     "lodash": "^4.17.21"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.69.0"
+    "@typescript-eslint/eslint-plugin": "^8.69.0",
+    "caniuse-lite": "^1.0.30001810"
   }
 }

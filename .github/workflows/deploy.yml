@@ -39,7 +39,6 @@ jobs:
           set -e
           if [ ! -d "dist/super-admin/browser" ]; then
             echo "::error::Angular build did not produce dist/super-admin/browser"
-            echo "----- dist/ contents -----"
             find dist -maxdepth 3 -type d || true
             exit 1
           fi
@@ -47,18 +46,20 @@ jobs:
           ls -la dist/super-admin/browser | head -20
 
       # ----------------------------------------------------------
-      # 3. Copy project source to server
+      # 3. Copy ONLY what the API docker build needs
+      #    (no node_modules, no dist, no .git, no super-admin source)
       # ----------------------------------------------------------
-      - name: Copy project files to server
+      - name: Copy API source to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          source: "."
+          source: "apps/api,package.json,package-lock.json,docker-compose.yml,.npmrc,.dockerignore,tsconfig.json,tsconfig.base.json,nest-cli.json"
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
-          rm: false
+          overwrite: true
+          tar_dereference: true
 
       # ----------------------------------------------------------
       # 4. Copy the built Angular bundle to server
@@ -74,6 +75,7 @@ jobs:
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
           strip_components: 5
           rm: true
+          tar_dereference: true
 
       # ----------------------------------------------------------
       # 5. SSH deploy: env, API container, health, Angular publish
@@ -92,7 +94,6 @@ jobs:
           script: |
             set -euo pipefail
 
-            # ---- sudo wrapper: reads password from stdin (no TTY needed) ----
             sudo_run() { echo "$SUDO_PASS" | sudo -S -p '' "$@"; }
 
             REPO_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
@@ -157,7 +158,7 @@ jobs:
               sleep 2
             done
 
-            # ---------- 5f. Detect API crash-loop / early exit ----------
+            # ---------- 5f. Detect API crash-loop ----------
             echo "Waiting for vikoplus_api to stabilize..."
             API_OK=0
             for i in $(seq 1 20); do
@@ -209,11 +210,11 @@ jobs:
               exit 1
             fi
 
-            # ---------- 5h. Prisma migrations (must succeed) ----------
+            # ---------- 5h. Prisma migrations ----------
             echo "Running Prisma migrations..."
             docker exec vikoplus_api npx prisma migrate deploy
 
-            # ---------- 5i. Publish Angular to /var/www ----------
+            # ---------- 5i. Publish Angular ----------
             echo "Publishing Angular to $WEB_ROOT ..."
             if [ ! -d "$DIST_SRC" ] || [ -z "$(ls -A "$DIST_SRC" 2>/dev/null)" ]; then
               echo "::error::Angular dist not found at $DIST_SRC"
@@ -228,12 +229,12 @@ jobs:
 
             rm -rf "$DIST_SRC"
 
-            # ---------- 5j. Nginx syntax check + reload ----------
+            # ---------- 5j. Nginx ----------
             echo "Reloading nginx..."
             sudo_run nginx -t
             sudo_run systemctl reload nginx
 
-            # ---------- 5k. Local HTTP check for admin ----------
+            # ---------- 5k. Local HTTP check ----------
             echo "Checking admin site locally..."
             CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
                      -H "Host: admin.vikoplus.co.tz" http://127.0.0.1/ || true)

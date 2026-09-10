@@ -1,9 +1,8 @@
-name: Deploy VikoPlus API
+name: Deploy VikoPlus API + Super Admin
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -12,10 +11,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ----------------------------------------------------------
+      # 1. Checkout
+      # ----------------------------------------------------------
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Copy project files directly to server
+      # ----------------------------------------------------------
+      # 2. Build Angular super-admin in the runner (cached)
+      # ----------------------------------------------------------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install super-admin deps
+        working-directory: apps/super-admin
+        run: npm ci
+
+      - name: Build super-admin (production)
+        working-directory: apps/super-admin
+        run: npx ng build --configuration production
+
+      - name: Verify Angular build output exists
+        working-directory: apps/super-admin
+        run: |
+          set -e
+          if [ ! -d "dist/super-admin/browser" ]; then
+            echo "::error::Angular build did not produce dist/super-admin/browser"
+            echo "----- dist/ contents -----"
+            find dist -maxdepth 3 -type d || true
+            exit 1
+          fi
+          echo "✓ Angular build OK"
+          ls -la dist/super-admin/browser | head -20
+
+      # ----------------------------------------------------------
+      # 3. Copy project source to server (API code, compose, etc.)
+      # ----------------------------------------------------------
+      - name: Copy project files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
@@ -25,7 +59,24 @@ jobs:
           source: "."
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
 
-      - name: Build image and start containers on server
+      # ----------------------------------------------------------
+      # 4. Copy the built Angular bundle to server
+      # ----------------------------------------------------------
+      - name: Copy Angular dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "apps/super-admin/dist/super-admin/browser/*"
+          target: "/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
+          strip_components: 5
+
+      # ----------------------------------------------------------
+      # 5. SSH deploy: env, API container, health, Angular publish
+      # ----------------------------------------------------------
+      - name: Deploy on server
         uses: appleboy/ssh-action@v1.0.3
         env:
           ALL_SECRETS: ${{ toJson(secrets) }}
@@ -36,29 +87,156 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           envs: ALL_SECRETS
           script: |
-            set -e
+            set -euo pipefail
 
-            # Nenda moja kwa moja kwenye folder la project
-            cd /home/${{ secrets.SERVER_USER }}/vikoplus
+            REPO_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
+            DIST_SRC="/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
+            WEB_ROOT="/var/www/admin.vikoplus.co.tz"
 
-            # Install jq dynamically kama haipo
+            cd "$REPO_DIR"
+
+            # ---------- 5a. Ensure jq ----------
             if ! command -v jq &> /dev/null; then
               sudo apt-get update && sudo apt-get install -y jq
             fi
 
-            # Extract GitHub secrets to .env (excluding server deployment credentials)
+            # ---------- 5b. Write .env from GitHub secrets ----------
             echo "$ALL_SECRETS" | jq -r '
-              to_entries[] 
-              | select(.key | startswith("SERVER_") or startswith("SSH_") | not) 
+              to_entries[]
+              | select((.key | startswith("SERVER_")) or (.key | startswith("SSH_")) | not)
               | "\(.key)=\(.value)"
             ' > .env
 
-            # Build na Start Containers
+            # ---------- 5c. Preflight: required env vars ----------
+            REQUIRED_VARS=(
+              "SAYARI_PAYMENT_API_KEY"
+              "DATABASE_URL"
+              "JWT_SECRET"
+            )
+
+            MISSING=0
+            for VAR in "${REQUIRED_VARS[@]}"; do
+              if ! grep -q "^${VAR}=" .env; then
+                echo "::error::Required env var ${VAR} missing from GitHub secrets"
+                MISSING=1
+              fi
+            done
+
+            if [ "$MISSING" -ne 0 ]; then
+              echo "----- .env keys (values hidden) -----"
+              grep -v '^#' .env | sed 's/=.*/=<set>/' || true
+              echo "-------------------------------------"
+              exit 1
+            fi
+
+            # ---------- 5d. Rebuild + start containers ----------
             docker compose down --remove-orphans || true
             docker compose up --build -d --force-recreate
 
-            # Run Prisma Migrations ndani ya container mpya
-            docker exec vikoplus_api npx prisma migrate deploy || true
+            # ---------- 5e. Wait for postgres + redis healthy ----------
+            echo "Waiting for postgres & redis..."
+            for i in $(seq 1 30); do
+              PG=$(docker inspect -f '{{.State.Health.Status}}' vikoplus_postgres 2>/dev/null || echo missing)
+              RD=$(docker inspect -f '{{.State.Health.Status}}' vikoplus_redis    2>/dev/null || echo missing)
+              if [ "$PG" = "healthy" ] && [ "$RD" = "healthy" ]; then
+                echo "✓ deps healthy"
+                break
+              fi
+              if [ "$i" -eq 30 ]; then
+                echo "::error::Deps unhealthy (pg=$PG, redis=$RD)"
+                docker compose logs --tail=100 postgres redis || true
+                exit 1
+              fi
+              sleep 2
+            done
 
-            # Prune dangling Docker images
+            # ---------- 5f. Detect API crash-loop / early exit ----------
+            echo "Waiting for vikoplus_api to stabilize..."
+            API_OK=0
+            for i in $(seq 1 20); do
+              STATUS=$(docker inspect -f '{{.State.Status}}' vikoplus_api 2>/dev/null || echo missing)
+              EXIT=$(docker inspect -f '{{.State.ExitCode}}' vikoplus_api 2>/dev/null || echo unknown)
+
+              if [ "$STATUS" = "exited" ] || [ "$STATUS" = "dead" ]; then
+                echo "::error::vikoplus_api crashed (status=$STATUS, exit=$EXIT)"
+                echo "----- vikoplus_api logs -----"
+                docker logs --tail=200 vikoplus_api || true
+                echo "-----------------------------"
+                exit 1
+              fi
+
+              if [ "$STATUS" = "running" ] && [ "$i" -ge 5 ]; then
+                sleep 2
+                STILL=$(docker inspect -f '{{.State.Status}}' vikoplus_api)
+                if [ "$STILL" = "running" ]; then
+                  API_OK=1
+                  break
+                fi
+              fi
+              sleep 2
+            done
+
+            if [ "$API_OK" -ne 1 ]; then
+              STATUS=$(docker inspect -f '{{.State.Status}}' vikoplus_api 2>/dev/null || echo missing)
+              echo "::error::vikoplus_api did not stabilize (status=$STATUS)"
+              docker logs --tail=200 vikoplus_api || true
+              exit 1
+            fi
+
+            # ---------- 5g. Confirm API is listening on 3002 ----------
+            echo "Checking http://127.0.0.1:3002 ..."
+            LISTEN_OK=0
+            for i in $(seq 1 15); do
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:3002/ || true)
+              if echo "$CODE" | grep -qE '^[0-9]{3}$'; then
+                echo "✓ API responding (HTTP $CODE)"
+                LISTEN_OK=1
+                break
+              fi
+              sleep 2
+            done
+
+            if [ "$LISTEN_OK" -ne 1 ]; then
+              echo "::error::API running but not responding on 3002"
+              docker logs --tail=200 vikoplus_api || true
+              exit 1
+            fi
+
+            # ---------- 5h. Prisma migrations (must succeed) ----------
+            echo "Running Prisma migrations..."
+            docker exec vikoplus_api npx prisma migrate deploy
+
+            # ---------- 5i. Publish Angular to /var/www ----------
+            echo "Publishing Angular to $WEB_ROOT ..."
+            if [ ! -d "$DIST_SRC" ] || [ -z "$(ls -A "$DIST_SRC" 2>/dev/null)" ]; then
+              echo "::error::Angular dist not found at $DIST_SRC"
+              exit 1
+            fi
+
+            sudo mkdir -p "$WEB_ROOT"
+            sudo rsync -a --delete "$DIST_SRC/" "$WEB_ROOT/"
+            sudo chown -R www-data:www-data "$WEB_ROOT"
+            sudo find "$WEB_ROOT" -type d -exec chmod 755 {} \;
+            sudo find "$WEB_ROOT" -type f -exec chmod 644 {} \;
+
+            # Clean up staging dir
+            rm -rf "$DIST_SRC"
+
+            # ---------- 5j. Nginx syntax check + reload ----------
+            echo "Reloading nginx..."
+            sudo nginx -t
+            sudo systemctl reload nginx
+
+            # ---------- 5k. Optional: HTTP check for admin ----------
+            echo "Checking admin site locally..."
+            if curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+                 -H "Host: admin.vikoplus.co.tz" http://127.0.0.1/ | grep -qE '^(200|301|302)$'; then
+              echo "✓ admin.vikoplus.co.tz responding"
+            else
+              echo "::warning::admin.vikoplus.co.tz did not return 200/301/302 locally — check nginx config"
+            fi
+
+            # ---------- 5l. Cleanup ----------
             docker image prune -f
+
+            echo "✅ Deployment successful"

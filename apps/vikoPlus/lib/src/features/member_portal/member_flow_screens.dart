@@ -6,6 +6,7 @@ import '../common/profile_avatar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
@@ -24,7 +25,7 @@ List<ContributionObligationSummary> _myObligations(
 ) {
   final membershipId = activeGroup.membershipId;
   if (membershipId == null || membershipId.isEmpty) {
-    return obligations;
+    return const [];
   }
   return obligations
       .where((obligation) => obligation.memberId == membershipId)
@@ -741,12 +742,10 @@ class _ReviewPaymentScreenState extends ConsumerState<ReviewPaymentScreen> {
           ? '/member/payments/success/cash'
           : '/member/payments/success/mobile-money';
       context.go('$successRoute?paymentId=${Uri.encodeComponent(payment.id)}');
-    } catch (_) {
+    } on Object catch (error) {
       if (!mounted) return;
       setState(
-        () => _errorMessage = context.vt(
-          'Payment request was not submitted. Please try again.',
-        ),
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
       );
     } finally {
       if (mounted) {

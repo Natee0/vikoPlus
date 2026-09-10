@@ -162,28 +162,28 @@ class _MemberQuickLinks extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = [
       _MemberAction(
-        title: 'Seek loan',
-        subtitle: 'Apply for support or track your loan requests',
-        icon: Icons.account_balance_wallet_outlined,
-        route: '/loans',
-      ),
-      _MemberAction(
         title: 'Group members',
         subtitle: 'View fellow members in this group',
         icon: Icons.groups_2_outlined,
         route: '/member/members',
       ),
       _MemberAction(
-        title: 'Update language',
-        subtitle: 'Choose Kiswahili or English',
-        icon: Icons.language_outlined,
-        route: '/language',
+        title: 'Seek loan',
+        subtitle: 'Apply for support or track your loan requests',
+        icon: Icons.account_balance_wallet_outlined,
+        route: '/loans',
       ),
       _MemberAction(
         title: 'Switch groups',
         subtitle: 'Open another group, create one, or join by code',
         icon: Icons.hub_outlined,
         route: '/groups',
+      ),
+      _MemberAction(
+        title: 'Update language',
+        subtitle: 'Choose Kiswahili or English',
+        icon: Icons.language_outlined,
+        route: '/language',
       ),
     ];
 

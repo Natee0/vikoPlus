@@ -1348,19 +1348,44 @@ export class GroupsService {
     const canSeeAllObligations = rolesAllowedToSeeAllObligations.includes(
       membership.role,
     );
-    const obligations = await this.prisma.memberContributionObligation.findMany(
-      {
-        where: {
-          member: {
-            groupId,
-            ...(canSeeAllObligations ? {} : { id: membership.id }),
-          },
+    const obligations = await this.prisma.memberContributionObligation.findMany({
+      where: {
+        member: {
+          groupId,
+          ...(canSeeAllObligations ? {} : { id: membership.id }),
         },
-        include: { member: true, plan: true, period: true },
-        orderBy: [{ dueAt: "asc" }],
       },
-    );
-    return { groupId, obligations };
+      include: {
+        member: true,
+        plan: true,
+        period: true,
+        allocations: {
+          where: {
+            status: PaymentAllocationStatus.PENDING,
+            payment: {
+              status: {
+                in: [
+                  GroupContributionPaymentStatus.PENDING_VERIFICATION,
+                  GroupContributionPaymentStatus.SUBMITTED,
+                ],
+              },
+            },
+          },
+          select: { amountMinor: true },
+        },
+      },
+      orderBy: [{ dueAt: "asc" }],
+    });
+    return {
+      groupId,
+      obligations: obligations.map((obligation) => ({
+        ...obligation,
+        pendingAllocationMinor: obligation.allocations.reduce(
+          (total, allocation) => total + allocation.amountMinor,
+          0,
+        ),
+      })),
+    };
   }
 
   async contributionPayments(user: AuthenticatedUser, groupId: string) {

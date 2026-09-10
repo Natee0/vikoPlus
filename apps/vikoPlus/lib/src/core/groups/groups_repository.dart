@@ -1515,6 +1515,7 @@ class ContributionObligationSummary {
     required this.periodLabel,
     required this.amountDueMinor,
     required this.amountPaidMinor,
+    this.pendingAllocationMinor = 0,
     required this.currency,
     required this.status,
     required this.dueAt,
@@ -1538,6 +1539,7 @@ class ContributionObligationSummary {
       periodLabel: periodJson?['label'] as String? ?? 'Current period',
       amountDueMinor: json['amountDueMinor'] as int? ?? 0,
       amountPaidMinor: json['amountPaidMinor'] as int? ?? 0,
+      pendingAllocationMinor: json['pendingAllocationMinor'] as int? ?? 0,
       currency: json['currency'] as String? ?? 'TZS',
       status: json['status'] as String? ?? 'DUE',
       dueAt: _parseDate(json['dueAt']) ?? DateTime.now(),
@@ -1553,14 +1555,18 @@ class ContributionObligationSummary {
   final String periodLabel;
   final int amountDueMinor;
   final int amountPaidMinor;
+  final int? pendingAllocationMinor;
   final String currency;
   final String status;
   final DateTime dueAt;
 
   int get outstandingMinor {
-    final remaining = amountDueMinor - amountPaidMinor;
+    final remaining =
+        amountDueMinor - amountPaidMinor - (pendingAllocationMinor ?? 0);
     return remaining <= 0 ? 0 : remaining;
   }
+
+  bool get hasPendingPayment => (pendingAllocationMinor ?? 0) > 0;
 
   bool get isUpcoming {
     final now = DateTime.now();
@@ -1569,6 +1575,7 @@ class ContributionObligationSummary {
 
   bool get isPayable {
     return !isUpcoming &&
+        !hasPendingPayment &&
         outstandingMinor > 0 &&
         (status == 'DUE' ||
             status == 'PARTIALLY_PAID' ||

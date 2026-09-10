@@ -3,5 +3,5 @@ class AppConfig {
 
   // ignore: constant_identifier_names
   static const VIKOPLUS_API_BASE_URL =
-      'https://api.vikoplus.sayarisoftware.com/v1';
+      'https://api.vikoplus.co.tz/v1';
 }

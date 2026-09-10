@@ -94,11 +94,12 @@ class _ReportsDashboardScreenState
           SectionHeader(title: context.vt('Available reports')),
           const SizedBox(height: 12),
           ActionTile(
-            title: context.vt('Outstanding contributions'),
-            subtitle: context.vt('Members and periods still due'),
-            icon: Icons.pending_actions_outlined,
-            route: '/reports/outstanding',
-            color: AppColors.warning,
+            title: context.vt('Export files'),
+            subtitle: context.vt(
+              'Selected format is managed in report filters',
+            ),
+            icon: Icons.file_download_outlined,
+            route: '/reports/filters',
           ),
           const SizedBox(height: 12),
           ActionTile(
@@ -111,12 +112,11 @@ class _ReportsDashboardScreenState
           ),
           const SizedBox(height: 12),
           ActionTile(
-            title: context.vt('Export files'),
-            subtitle: context.vt(
-              'Selected format is managed in report filters',
-            ),
-            icon: Icons.file_download_outlined,
-            route: '/reports/filters',
+            title: context.vt('Outstanding contributions'),
+            subtitle: context.vt('Members and periods still due'),
+            icon: Icons.pending_actions_outlined,
+            route: '/reports/outstanding',
+            color: AppColors.warning,
           ),
         ],
       ),

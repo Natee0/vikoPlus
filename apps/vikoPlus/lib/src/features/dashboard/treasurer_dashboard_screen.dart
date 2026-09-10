@@ -258,18 +258,33 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   ActionTile(
+                    title: context.vt('Group expenses'),
+                    subtitle: context.vt('Record group spending for approval'),
+                    icon: Icons.receipt_long_outlined,
+                    route: '/expenses',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  ActionTile(
+                    title: AppLocalizations.of(context).loanReviews,
+                    subtitle: AppLocalizations.of(context)
+                        .reviewLoanDescription,
+                    icon: Icons.assignment_outlined,
+                    route: '/loans/applications',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  ActionTile(
+                    title: AppLocalizations.of(context).myLoans,
+                    subtitle: AppLocalizations.of(context).trackBorrowing,
+                    icon: Icons.account_balance_outlined,
+                    route: '/loans',
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  ActionTile(
                     title: AppLocalizations.of(context).recordPayment,
                     subtitle: AppLocalizations.of(context)
                         .allocatePaymentDescription,
                     icon: Icons.add_card_outlined,
                     route: '/contributions/record',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: context.vt('Group expenses'),
-                    subtitle: context.vt('Record group spending for approval'),
-                    icon: Icons.receipt_long_outlined,
-                    route: '/expenses',
                   ),
                   const SizedBox(height: AppSpacing.xs),
                   ActionTile(
@@ -285,21 +300,6 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                         .contactOutstandingMembers,
                     icon: Icons.notifications_active_outlined,
                     route: '/reminders/new',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).myLoans,
-                    subtitle: AppLocalizations.of(context).trackBorrowing,
-                    icon: Icons.account_balance_outlined,
-                    route: '/loans',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).loanReviews,
-                    subtitle: AppLocalizations.of(context)
-                        .reviewLoanDescription,
-                    icon: Icons.assignment_outlined,
-                    route: '/loans/applications',
                   ),
                   const SizedBox(height: AppSpacing.md),
                   Row(

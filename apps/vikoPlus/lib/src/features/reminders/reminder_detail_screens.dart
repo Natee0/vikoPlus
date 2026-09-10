@@ -9,7 +9,6 @@ import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
 import '../common/vikoplus_components.dart';
-import '../common/vikoplus_design_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
 class SendNewReminderScreen extends ConsumerStatefulWidget {
@@ -34,7 +33,8 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
   void initState() {
     super.initState();
     _messageController = TextEditingController(
-      text: 'Dear member, please review your outstanding group dues and contact the treasurer to arrange payment.',
+      text:
+          'Dear member, please review your outstanding group dues and contact the treasurer to arrange payment.',
     );
   }
 
@@ -49,13 +49,17 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
 
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) {
-      setState(() => _errorMessage = 'Open a group before sending reminders.');
+      setState(
+        () => _errorMessage = context.vt(
+          'Open a group before sending reminders.',
+        ),
+      );
       return;
     }
 
     final message = _messageController.text.trim();
     if (message.isEmpty) {
-      setState(() => _errorMessage = 'Write a reminder message.');
+      setState(() => _errorMessage = context.vt('Write a reminder message.'));
       return;
     }
 
@@ -79,8 +83,10 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
           );
       if (!mounted) return;
       setState(
-        () => _successMessage =
-            'SMS delivered to ${result.smsSent} member${result.smsSent == 1 ? '' : 's'}.',
+        () => _successMessage = context.vtf(
+          'SMS delivered to {count} members.',
+          {'count': result.smsSent},
+        ),
       );
     } on Object catch (error) {
       if (!mounted) return;
@@ -94,243 +100,131 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.surface,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {
-          switch (index) {
-            case 0:
-              context.go('/dashboard');
-              break;
-            case 1:
-              context.go('/members');
-              break;
-            case 2:
-              context.go('/reminders');
-              break;
-            case 3:
-              context.go('/settings/admin');
-              break;
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.groups_2_outlined),
-            selectedIcon: Icon(Icons.groups_2),
-            label: 'Members',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.insert_chart_outlined),
-            selectedIcon: Icon(Icons.insert_chart),
-            label: 'Activity',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _ReminderTopBar(
-              title: 'Dashboard',
-              onBack: () => context.go('/dashboard'),
+    return VikoplusScreen(
+      title: 'Send Reminder',
+      backRoute: '/reminders',
+      preferBackRoute: true,
+      showBottomNavigation: false,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _AudienceCard(isSingleMember: widget.memberId != null),
+          const SizedBox(height: AppSpacing.md),
+          Text(
+            context.vt('Channel'),
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: AppColors.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
             ),
-            VikoplusTopBar(
-              title: context.vt('Send Reminder'),
-              onBack: () => context.go('/reminders'),
-              showBorder: false,
-            ),
-            Expanded(
-              child: VikoplusConstrainedContent(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(
-                    AppSpacing.screenMobile,
-                    AppSpacing.sm,
-                    AppSpacing.screenMobile,
-                    AppSpacing.lg,
-                  ),
-                  children: [
-                    _AudienceCard(isSingleMember: widget.memberId != null),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(
-                      context.vt('Channel'),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: AppColors.onSurfaceVariant,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _ChannelButton(
-                            label: 'SMS',
-                            icon: Icons.sms_outlined,
-                            selected: _useSms,
-                            onPressed: () => setState(() => _useSms = true),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: _ChannelButton(
-                            label: 'WhatsApp',
-                            icon: Icons.chat_outlined,
-                            selected: !_useSms,
-                            onPressed: null,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            context.vt('Message'),
-                            style: Theme.of(context).textTheme.labelMedium
-                                ?.copyWith(
-                                  color: AppColors.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: () => context.go('/reminders/templates'),
-                          icon: const Icon(Icons.copy_all_outlined, size: 16),
-                          label: Text(context.vt('Use Template')),
-                        ),
-                      ],
-                    ),
-                    TextField(
-                      controller: _messageController,
-                      maxLines: 6,
-                      maxLength: _limit,
-                      onChanged: (_) {
-                        setState(() {
-                          _errorMessage = '';
-                          _successMessage = '';
-                        });
-                      },
-                      decoration: InputDecoration(
-                        counterText: '',
-                        hintText: context.vt('Write reminder message'),
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Text(
-                        '${_messageController.text.length}/$_limit',
-                        style: Theme.of(context).textTheme.bodySmall
-                            ?.copyWith(color: AppColors.onSurfaceVariant),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.remove_red_eye_outlined,
-                          color: AppColors.onSurfaceVariant,
-                          size: 18,
-                        ),
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          context.vt('Message Preview'),
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    _MessagePreview(message: _messageController.text),
-                    const SizedBox(height: AppSpacing.md),
-                    AuthErrorMessage(message: _errorMessage),
-                    if (_successMessage.isNotEmpty)
-                      Text(
-                        _successMessage,
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    const SizedBox(height: AppSpacing.lg),
-                    FilledButton.icon(
-                      onPressed: _isSending ? null : _sendReminder,
-                      icon: _isSending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_outlined),
-                      label: Text(
-                        context.vt(_isSending ? 'Sending' : 'Send Reminder'),
-                      ),
-                    ),
-                  ],
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Row(
+            children: [
+              Expanded(
+                child: _ChannelButton(
+                  label: 'SMS',
+                  icon: Icons.sms_outlined,
+                  selected: _useSms,
+                  onPressed: () => setState(() => _useSms = true),
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReminderTopBar extends StatelessWidget {
-  const _ReminderTopBar({required this.title, required this.onBack});
-
-  final String title;
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: AppSizes.topBarHeight,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.outlineVariant)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: AppSizes.iconButton,
-            child: IconButton(
-              tooltip: 'Back',
-              onPressed: onBack,
-              icon: const Icon(Icons.arrow_back),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _ChannelButton(
+                  label: 'WhatsApp',
+                  icon: Icons.chat_outlined,
+                  selected: !_useSms,
+                  onPressed: null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  context.vt('Message'),
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => context.go('/reminders/templates'),
+                icon: const Icon(Icons.copy_all_outlined, size: 16),
+                label: Text(context.vt('Use Template')),
+              ),
+            ],
+          ),
+          TextField(
+            controller: _messageController,
+            maxLines: 6,
+            maxLength: _limit,
+            onChanged: (_) {
+              setState(() {
+                _errorMessage = '';
+                _successMessage = '';
+              });
+            },
+            decoration: InputDecoration(
+              counterText: '',
+              hintText: context.vt('Write reminder message'),
+              alignLabelWithHint: true,
             ),
           ),
-          Expanded(
+          const SizedBox(height: AppSpacing.xs),
+          Align(
+            alignment: Alignment.centerRight,
             child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleSmall
-                  ?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: AppSpacing.sm),
-            child: CircleAvatar(
-              radius: 18,
-              backgroundColor: AppColors.primary,
-              child: const Icon(
-                Icons.person_outline,
-                color: AppColors.onPrimary,
-                size: 20,
+              '${_messageController.text.length}/$_limit',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceVariant,
               ),
             ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              const Icon(
+                Icons.remove_red_eye_outlined,
+                color: AppColors.onSurfaceVariant,
+                size: 18,
+              ),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                context.vt('Message Preview'),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          _MessagePreview(message: _messageController.text),
+          const SizedBox(height: AppSpacing.md),
+          AuthErrorMessage(message: _errorMessage),
+          if (_successMessage.isNotEmpty)
+            Text(
+              _successMessage,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          const SizedBox(height: AppSpacing.lg),
+          FilledButton.icon(
+            onPressed: _isSending ? null : _sendReminder,
+            icon: _isSending
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.send_outlined),
+            label: Text(context.vt(_isSending ? 'Sending' : 'Send Reminder')),
           ),
         ],
       ),
@@ -368,14 +262,14 @@ class _AudienceCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'To',
+                  context.vt('To'),
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
                 Text(
                   isSingleMember
-                      ? 'Selected Member'
-                      : 'Members with Outstanding\nDues',
+                      ? context.vt('Selected Member')
+                      : context.vt('Members with Outstanding Dues'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w800,
@@ -455,7 +349,7 @@ class _MessagePreview extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Vikoplus:',
+                context.vt('Vikoplus:'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: AppColors.onSurfaceVariant.withValues(alpha: 0.62),
                 ),
@@ -496,7 +390,7 @@ class MessageTemplatesScreen extends StatelessWidget {
     return VikoplusScreen(
       title: 'Message Templates',
       backRoute: '/reminders',
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _TemplateTile(
@@ -504,13 +398,13 @@ class MessageTemplatesScreen extends StatelessWidget {
             subtitle: 'Friendly reminder sent 3 days before due date.',
             icon: Icons.event_available_outlined,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _TemplateTile(
             title: 'Due today',
             subtitle: 'Same-day contribution reminder.',
             icon: Icons.today_outlined,
           ),
-          SizedBox(height: AppSpacing.sm),
+          const SizedBox(height: AppSpacing.sm),
           _TemplateTile(
             title: 'Overdue follow-up',
             subtitle: 'Follow-up after the grace period.',

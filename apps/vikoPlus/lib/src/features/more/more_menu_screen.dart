@@ -17,83 +17,90 @@ class MoreMenuScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final group = ref.watch(activeGroupProvider);
     final role = group?.role;
-    final entries = <(IconData, String, String, String)>[
-      (
-        Icons.hub_outlined,
-        context.vt('My Groups'),
-        context.vt('Switch, create or join a group'),
-        '/groups',
-      ),
+    final entries = <_MoreEntry>[
       if (role == 'GROUP_ADMIN') ...[
-        (
-          Icons.tune_outlined,
-          context.vt('Admin Settings'),
-          context.vt(
+        _MoreEntry(
+          icon: Icons.tune_outlined,
+          title: context.vt('Admin Settings'),
+          subtitle: context.vt(
             'Group rules, member roles, historical records and audit logs',
           ),
-          '/settings/admin',
+          route: '/settings/admin',
         ),
-        (
-          Icons.credit_card_outlined,
-          context.vt('Billing overview'),
-          context.vt('Group access subscription and payments'),
-          '/billing',
+        _MoreEntry(
+          icon: Icons.credit_card_outlined,
+          title: context.vt('Billing overview'),
+          subtitle: context.vt('Group access subscription and payments'),
+          route: '/billing',
         ),
       ],
       if (isStaffPortalRole(role))
-        (
-          Icons.fact_check_outlined,
-          context.vt('Review payments'),
-          context.vt('Approve or reject submitted contributions'),
-          '/contributions',
+        _MoreEntry(
+          icon: Icons.fact_check_outlined,
+          title: context.vt('Review payments'),
+          subtitle: context.vt('Approve or reject submitted contributions'),
+          route: '/contributions',
         ),
       if (role == 'GROUP_ADMIN' || role == 'TREASURER')
-        (
-          Icons.receipt_long_outlined,
-          context.vt('Group expenses'),
-          context.vt('Record group spending for approval'),
-          '/expenses',
+        _MoreEntry(
+          icon: Icons.receipt_long_outlined,
+          title: context.vt('Group expenses'),
+          subtitle: context.vt('Record group spending for approval'),
+          route: '/expenses',
         ),
       if (isStaffPortalRole(role))
-        (
-          Icons.notifications_active_outlined,
-          context.vt('Reminder Centre'),
-          context.vt('SMS reminders and delivery history'),
-          '/reminders',
+        _MoreEntry(
+          icon: Icons.notifications_active_outlined,
+          title: context.vt('Reminder Centre'),
+          subtitle: context.vt('SMS reminders and delivery history'),
+          route: '/reminders',
         ),
       if (role == 'MEMBER' || isStaffPortalRole(role))
-        (
-          Icons.account_balance_wallet_outlined,
-          context.vt('My loans'),
-          context.vt('Applications, guarantees and repayments'),
-          '/loans',
+        _MoreEntry(
+          icon: Icons.account_balance_wallet_outlined,
+          title: context.vt('My loans'),
+          subtitle: context.vt('Applications, guarantees and repayments'),
+          route: '/loans',
         ),
       if (role == 'SECRETARY')
-        (
-          Icons.history_edu_outlined,
-          context.vt('Historical records'),
-          context.vt('Import previous group records'),
-          '/groups/history?groupId=${Uri.encodeComponent(group!.id)}&returnTo=${Uri.encodeComponent(portalMoreRoute(group))}',
+        _MoreEntry(
+          icon: Icons.history_edu_outlined,
+          title: context.vt('Historical records'),
+          subtitle: context.vt('Import previous group records'),
+          route:
+              '/groups/history?groupId=${Uri.encodeComponent(group!.id)}&returnTo=${Uri.encodeComponent(portalMoreRoute(group))}',
         ),
-      (
-        Icons.account_circle_outlined,
-        context.vt('My Profile'),
-        context.vt('Photo and account details'),
-        '/profile/complete',
+      _MoreEntry(
+        icon: Icons.language_outlined,
+        title: context.vt('Language'),
+        subtitle: context.vt('English or Swahili'),
+        route: '/language',
       ),
-      (
-        Icons.notifications_outlined,
-        context.vt('Notifications'),
-        context.vt('Personal alert preferences'),
-        '/settings/notifications',
+      _MoreEntry(
+        icon: Icons.logout_outlined,
+        title: context.vt('Logout'),
+        subtitle: context.vt('End your session on this device'),
+        isLogout: true,
       ),
-      (
-        Icons.language_outlined,
-        context.vt('Language'),
-        context.vt('English or Swahili'),
-        '/language',
+      _MoreEntry(
+        icon: Icons.hub_outlined,
+        title: context.vt('My Groups'),
+        subtitle: context.vt('Switch, create or join a group'),
+        route: '/groups',
       ),
-    ];
+      _MoreEntry(
+        icon: Icons.account_circle_outlined,
+        title: context.vt('My Profile'),
+        subtitle: context.vt('Photo and account details'),
+        route: '/profile/complete',
+      ),
+      _MoreEntry(
+        icon: Icons.notifications_outlined,
+        title: context.vt('Notifications'),
+        subtitle: context.vt('Personal alert preferences'),
+        route: '/settings/notifications',
+      ),
+    ]..sort((a, b) => a.title.compareTo(b.title));
 
     return VikoplusScreen(
       title: context.vt('More'),
@@ -103,17 +110,35 @@ class MoreMenuScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           for (final entry in entries) ...[
-            ActionTile(
-              icon: entry.$1,
-              title: entry.$2,
-              subtitle: entry.$3,
-              route: entry.$4,
-            ),
+            if (entry.isLogout)
+              const AuthLogoutTile()
+            else
+              ActionTile(
+                icon: entry.icon,
+                title: entry.title,
+                subtitle: entry.subtitle,
+                route: entry.route!,
+              ),
             const SizedBox(height: 12),
           ],
-          const AuthLogoutTile(),
         ],
       ),
     );
   }
+}
+
+class _MoreEntry {
+  const _MoreEntry({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.route,
+    this.isLogout = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? route;
+  final bool isLogout;
 }

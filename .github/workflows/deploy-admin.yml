@@ -1,0 +1,70 @@
+name: Deploy VikoPlus Super Admin
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-admin:
+    if: |
+      contains(github.event.head_commit.message, '[DEPLOY]') ||
+      contains(github.event.head_commit.message, '[DEPLOY-ADMIN]') ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install super-admin deps
+        working-directory: apps/super-admin
+        run: npm ci
+
+      - name: Build super-admin (production)
+        working-directory: apps/super-admin
+        run: npx ng build --configuration production
+
+      - name: Copy Angular dist to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "apps/super-admin/dist/super-admin/browser/*"
+          target: "/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
+          strip_components: 5
+          rm: true
+          tar_dereference: true
+
+      - name: Publish admin site on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          SUDO_PASS: ${{ secrets.SERVER_PASSWORD }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          envs: SUDO_PASS
+          script: |
+            set -euo pipefail
+
+            sudo_run() { echo "$SUDO_PASS" | sudo -S -p '' "$@"; }
+
+            DIST_SRC="/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
+            WEB_ROOT="/var/www/admin.vikoplus.co.tz"
+
+            sudo_run mkdir -p "$WEB_ROOT"
+            sudo_run rsync -a --delete "$DIST_SRC/" "$WEB_ROOT/"
+            sudo_run chown -R www-data:www-data "$WEB_ROOT"
+            rm -rf "$DIST_SRC"
+
+            sudo_run nginx -t
+            sudo_run systemctl reload nginx

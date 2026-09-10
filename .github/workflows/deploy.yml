@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ----------------------------------------------------------
-      # 2. Build Angular super-admin in the runner (cached)
+      # 2. Build Angular super-admin in the runner
       # ----------------------------------------------------------
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -47,7 +47,7 @@ jobs:
           ls -la dist/super-admin/browser | head -20
 
       # ----------------------------------------------------------
-      # 3. Copy project source to server (API code, compose, etc.)
+      # 3. Copy project source to server
       # ----------------------------------------------------------
       - name: Copy project files to server
         uses: appleboy/scp-action@v0.1.7
@@ -58,6 +58,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           source: "."
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
+          rm: false
 
       # ----------------------------------------------------------
       # 4. Copy the built Angular bundle to server
@@ -72,6 +73,7 @@ jobs:
           source: "apps/super-admin/dist/super-admin/browser/*"
           target: "/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
           strip_components: 5
+          rm: true
 
       # ----------------------------------------------------------
       # 5. SSH deploy: env, API container, health, Angular publish
@@ -80,14 +82,18 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           ALL_SECRETS: ${{ toJson(secrets) }}
+          SUDO_PASS: ${{ secrets.SERVER_PASSWORD }}
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SERVER_USER }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          envs: ALL_SECRETS
+          envs: ALL_SECRETS,SUDO_PASS
           script: |
             set -euo pipefail
+
+            # ---- sudo wrapper: reads password from stdin (no TTY needed) ----
+            sudo_run() { echo "$SUDO_PASS" | sudo -S -p '' "$@"; }
 
             REPO_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
             DIST_SRC="/home/${{ secrets.SERVER_USER }}/vikoplus-admin-dist"
@@ -97,7 +103,8 @@ jobs:
 
             # ---------- 5a. Ensure jq ----------
             if ! command -v jq &> /dev/null; then
-              sudo apt-get update && sudo apt-get install -y jq
+              sudo_run apt-get update
+              sudo_run apt-get install -y jq
             fi
 
             # ---------- 5b. Write .env from GitHub secrets ----------
@@ -213,27 +220,27 @@ jobs:
               exit 1
             fi
 
-            sudo mkdir -p "$WEB_ROOT"
-            sudo rsync -a --delete "$DIST_SRC/" "$WEB_ROOT/"
-            sudo chown -R www-data:www-data "$WEB_ROOT"
-            sudo find "$WEB_ROOT" -type d -exec chmod 755 {} \;
-            sudo find "$WEB_ROOT" -type f -exec chmod 644 {} \;
+            sudo_run mkdir -p "$WEB_ROOT"
+            sudo_run rsync -a --delete "$DIST_SRC/" "$WEB_ROOT/"
+            sudo_run chown -R www-data:www-data "$WEB_ROOT"
+            sudo_run find "$WEB_ROOT" -type d -exec chmod 755 {} \;
+            sudo_run find "$WEB_ROOT" -type f -exec chmod 644 {} \;
 
-            # Clean up staging dir
             rm -rf "$DIST_SRC"
 
             # ---------- 5j. Nginx syntax check + reload ----------
             echo "Reloading nginx..."
-            sudo nginx -t
-            sudo systemctl reload nginx
+            sudo_run nginx -t
+            sudo_run systemctl reload nginx
 
-            # ---------- 5k. Optional: HTTP check for admin ----------
+            # ---------- 5k. Local HTTP check for admin ----------
             echo "Checking admin site locally..."
-            if curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
-                 -H "Host: admin.vikoplus.co.tz" http://127.0.0.1/ | grep -qE '^(200|301|302)$'; then
-              echo "✓ admin.vikoplus.co.tz responding"
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+                     -H "Host: admin.vikoplus.co.tz" http://127.0.0.1/ || true)
+            if echo "$CODE" | grep -qE '^(200|301|302)$'; then
+              echo "✓ admin.vikoplus.co.tz responding (HTTP $CODE)"
             else
-              echo "::warning::admin.vikoplus.co.tz did not return 200/301/302 locally — check nginx config"
+              echo "::warning::admin.vikoplus.co.tz returned HTTP $CODE locally — check nginx config"
             fi
 
             # ---------- 5l. Cleanup ----------

@@ -101,6 +101,11 @@ type InvitationDeliveryResult = {
   delivered: boolean;
 };
 
+type GroupCashClient = Pick<
+  Prisma.TransactionClient,
+  "groupContributionPayment" | "groupExpense" | "groupLoan"
+>;
+
 @Injectable()
 export class GroupsService {
   constructor(
@@ -833,7 +838,7 @@ export class GroupsService {
   async expenses(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
     const canReview = membership.role === GroupRole.GROUP_ADMIN;
-    const [items, approved, pending, activeLoans] = await Promise.all([
+    const [items, cash] = await Promise.all([
       this.prisma.groupExpense.findMany({
         where: { groupId },
         include: {
@@ -842,32 +847,18 @@ export class GroupsService {
         },
         orderBy: { createdAt: "desc" },
       }),
-      this.prisma.groupExpense.aggregate({
-        where: { groupId, status: GroupExpenseStatus.APPROVED },
-        _sum: { amountMinor: true },
-      }),
-      this.prisma.groupExpense.aggregate({
-        where: { groupId, status: GroupExpenseStatus.SUBMITTED },
-        _sum: { amountMinor: true },
-        _count: true,
-      }),
-      this.prisma.groupLoan.aggregate({
-        where: { groupId, status: GroupLoanStatus.ACTIVE },
-        _sum: { amountMinor: true, amountPaidMinor: true },
-      }),
+      this.groupCashPosition(this.prisma, groupId),
     ]);
     return {
       groupId,
       canReview,
       summary: {
-        approvedExpenseMinor: approved._sum.amountMinor ?? 0,
-        pendingExpenseMinor: pending._sum.amountMinor ?? 0,
-        pendingCount: pending._count,
-        loanPrincipalOutMinor: Math.max(
-          (activeLoans._sum.amountMinor ?? 0) -
-            (activeLoans._sum.amountPaidMinor ?? 0),
-          0,
-        ),
+        approvedExpenseMinor: cash.approvedExpenseMinor,
+        pendingExpenseMinor: cash.pendingExpenseMinor,
+        pendingCount: cash.pendingCount,
+        loanPrincipalOutMinor: cash.loanPrincipalOutMinor,
+        cashBalanceMinor: cash.cashBalanceMinor,
+        availableExpenseMinor: cash.availableExpenseMinor,
       },
       expenses: items.map((item) => this.groupExpenseSummary(item)),
     };
@@ -887,6 +878,18 @@ export class GroupsService {
       select: { currency: true, name: true },
     });
     return this.prisma.$transaction(async (tx) => {
+      const cash = await this.groupCashPosition(tx, groupId);
+      if (cash.availableExpenseMinor <= 0) {
+        throw new BadRequestException(
+          "Group has no available cash for expenses.",
+        );
+      }
+      if (input.amountMinor > cash.availableExpenseMinor) {
+        throw new BadRequestException(
+          "Expense amount exceeds available group cash.",
+        );
+      }
+
       const expense = await tx.groupExpense.create({
         data: {
           groupId,
@@ -955,6 +958,14 @@ export class GroupsService {
       if (!expense) throw new NotFoundException("Expense was not found.");
       if (expense.status !== GroupExpenseStatus.SUBMITTED) {
         throw new BadRequestException("Expense has already been reviewed.");
+      }
+      if (input.approve) {
+        const cash = await this.groupCashPosition(tx, groupId);
+        if (expense.amountMinor > cash.cashBalanceMinor) {
+          throw new BadRequestException(
+            "Expense amount exceeds available group cash.",
+          );
+        }
       }
       const status = input.approve
         ? GroupExpenseStatus.APPROVED
@@ -1749,12 +1760,16 @@ export class GroupsService {
           tx,
         );
         await this.createReceiptForPayment(groupId, payment.id, tx);
+        const group = await tx.group.findUniqueOrThrow({
+          where: { id: groupId },
+          select: { name: true },
+        });
         await this.createUserNotification(tx, {
           userId: payment.member.userId,
-          titleEn: "Payment approved",
-          titleSw: "Malipo yameidhinishwa",
-          bodyEn: `Your payment of ${payment.currency} ${payment.amountMinor} has been approved.`,
-          bodySw: `Malipo yako ya ${payment.currency} ${payment.amountMinor} yameidhinishwa.`,
+          titleEn: `Payment approved - ${group.name}`,
+          titleSw: `Malipo yameidhinishwa - ${group.name}`,
+          bodyEn: `Your ${group.name} payment of ${payment.currency} ${payment.amountMinor} has been approved.`,
+          bodySw: `Malipo yako ya ${group.name} ya ${payment.currency} ${payment.amountMinor} yameidhinishwa.`,
         });
         await this.auditPaymentReview(
           user,
@@ -1808,14 +1823,18 @@ export class GroupsService {
           reversalReason: input.reason,
         },
       });
+      const group = await tx.group.findUniqueOrThrow({
+        where: { id: groupId },
+        select: { name: true },
+      });
       await this.createUserNotification(tx, {
         userId: payment.member.userId,
-        titleEn: "Payment rejected",
-        titleSw: "Malipo yamekataliwa",
+        titleEn: `Payment rejected - ${group.name}`,
+        titleSw: `Malipo yamekataliwa - ${group.name}`,
         bodyEn:
-          `Your payment of ${payment.currency} ${payment.amountMinor} was rejected. ${input.reason ?? ""}`.trim(),
+          `Your ${group.name} payment of ${payment.currency} ${payment.amountMinor} was rejected. ${input.reason ?? ""}`.trim(),
         bodySw:
-          `Malipo yako ya ${payment.currency} ${payment.amountMinor} yamekataliwa. ${input.reason ?? ""}`.trim(),
+          `Malipo yako ya ${group.name} ya ${payment.currency} ${payment.amountMinor} yamekataliwa. ${input.reason ?? ""}`.trim(),
       });
       await this.auditPaymentReview(
         user,
@@ -1865,14 +1884,18 @@ export class GroupsService {
           correctionMessage: input.reason,
         },
       });
+      const group = await tx.group.findUniqueOrThrow({
+        where: { id: groupId },
+        select: { name: true },
+      });
       await this.createUserNotification(tx, {
         userId: payment.member.userId,
-        titleEn: "Payment needs correction",
-        titleSw: "Malipo yanahitaji marekebisho",
+        titleEn: `Payment needs correction - ${group.name}`,
+        titleSw: `Malipo yanahitaji marekebisho - ${group.name}`,
         bodyEn:
-          `Your payment of ${payment.currency} ${payment.amountMinor} needs correction. ${input.reason ?? ""}`.trim(),
+          `Your ${group.name} payment of ${payment.currency} ${payment.amountMinor} needs correction. ${input.reason ?? ""}`.trim(),
         bodySw:
-          `Malipo yako ya ${payment.currency} ${payment.amountMinor} yanahitaji marekebisho. ${input.reason ?? ""}`.trim(),
+          `Malipo yako ya ${group.name} ya ${payment.currency} ${payment.amountMinor} yanahitaji marekebisho. ${input.reason ?? ""}`.trim(),
       });
       await this.auditPaymentReview(
         user,
@@ -3016,6 +3039,52 @@ export class GroupsService {
       status: loan.status,
       disbursedAt: loan.disbursedAt,
       dueAt: loan.dueAt,
+    };
+  }
+
+  private async groupCashPosition(client: GroupCashClient, groupId: string) {
+    const [paid, approvedExpenses, pendingExpenses, activeLoans] =
+      await Promise.all([
+        client.groupContributionPayment.aggregate({
+          where: {
+            groupId,
+            status: GroupContributionPaymentStatus.APPROVED,
+          },
+          _sum: { amountMinor: true },
+        }),
+        client.groupExpense.aggregate({
+          where: { groupId, status: GroupExpenseStatus.APPROVED },
+          _sum: { amountMinor: true },
+        }),
+        client.groupExpense.aggregate({
+          where: { groupId, status: GroupExpenseStatus.SUBMITTED },
+          _sum: { amountMinor: true },
+          _count: true,
+        }),
+        client.groupLoan.aggregate({
+          where: { groupId, status: GroupLoanStatus.ACTIVE },
+          _sum: { amountMinor: true, amountPaidMinor: true },
+        }),
+      ]);
+    const collectedMinor = paid._sum.amountMinor ?? 0;
+    const approvedExpenseMinor = approvedExpenses._sum.amountMinor ?? 0;
+    const pendingExpenseMinor = pendingExpenses._sum.amountMinor ?? 0;
+    const loanPrincipalOutMinor = Math.max(
+      (activeLoans._sum.amountMinor ?? 0) -
+        (activeLoans._sum.amountPaidMinor ?? 0),
+      0,
+    );
+    const rawCashBalanceMinor =
+      collectedMinor - approvedExpenseMinor - loanPrincipalOutMinor;
+    const rawAvailableExpenseMinor = rawCashBalanceMinor - pendingExpenseMinor;
+    return {
+      collectedMinor,
+      approvedExpenseMinor,
+      pendingExpenseMinor,
+      pendingCount: pendingExpenses._count,
+      loanPrincipalOutMinor,
+      cashBalanceMinor: Math.max(rawCashBalanceMinor, 0),
+      availableExpenseMinor: Math.max(rawAvailableExpenseMinor, 0),
     };
   }
 

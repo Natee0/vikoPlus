@@ -31,6 +31,7 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
   bool _submitting = false;
   Future<GroupExpensesResult>? _future;
   String? _groupId;
+  int? _availableExpenseMinor;
 
   @override
   void dispose() {
@@ -76,6 +77,21 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
     if (_purposeController.text.trim().isEmpty) {
       setState(() {
         _errorMessage = context.vt('Enter the expense purpose.');
+      });
+      return;
+    }
+    final availableExpenseMinor = _availableExpenseMinor;
+    if (availableExpenseMinor != null && availableExpenseMinor <= 0) {
+      setState(() {
+        _errorMessage = context.vt('Group has no available cash for expenses.');
+      });
+      return;
+    }
+    if (availableExpenseMinor != null && amount > availableExpenseMinor) {
+      setState(() {
+        _errorMessage = context.vt(
+          'Expense amount exceeds available group cash.',
+        );
       });
       return;
     }
@@ -157,6 +173,9 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
               future: _future,
               builder: (context, snapshot) {
                 final result = snapshot.data;
+                if (result != null) {
+                  _availableExpenseMinor = result.summary.availableExpenseMinor;
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -181,6 +200,9 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
                         });
                       },
                       submitting: _submitting,
+                      availableExpenseMinor:
+                          result?.summary.availableExpenseMinor,
+                      formatters: formatters,
                       onSubmit: _submit,
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -227,6 +249,12 @@ class _SummaryCard extends StatelessWidget {
         SectionHeader(title: context.vt('Group money position')),
         const SizedBox(height: AppSpacing.sm),
         InfoCard(
+          title: context.vt('Available for expenses'),
+          value: formatters.money(summary?.availableExpenseMinor ?? 0),
+          icon: Icons.account_balance_wallet_outlined,
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        InfoCard(
           title: context.vt('Approved expenses'),
           value: formatters.money(summary?.approvedExpenseMinor ?? 0),
           icon: Icons.check_circle_outline,
@@ -267,6 +295,8 @@ class _ExpenseForm extends StatelessWidget {
     required this.rail,
     required this.onRailChanged,
     required this.submitting,
+    required this.availableExpenseMinor,
+    required this.formatters,
     required this.onSubmit,
   });
 
@@ -278,6 +308,8 @@ class _ExpenseForm extends StatelessWidget {
   final String rail;
   final ValueChanged<String> onRailChanged;
   final bool submitting;
+  final int? availableExpenseMinor;
+  final AppFormatters formatters;
   final VoidCallback onSubmit;
 
   @override
@@ -313,6 +345,18 @@ class _ExpenseForm extends StatelessWidget {
               hintText: '35000',
             ),
           ),
+          if (availableExpenseMinor != null) ...[
+            const SizedBox(height: AppSpacing.xxs),
+            Text(
+              context.vtf('Available: {amount}', {
+                'amount': formatters.money(availableExpenseMinor!),
+              }),
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.secondaryText),
+            ),
+          ],
           const SizedBox(height: AppSpacing.sm),
           TextField(
             controller: beneficiaryController,

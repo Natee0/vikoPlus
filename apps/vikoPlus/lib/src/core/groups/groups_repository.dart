@@ -1186,6 +1186,8 @@ class GroupExpensesSummary {
     required this.pendingExpenseMinor,
     required this.pendingCount,
     required this.loanPrincipalOutMinor,
+    required this.cashBalanceMinor,
+    required this.availableExpenseMinor,
   });
 
   factory GroupExpensesSummary.fromJson(Map<String, dynamic> json) {
@@ -1194,6 +1196,8 @@ class GroupExpensesSummary {
       pendingExpenseMinor: json['pendingExpenseMinor'] as int? ?? 0,
       pendingCount: json['pendingCount'] as int? ?? 0,
       loanPrincipalOutMinor: json['loanPrincipalOutMinor'] as int? ?? 0,
+      cashBalanceMinor: json['cashBalanceMinor'] as int? ?? 0,
+      availableExpenseMinor: json['availableExpenseMinor'] as int? ?? 0,
     );
   }
 
@@ -1201,6 +1205,8 @@ class GroupExpensesSummary {
   final int pendingExpenseMinor;
   final int pendingCount;
   final int loanPrincipalOutMinor;
+  final int cashBalanceMinor;
+  final int availableExpenseMinor;
 }
 
 class GroupExpenseSummary {

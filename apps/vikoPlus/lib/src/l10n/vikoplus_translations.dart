@@ -994,6 +994,12 @@ const _swahili = <String, String>{
   'Approved expenses': 'Matumizi yaliyoidhinishwa',
   'Pending expenses': 'Matumizi yanayosubiri',
   'Loans out': 'Mikopo iliyotolewa',
+  'Available for expenses': 'Kiasi kinachopatikana kwa matumizi',
+  'Available: {amount}': 'Kinachopatikana: {amount}',
+  'Group has no available cash for expenses.':
+      'Kikundi hakina fedha zinazopatikana kwa matumizi.',
+  'Expense amount exceeds available group cash.':
+      'Kiasi cha matumizi kimezidi fedha za kikundi zinazopatikana.',
   'Expense history': 'Historia ya matumizi',
   'Expense category': 'Aina ya matumizi',
   'Example: Condolences, bank charges': 'Mfano: Rambirambi, ada za benki',

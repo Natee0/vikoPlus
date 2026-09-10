@@ -1,0 +1,60 @@
+name: Deploy VikoPlus API
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy-api:
+    if: contains(github.event.head_commit.message, '[DEPLOY]') || contains(github.event.head_commit.message, '[DEPLOY-API]') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy API source to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          source: "apps/api,package.json,package-lock.json,docker-compose.yml,.npmrc,.dockerignore"
+          target: "/home/${{ secrets.SERVER_USER }}/vikoplus"
+          overwrite: true
+          tar_dereference: true
+
+      - name: Deploy API on server
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ALL_SECRETS: ${{ toJson(secrets) }}
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT }}
+          envs: ALL_SECRETS
+          script: |
+            set -euo pipefail
+
+            REPO_DIR="/home/${{ secrets.SERVER_USER }}/vikoplus"
+            cd "$REPO_DIR"
+
+            if ! command -v jq &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y jq
+            fi
+
+            echo "$ALL_SECRETS" | jq -r '
+              to_entries[]
+              | select((.key | startswith("SERVER_")) or (.key | startswith("SSH_")) | not)
+              | "\(.key)=\(.value)"
+            ' > .env
+
+            docker compose down --remove-orphans || true
+            docker compose up --build -d --force-recreate
+
+            docker exec vikoplus_api npx prisma migrate deploy || true
+
+            docker image prune -f

@@ -185,7 +185,12 @@ class _MemberQuickLinks extends StatelessWidget {
         icon: Icons.language_outlined,
         route: '/language',
       ),
-    ];
+    ]..sort(
+        (a, b) => context
+            .vt(a.title)
+            .toLowerCase()
+            .compareTo(context.vt(b.title).toLowerCase()),
+      );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

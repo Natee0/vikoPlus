@@ -71,6 +71,52 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
     );
     final activeGroup = ref.watch(activeGroupProvider);
     final dashboardFuture = _dashboardFor(activeGroup?.id);
+    final quickActions = [
+      _AdminAction(
+        title: loc.contributionSetup,
+        subtitle: loc.contributionSetupDescription,
+        icon: Icons.price_change_outlined,
+        route: _setupRoute('/groups/contributions', activeGroup),
+        color: AppColors.secondaryGreen,
+      ),
+      _AdminAction(
+        title: context.vt('Group expenses'),
+        subtitle: context.vt('Record and approve group spending'),
+        icon: Icons.receipt_long_outlined,
+        route: '/expenses',
+        color: AppColors.secondaryGreen,
+      ),
+      _AdminAction(
+        title: loc.historicalRecords,
+        subtitle: loc.historicalRecordsDescription,
+        icon: Icons.history_edu_outlined,
+        route: _setupRoute('/groups/history', activeGroup),
+        color: AppColors.gold,
+      ),
+      _AdminAction(
+        title: loc.loans,
+        subtitle: loc.loanReviewDescription,
+        icon: Icons.account_balance_wallet_outlined,
+        route: '/loans',
+        color: AppColors.secondaryGreen,
+      ),
+      _AdminAction(
+        title: loc.myGroups,
+        subtitle: loc.switchGroupsDescription,
+        icon: Icons.hub_outlined,
+        route: '/groups',
+      ),
+      _AdminAction(
+        title: loc.reviewPayments,
+        subtitle: context.vt('Approve or reject submitted contributions'),
+        icon: Icons.fact_check_outlined,
+        route: '/contributions',
+        color: AppColors.secondaryGreen,
+      ),
+    ]..sort(
+        (a, b) =>
+            a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
 
     return VikoplusScreen(
       title: activeGroup?.name ?? loc.adminDashboard,
@@ -119,56 +165,36 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
           const SizedBox(height: 16),
           SectionHeader(title: loc.quickActions),
           const SizedBox(height: 12),
-          ActionTile(
-            title: loc.contributionSetup,
-            subtitle: loc.contributionSetupDescription,
-            icon: Icons.price_change_outlined,
-            route: _setupRoute('/groups/contributions', activeGroup),
-            color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: context.vt('Group expenses'),
-            subtitle: context.vt('Record and approve group spending'),
-            icon: Icons.receipt_long_outlined,
-            route: '/expenses',
-            color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.historicalRecords,
-            subtitle: loc.historicalRecordsDescription,
-            icon: Icons.history_edu_outlined,
-            route: _setupRoute('/groups/history', activeGroup),
-            color: AppColors.gold,
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.loans,
-            subtitle: loc.loanReviewDescription,
-            icon: Icons.account_balance_wallet_outlined,
-            route: '/loans',
-            color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.myGroups,
-            subtitle: loc.switchGroupsDescription,
-            icon: Icons.hub_outlined,
-            route: '/groups',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: loc.reviewPayments,
-            subtitle: context.vt('Approve or reject submitted contributions'),
-            icon: Icons.fact_check_outlined,
-            route: '/contributions',
-            color: AppColors.secondaryGreen,
-          ),
+          for (final action in quickActions) ...[
+            ActionTile(
+              title: action.title,
+              subtitle: action.subtitle,
+              icon: action.icon,
+              route: action.route,
+              color: action.color,
+            ),
+            const SizedBox(height: 12),
+          ],
         ],
       ),
     );
   }
+}
+
+class _AdminAction {
+  const _AdminAction({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+    this.color = AppColors.primaryGreen,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+  final Color color;
 }
 
 class _AdminMetricsBlock extends StatelessWidget {

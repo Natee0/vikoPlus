@@ -6,6 +6,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -163,7 +164,7 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
 
     return VikoplusScreen(
       title: context.vt('Group expenses'),
-      backRoute: '/more',
+      backRoute: portalHomeRoute(group),
       onRefresh: _refresh,
       child: group == null
           ? AuthErrorMessage(
@@ -179,10 +180,6 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_errorMessage != null) ...[
-                      AuthErrorMessage(message: _errorMessage!),
-                      const SizedBox(height: AppSpacing.md),
-                    ],
                     _SummaryCard(result: result, formatters: formatters),
                     const SizedBox(height: AppSpacing.lg),
                     SectionHeader(title: context.vt('Record expense')),
@@ -203,6 +200,7 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
                       availableExpenseMinor:
                           result?.summary.availableExpenseMinor,
                       formatters: formatters,
+                      errorMessage: _errorMessage,
                       onSubmit: _submit,
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -297,6 +295,7 @@ class _ExpenseForm extends StatelessWidget {
     required this.submitting,
     required this.availableExpenseMinor,
     required this.formatters,
+    required this.errorMessage,
     required this.onSubmit,
   });
 
@@ -310,6 +309,7 @@ class _ExpenseForm extends StatelessWidget {
   final bool submitting;
   final int? availableExpenseMinor;
   final AppFormatters formatters;
+  final String? errorMessage;
   final VoidCallback onSubmit;
 
   @override
@@ -390,6 +390,10 @@ class _ExpenseForm extends StatelessWidget {
             decoration: InputDecoration(labelText: context.vt('Purpose')),
           ),
           const SizedBox(height: AppSpacing.md),
+          if (errorMessage != null) ...[
+            AuthErrorMessage(message: errorMessage!),
+            const SizedBox(height: AppSpacing.sm),
+          ],
           FilledButton.icon(
             onPressed: submitting ? null : onSubmit,
             style: FilledButton.styleFrom(

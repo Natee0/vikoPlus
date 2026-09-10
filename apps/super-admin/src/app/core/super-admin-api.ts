@@ -1,11 +1,12 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, timeout } from 'rxjs';
 
 import { GroupRow, StatCard, UserRow } from '../shared/super-admin-data';
 
 const ACCESS_TOKEN_KEY = 'vikoplus.superAdmin.accessToken';
 const REFRESH_TOKEN_KEY = 'vikoplus.superAdmin.refreshToken';
+const DEFAULT_API_BASE_URL = 'https://api.vikoplus.co.tz/v1';
 
 type LoginResponse = {
   accessToken: string;
@@ -65,7 +66,8 @@ type AccessPlan = {
 @Injectable({ providedIn: 'root' })
 export class SuperAdminApi {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = localStorage.getItem('vikoplus.apiBaseUrl') ?? '/v1';
+  private readonly baseUrl =
+    localStorage.getItem('vikoplus.apiBaseUrl') ?? DEFAULT_API_BASE_URL;
 
   get isAuthenticated(): boolean {
     return Boolean(this.accessToken);
@@ -80,7 +82,7 @@ export class SuperAdminApi {
       this.http.post<LoginResponse>(`${this.baseUrl}/auth/login`, {
         identifier,
         password,
-      }),
+      }).pipe(timeout(10000)),
     );
     if (!response.user.isPlatformAdmin) {
       throw new Error('Platform admin access is required.');

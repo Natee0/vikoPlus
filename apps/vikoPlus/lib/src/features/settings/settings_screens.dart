@@ -26,6 +26,64 @@ class AdminSettingsDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeGroup = ref.watch(activeGroupProvider);
+    final actions = [
+      _SettingsAction(
+        title: context.vt('Audit logs'),
+        subtitle: context.vt('Payment, role and subscription history'),
+        icon: Icons.manage_search_outlined,
+        route: '/settings/audit',
+      ),
+      _SettingsAction(
+        title: context.vt('Contribution penalties'),
+        subtitle: context.vt('Late-fee rules and grace periods'),
+        icon: Icons.gavel_outlined,
+        route: '/settings/contribution-penalties',
+      ),
+      _SettingsAction(
+        title: context.vt('Contribution setup'),
+        subtitle: context.vt(
+          'Set joining fee, membership fee and payment rules',
+        ),
+        icon: Icons.price_change_outlined,
+        route: _setupRoute('/groups/contributions', activeGroup),
+      ),
+      _SettingsAction(
+        title: context.vt('Currency and fees'),
+        subtitle: context.vt(
+          'TZS defaults, platform access and messaging charges',
+        ),
+        icon: Icons.payments_outlined,
+        route: '/settings/currency-fees',
+        color: AppColors.gold,
+      ),
+      _SettingsAction(
+        title: context.vt('Group profile'),
+        subtitle: context.vt('Update the group icon and visible identity'),
+        icon: Icons.groups_2_outlined,
+        route: '/settings/group-profile',
+        color: AppColors.primary,
+      ),
+      _SettingsAction(
+        title: context.vt('Historical records'),
+        subtitle: context.vt(
+          'Import previous group contributions and old ledgers',
+        ),
+        icon: Icons.history_edu_outlined,
+        route: _setupRoute('/groups/history', activeGroup),
+        color: AppColors.secondaryGreen,
+      ),
+      _SettingsAction(
+        title: context.vt('Member roles'),
+        subtitle: context.vt(
+          'Assign chairperson, treasurer, secretary and member access',
+        ),
+        icon: Icons.admin_panel_settings_outlined,
+        route: '/settings/roles',
+      ),
+    ]..sort(
+        (a, b) =>
+            a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
 
     return VikoplusScreen(
       title: context.vt('Admin Settings'),
@@ -35,69 +93,36 @@ class AdminSettingsDashboardScreen extends ConsumerWidget {
         children: [
           const _SettingsHero(),
           const SizedBox(height: AppSpacing.md),
-          ActionTile(
-            title: context.vt('Audit logs'),
-            subtitle: context.vt('Payment, role and subscription history'),
-            icon: Icons.manage_search_outlined,
-            route: '/settings/audit',
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Contribution penalties'),
-            subtitle: context.vt('Late-fee rules and grace periods'),
-            icon: Icons.gavel_outlined,
-            route: '/settings/contribution-penalties',
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Contribution setup'),
-            subtitle: context.vt(
-              'Set joining fee, membership fee and payment rules',
+          for (final action in actions) ...[
+            ActionTile(
+              title: action.title,
+              subtitle: action.subtitle,
+              icon: action.icon,
+              route: action.route,
+              color: action.color,
             ),
-            icon: Icons.price_change_outlined,
-            route: _setupRoute('/groups/contributions', activeGroup),
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Currency and fees'),
-            subtitle: context.vt(
-              'TZS defaults, platform access and messaging charges',
-            ),
-            icon: Icons.payments_outlined,
-            route: '/settings/currency-fees',
-            color: AppColors.gold,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Group profile'),
-            subtitle: context.vt('Update the group icon and visible identity'),
-            icon: Icons.groups_2_outlined,
-            route: '/settings/group-profile',
-            color: AppColors.primary,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Historical records'),
-            subtitle: context.vt(
-              'Import previous group contributions and old ledgers',
-            ),
-            icon: Icons.history_edu_outlined,
-            route: _setupRoute('/groups/history', activeGroup),
-            color: AppColors.secondaryGreen,
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ActionTile(
-            title: context.vt('Member roles'),
-            subtitle: context.vt(
-              'Assign chairperson, treasurer, secretary and member access',
-            ),
-            icon: Icons.admin_panel_settings_outlined,
-            route: '/settings/roles',
-          ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
         ],
       ),
     );
   }
+}
+
+class _SettingsAction {
+  const _SettingsAction({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+    this.color = AppColors.primaryGreen,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+  final Color color;
 }
 
 class AppSettingsScreen extends StatelessWidget {

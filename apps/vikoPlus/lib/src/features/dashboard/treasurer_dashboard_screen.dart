@@ -257,50 +257,62 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: context.vt('Group expenses'),
-                    subtitle: context.vt('Record group spending for approval'),
-                    icon: Icons.receipt_long_outlined,
-                    route: '/expenses',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).loanReviews,
-                    subtitle: AppLocalizations.of(context)
-                        .reviewLoanDescription,
-                    icon: Icons.assignment_outlined,
-                    route: '/loans/applications',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).myLoans,
-                    subtitle: AppLocalizations.of(context).trackBorrowing,
-                    icon: Icons.account_balance_outlined,
-                    route: '/loans',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).recordPayment,
-                    subtitle: AppLocalizations.of(context)
-                        .allocatePaymentDescription,
-                    icon: Icons.add_card_outlined,
-                    route: '/contributions/record',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).reviewPayments,
-                    subtitle: AppLocalizations.of(context).verifyMemberPayments,
-                    icon: Icons.fact_check_outlined,
-                    route: '/contributions',
-                  ),
-                  const SizedBox(height: AppSpacing.xs),
-                  ActionTile(
-                    title: AppLocalizations.of(context).sendReminder,
-                    subtitle: AppLocalizations.of(context)
-                        .contactOutstandingMembers,
-                    icon: Icons.notifications_active_outlined,
-                    route: '/reminders/new',
-                  ),
+                  for (final action in [
+                    _TreasuryAction(
+                      title: context.vt('Group expenses'),
+                      subtitle: context.vt(
+                        'Record group spending for approval',
+                      ),
+                      icon: Icons.receipt_long_outlined,
+                      route: '/expenses',
+                    ),
+                    _TreasuryAction(
+                      title: AppLocalizations.of(context).loanReviews,
+                      subtitle: AppLocalizations.of(context)
+                          .reviewLoanDescription,
+                      icon: Icons.assignment_outlined,
+                      route: '/loans/applications',
+                    ),
+                    _TreasuryAction(
+                      title: AppLocalizations.of(context).myLoans,
+                      subtitle: AppLocalizations.of(context).trackBorrowing,
+                      icon: Icons.account_balance_outlined,
+                      route: '/loans',
+                    ),
+                    _TreasuryAction(
+                      title: AppLocalizations.of(context).recordPayment,
+                      subtitle: AppLocalizations.of(context)
+                          .allocatePaymentDescription,
+                      icon: Icons.add_card_outlined,
+                      route: '/contributions/record',
+                    ),
+                    _TreasuryAction(
+                      title: AppLocalizations.of(context).reviewPayments,
+                      subtitle:
+                          AppLocalizations.of(context).verifyMemberPayments,
+                      icon: Icons.fact_check_outlined,
+                      route: '/contributions',
+                    ),
+                    _TreasuryAction(
+                      title: AppLocalizations.of(context).sendReminder,
+                      subtitle: AppLocalizations.of(context)
+                          .contactOutstandingMembers,
+                      icon: Icons.notifications_active_outlined,
+                      route: '/reminders/new',
+                    ),
+                  ]..sort(
+                      (a, b) => a.title
+                          .toLowerCase()
+                          .compareTo(b.title.toLowerCase()),
+                    )) ...[
+                    ActionTile(
+                      title: action.title,
+                      subtitle: action.subtitle,
+                      icon: action.icon,
+                      route: action.route,
+                    ),
+                    const SizedBox(height: AppSpacing.xs),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   Row(
                     children: [
@@ -366,6 +378,20 @@ class _TreasurerDashboardState extends ConsumerState<TreasurerDashboardScreen> {
     }
     return isSwahili ? 'Habari za jioni,' : 'Good evening,';
   }
+}
+
+class _TreasuryAction {
+  const _TreasuryAction({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
 }
 
 class _ReviewQueue extends StatelessWidget {

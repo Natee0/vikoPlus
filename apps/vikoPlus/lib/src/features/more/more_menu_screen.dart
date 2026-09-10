@@ -100,7 +100,10 @@ class MoreMenuScreen extends ConsumerWidget {
         subtitle: context.vt('Personal alert preferences'),
         route: '/settings/notifications',
       ),
-    ]..sort((a, b) => a.title.compareTo(b.title));
+    ]..sort(
+        (a, b) =>
+            a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
 
     return VikoplusScreen(
       title: context.vt('More'),

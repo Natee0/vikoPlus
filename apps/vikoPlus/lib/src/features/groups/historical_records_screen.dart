@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'dart:convert';
@@ -35,6 +36,7 @@ class _HistoricalRecordsScreenState
   final _referenceController = TextEditingController();
   late Future<GroupMembersResult>? _membersFuture;
   bool _bulkMode = false;
+  bool _isPickingCsv = false;
   String _contributionType = 'RECURRING';
   String _method = 'Cash';
   String? _selectedMemberId;
@@ -210,12 +212,9 @@ class _HistoricalRecordsScreenState
     context.go(_remindersRoute(_groupId));
   }
 
-  Future<void> _shareCsvTemplate() async {
-    final box = context.findRenderObject() as RenderBox?;
-    final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
-    final members = await _loadTemplateMembers();
+  List<List<String>> _csvTemplateRows(List<GroupMemberSummary> members) {
     final sampleMember = members.isEmpty ? null : members.first;
-    final rows = [
+    return [
       [
         'member_number',
         'full_name',
@@ -239,19 +238,83 @@ class _HistoricalRecordsScreenState
         'OLD-LEDGER-001',
       ],
     ];
+  }
+
+  Uint8List _csvTemplateBytes(List<GroupMemberSummary> members) {
+    final rows = _csvTemplateRows(members);
     final csv = rows.map((row) => row.map(_csvEscape).join(',')).join('\n');
+    return Uint8List.fromList(utf8.encode('\uFEFF$csv'));
+  }
+
+  Future<void> _downloadCsvTemplate() async {
+    final dialogTitle = context.vt('Download CSV template');
+    final members = await _loadTemplateMembers();
+    await FilePicker.saveFile(
+      dialogTitle: dialogTitle,
+      fileName: 'vikoplus-historical-payments-template.csv',
+      type: FileType.custom,
+      allowedExtensions: const ['csv'],
+      bytes: _csvTemplateBytes(members),
+    );
+  }
+
+  Future<void> _shareCsvTemplate() async {
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+    final members = await _loadTemplateMembers();
+    final bytes = _csvTemplateBytes(members);
     await SharePlus.instance.share(
       ShareParams(
-        files: [
-          XFile.fromData(
-            Uint8List.fromList(utf8.encode('\uFEFF$csv')),
-            mimeType: 'text/csv',
-          ),
-        ],
+        files: [XFile.fromData(bytes, mimeType: 'text/csv')],
         fileNameOverrides: ['vikoplus-historical-payments-template.csv'],
         sharePositionOrigin: origin,
       ),
     );
+  }
+
+  Future<void> _pickCsvDocument() async {
+    final emptyFileMessage = context.vt('Selected CSV file is empty.');
+    final invalidFileMessage = context.vt('Choose a CSV file.');
+    final canceledMessage = context.vt('No CSV file was selected.');
+    if (_isPickingCsv) return;
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isPickingCsv = true;
+      });
+      final file = await FilePicker.pickFile(type: FileType.any);
+      if (file == null) {
+        setState(() => _errorMessage = canceledMessage);
+        return;
+      }
+      final fileName = file.name.toLowerCase();
+      final path = file.path;
+      if (!fileName.endsWith('.csv') &&
+          (path == null || !path.toLowerCase().endsWith('.csv'))) {
+        setState(() => _errorMessage = invalidFileMessage);
+        return;
+      }
+      final bytes = await file.readAsBytes();
+      final csv = bytes.isEmpty ? '' : utf8.decode(bytes, allowMalformed: true);
+      if (csv.trim().isEmpty) {
+        setState(() => _errorMessage = emptyFileMessage);
+        return;
+      }
+      setState(() {
+        _bulkCsvController.text = csv;
+        _errorMessage = '';
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage =
+            '${context.vt('Could not open the CSV picker.')}: $error',
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingCsv = false);
+      }
+    }
   }
 
   Future<List<GroupMemberSummary>> _loadTemplateMembers() async {
@@ -273,7 +336,11 @@ class _HistoricalRecordsScreenState
     }
     final csv = _bulkCsvController.text.trim();
     if (csv.isEmpty) {
-      setState(() => _errorMessage = context.vt('Paste CSV rows before importing.'));
+      setState(
+        () => _errorMessage = context.vt(
+          'Paste or upload a CSV before importing.',
+        ),
+      );
       return;
     }
 
@@ -518,6 +585,26 @@ class _HistoricalRecordsScreenState
           const _HistoryHero(),
           const SizedBox(height: AppSpacing.md),
           SegmentedButton<bool>(
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              side: WidgetStateProperty.resolveWith(
+                (states) => BorderSide(
+                  color: states.contains(WidgetState.selected)
+                      ? AppColors.primary
+                      : AppColors.outlineVariant,
+                ),
+              ),
+              backgroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? AppColors.secondaryContainer
+                    : AppColors.surfaceContainerLowest,
+              ),
+              foregroundColor: WidgetStateProperty.resolveWith(
+                (states) => states.contains(WidgetState.selected)
+                    ? AppColors.primary
+                    : AppColors.onSurfaceVariant,
+              ),
+            ),
             segments: [
               ButtonSegment(
                 value: false,
@@ -540,7 +627,10 @@ class _HistoricalRecordsScreenState
             _BulkImportCard(
               controller: _bulkCsvController,
               membersFuture: _membersFuture,
+              onDownloadTemplate: _downloadCsvTemplate,
               onShareTemplate: _shareCsvTemplate,
+              onPickCsvDocument: _pickCsvDocument,
+              isPickingCsv: _isPickingCsv,
               parseCsv: _parseHistoricalCsv,
             )
           else
@@ -589,6 +679,9 @@ class _HistoricalRecordsScreenState
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
                 : Icon(_bulkMode ? Icons.cloud_upload_outlined : Icons.save),
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSizes.buttonHeight),
+            ),
             label: Text(
               context.vt(
                 _isSubmitting
@@ -602,6 +695,9 @@ class _HistoricalRecordsScreenState
           const SizedBox(height: AppSpacing.sm),
           TextButton(
             onPressed: _isSubmitting ? null : _continueToReminders,
+            style: TextButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSizes.compactInputHeight),
+            ),
             child: Text(context.vt('Skip Historical Records')),
           ),
         ],
@@ -618,8 +714,8 @@ class _HistoryHero extends StatelessWidget {
     return Container(
       padding: AppInsets.card,
       decoration: BoxDecoration(
-        color: AppColors.primaryContainer,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(AppRadii.base),
         boxShadow: AppShadows.level2(),
       ),
       child: Row(
@@ -630,7 +726,7 @@ class _HistoryHero extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.onPrimary.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(AppRadii.lg),
+              borderRadius: BorderRadius.circular(AppRadii.base),
             ),
             child: const Icon(
               Icons.history_edu_outlined,
@@ -655,6 +751,7 @@ class _HistoryHero extends StatelessWidget {
                   context.vt('For groups that started before using the app.'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppColors.onPrimary.withValues(alpha: 0.82),
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -888,13 +985,19 @@ class _BulkImportCard extends StatelessWidget {
   const _BulkImportCard({
     required this.controller,
     required this.membersFuture,
+    required this.onDownloadTemplate,
     required this.onShareTemplate,
+    required this.onPickCsvDocument,
+    required this.isPickingCsv,
     required this.parseCsv,
   });
 
   final TextEditingController controller;
   final Future<GroupMembersResult>? membersFuture;
+  final VoidCallback onDownloadTemplate;
   final VoidCallback onShareTemplate;
+  final VoidCallback onPickCsvDocument;
+  final bool isPickingCsv;
   final List<HistoricalPaymentInput> Function(
     String csv,
     List<GroupMemberSummary> members,
@@ -917,23 +1020,77 @@ class _BulkImportCard extends StatelessWidget {
                 ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.4),
           ),
           const SizedBox(height: AppSpacing.sm),
-          OutlinedButton.icon(
-            onPressed: onShareTemplate,
-            icon: const Icon(Icons.table_chart_outlined, size: 18),
-            label: Text(context.vt('Share CSV template')),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              OutlinedButton.icon(
+                onPressed: onDownloadTemplate,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, AppSizes.compactInputHeight),
+                ),
+                icon: const Icon(Icons.download_outlined, size: 18),
+                label: Text(context.vt('Download CSV template')),
+              ),
+              OutlinedButton.icon(
+                onPressed: onShareTemplate,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, AppSizes.compactInputHeight),
+                ),
+                icon: const Icon(Icons.ios_share_outlined, size: 18),
+                label: Text(context.vt('Share CSV template')),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: controller,
-            minLines: 8,
-            maxLines: 12,
-            keyboardType: TextInputType.multiline,
-            decoration: InputDecoration(
-              labelText: context.vt('CSV rows'),
-              hintText:
-                  'member_number,full_name,phone,email,contribution_type,amount,method,paid_at,reference\nMBR-0001,Amina Mwangi,="255712345678",amina@example.com,RECURRING,5000,CASH,2026-09-09,OLD-LEDGER-001',
-              alignLabelWithHint: true,
-              prefixIcon: const Icon(Icons.content_paste_outlined),
+          DefaultTabController(
+            length: 2,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TabBar(
+                  labelColor: AppColors.primary,
+                  unselectedLabelColor: AppColors.onSurfaceVariant,
+                  indicatorColor: AppColors.primary,
+                  dividerColor: AppColors.outlineVariant,
+                  tabs: [
+                    Tab(
+                      icon: const Icon(Icons.content_paste_outlined),
+                      text: context.vt('Paste CSV'),
+                    ),
+                    Tab(
+                      icon: const Icon(Icons.upload_file_outlined),
+                      text: context.vt('CSV file'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                SizedBox(
+                  height: 300,
+                  child: TabBarView(
+                    children: [
+                      TextField(
+                        controller: controller,
+                        minLines: 8,
+                        maxLines: 12,
+                        keyboardType: TextInputType.multiline,
+                        decoration: InputDecoration(
+                          labelText: context.vt('CSV rows'),
+                          hintText:
+                              'member_number,full_name,phone,email,contribution_type,amount,method,paid_at,reference\nMBR-0001,Amina Mwangi,="255712345678",amina@example.com,RECURRING,5000,CASH,2026-09-09,OLD-LEDGER-001',
+                          alignLabelWithHint: true,
+                          prefixIcon: const Icon(Icons.content_paste_outlined),
+                        ),
+                      ),
+                      _CsvFilePickerPanel(
+                        hasCsv: controller.text.trim().isNotEmpty,
+                        onPickCsvDocument: onPickCsvDocument,
+                        isPickingCsv: isPickingCsv,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
@@ -944,6 +1101,71 @@ class _BulkImportCard extends StatelessWidget {
           ),
           const SizedBox(height: AppSpacing.sm),
           const _ImportColumnMap(),
+        ],
+      ),
+    );
+  }
+}
+
+class _CsvFilePickerPanel extends StatelessWidget {
+  const _CsvFilePickerPanel({
+    required this.hasCsv,
+    required this.onPickCsvDocument,
+    required this.isPickingCsv,
+  });
+
+  final bool hasCsv;
+  final VoidCallback onPickCsvDocument;
+  final bool isPickingCsv;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Panel(
+      color: AppColors.surfaceContainerLow,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Icon(
+            hasCsv ? Icons.check_circle_outline : Icons.upload_file_outlined,
+            color: hasCsv ? AppColors.primary : AppColors.onSurfaceVariant,
+            size: 40,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            context.vt(
+              hasCsv
+                  ? 'CSV file loaded. Review the preview below before importing.'
+                  : 'Choose a CSV file from your device.',
+            ),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          OutlinedButton.icon(
+            onPressed: isPickingCsv ? null : onPickCsvDocument,
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(AppSizes.compactInputHeight),
+            ),
+            icon: isPickingCsv
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.folder_open_outlined),
+            label: Text(
+              context.vt(
+                isPickingCsv
+                    ? 'Opening file picker'
+                    : hasCsv
+                    ? 'Choose another CSV'
+                    : 'Choose CSV file',
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1055,7 +1277,7 @@ class _CsvPreviewCard extends StatelessWidget {
           ),
           Text(
             formatters.money(total),
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: AppColors.primary,
               fontWeight: FontWeight.w900,
             ),
@@ -1075,7 +1297,10 @@ class _CsvPreviewCard extends StatelessWidget {
                   (entry) => Chip(
                     label: Text('${context.vt(entry.key)}: ${entry.value}'),
                     backgroundColor: AppColors.surfaceContainerLowest,
-                    side: BorderSide.none,
+                    side: const BorderSide(color: AppColors.outlineVariant),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadii.base),
+                    ),
                   ),
                 )
                 .toList(),
@@ -1114,10 +1339,13 @@ class _ColumnChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
-      avatar: const Icon(Icons.check_circle, size: 16),
+      avatar: const Icon(Icons.check_circle, size: 16, color: AppColors.primary),
       label: Text(label),
       backgroundColor: AppColors.surfaceContainerLow,
-      side: BorderSide.none,
+      side: const BorderSide(color: AppColors.outlineVariant),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadii.base),
+      ),
     );
   }
 }
@@ -1132,10 +1360,18 @@ class _ImportRulesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            context.vt('Import rules'),
-            style: Theme.of(context).textTheme.titleSmall
-                ?.copyWith(fontWeight: FontWeight.w800),
+          Row(
+            children: [
+              const Icon(Icons.rule_folder_outlined, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Expanded(
+                child: Text(
+                  context.vt('Import rules'),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: AppSpacing.xs),
           const _RuleLine(text: 'Only group admin and secretary can import.'),
@@ -1185,13 +1421,16 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final panelColor = color ?? AppColors.surfaceContainerLowest;
     return Container(
       padding: AppInsets.compactCard,
       decoration: BoxDecoration(
-        color: color ?? AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
+        color: panelColor,
+        borderRadius: BorderRadius.circular(AppRadii.base),
         border: Border.all(color: AppColors.outlineVariant),
-        boxShadow: AppShadows.level1(),
+        boxShadow: panelColor == AppColors.surfaceContainerLowest
+            ? AppShadows.level1()
+            : null,
       ),
       child: child,
     );

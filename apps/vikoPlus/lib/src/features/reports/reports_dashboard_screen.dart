@@ -75,6 +75,32 @@ class _ReportsDashboardScreenState
     final activeGroup = ref.watch(activeGroupProvider);
     final filters = ref.watch(contributionReportFiltersProvider);
     _ensureReportFuture(activeGroup?.id, filters);
+    final reportActions = [
+      _ReportAction(
+        title: context.vt('Export files'),
+        subtitle: context.vt('Selected format is managed in report filters'),
+        icon: Icons.file_download_outlined,
+        route: '/reports/filters',
+      ),
+      _ReportAction(
+        title: context.vt('Member contribution analysis'),
+        subtitle: context.vt(
+          'Joining fee, monthly dues, total and percentage',
+        ),
+        icon: Icons.analytics_outlined,
+        route: '/reports/member-analysis',
+      ),
+      _ReportAction(
+        title: context.vt('Outstanding contributions'),
+        subtitle: context.vt('Members and periods still due'),
+        icon: Icons.pending_actions_outlined,
+        route: '/reports/outstanding',
+        color: AppColors.warning,
+      ),
+    ]..sort(
+        (a, b) =>
+            a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+      );
 
     return VikoplusScreen(
       title: context.vt('Reports'),
@@ -93,35 +119,36 @@ class _ReportsDashboardScreenState
           const SizedBox(height: 16),
           SectionHeader(title: context.vt('Available reports')),
           const SizedBox(height: 12),
-          ActionTile(
-            title: context.vt('Export files'),
-            subtitle: context.vt(
-              'Selected format is managed in report filters',
+          for (final action in reportActions) ...[
+            ActionTile(
+              title: action.title,
+              subtitle: action.subtitle,
+              icon: action.icon,
+              route: action.route,
+              color: action.color,
             ),
-            icon: Icons.file_download_outlined,
-            route: '/reports/filters',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: context.vt('Member contribution analysis'),
-            subtitle: context.vt(
-              'Joining fee, monthly dues, total and percentage',
-            ),
-            icon: Icons.analytics_outlined,
-            route: '/reports/member-analysis',
-          ),
-          const SizedBox(height: 12),
-          ActionTile(
-            title: context.vt('Outstanding contributions'),
-            subtitle: context.vt('Members and periods still due'),
-            icon: Icons.pending_actions_outlined,
-            route: '/reports/outstanding',
-            color: AppColors.warning,
-          ),
+            const SizedBox(height: 12),
+          ],
         ],
       ),
     );
   }
+}
+
+class _ReportAction {
+  const _ReportAction({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+    this.color = AppColors.primaryGreen,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+  final Color color;
 }
 
 class _ReportSummaryBlock extends ConsumerWidget {

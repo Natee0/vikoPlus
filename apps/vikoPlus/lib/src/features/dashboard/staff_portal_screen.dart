@@ -50,6 +50,58 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
     final secretaryName = displayName.isEmpty
         ? context.vt('Welcome')
         : displayName;
+    final secretaryActions = [
+      _SecretaryAction(
+        title: 'Historical records',
+        subtitle: 'Import previous group records',
+        icon: Icons.history_edu_outlined,
+        route: group == null
+            ? '/groups'
+            : '/groups/history?groupId=${Uri.encodeComponent(group.id)}&returnTo=${Uri.encodeComponent('/secretary/dashboard')}',
+      ),
+      const _SecretaryAction(
+        title: 'Member directory',
+        subtitle: 'View member contacts, roles and status',
+        icon: Icons.groups_2_outlined,
+        route: '/members',
+      ),
+      const _SecretaryAction(
+        title: 'Review payments',
+        subtitle: 'Approve or reject submitted contributions',
+        icon: Icons.fact_check_outlined,
+        route: '/contributions',
+      ),
+      const _SecretaryAction(
+        title: 'Send reminders',
+        subtitle: 'Prepare notices for members with dues',
+        icon: Icons.notifications_active_outlined,
+        route: '/reminders/new',
+      ),
+    ]..sort(
+        (a, b) => context
+            .vt(a.title)
+            .toLowerCase()
+            .compareTo(context.vt(b.title).toLowerCase()),
+      );
+    final personalActions = [
+      const _SecretaryAction(
+        title: 'My loans',
+        subtitle: 'Applications, guarantees and repayments',
+        icon: Icons.account_balance_wallet_outlined,
+        route: '/loans',
+      ),
+      const _SecretaryAction(
+        title: 'My payments',
+        subtitle: 'Pay your own group contributions',
+        icon: Icons.payments_outlined,
+        route: '/payments/select',
+      ),
+    ]..sort(
+        (a, b) => context
+            .vt(a.title)
+            .toLowerCase()
+            .compareTo(context.vt(b.title).toLowerCase()),
+      );
 
     return VikoplusScreen(
       title: group?.name ?? context.vt('Secretary Portal'),
@@ -127,51 +179,27 @@ class _StaffPortalScreenState extends ConsumerState<StaffPortalScreen> {
           const SizedBox(height: AppSpacing.md),
           SectionHeader(title: context.vt('Secretary duties')),
           const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('Historical records'),
-            subtitle: context.vt('Import previous group records'),
-            icon: Icons.history_edu_outlined,
-            route: group == null
-                ? '/groups'
-                : '/groups/history?groupId=${Uri.encodeComponent(group.id)}&returnTo=${Uri.encodeComponent('/secretary/dashboard')}',
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('Member directory'),
-            subtitle: context.vt('View member contacts, roles and status'),
-            icon: Icons.groups_2_outlined,
-            route: '/members',
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('Review payments'),
-            subtitle: context.vt('Approve or reject submitted contributions'),
-            icon: Icons.fact_check_outlined,
-            route: '/contributions',
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('Send reminders'),
-            subtitle: context.vt('Prepare notices for members with dues'),
-            icon: Icons.notifications_active_outlined,
-            route: '/reminders/new',
-          ),
+          for (final action in secretaryActions) ...[
+            _SecretaryActionTile(
+              title: context.vt(action.title),
+              subtitle: context.vt(action.subtitle),
+              icon: action.icon,
+              route: action.route,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
           const SizedBox(height: AppSpacing.md),
           SectionHeader(title: context.vt('Personal actions')),
           const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('My loans'),
-            subtitle: context.vt('Applications, guarantees and repayments'),
-            icon: Icons.account_balance_wallet_outlined,
-            route: '/loans',
-          ),
-          const SizedBox(height: AppSpacing.xs),
-          _SecretaryActionTile(
-            title: context.vt('My payments'),
-            subtitle: context.vt('Pay your own group contributions'),
-            icon: Icons.payments_outlined,
-            route: '/payments/select',
-          ),
+          for (final action in personalActions) ...[
+            _SecretaryActionTile(
+              title: context.vt(action.title),
+              subtitle: context.vt(action.subtitle),
+              icon: action.icon,
+              route: action.route,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
         ],
       ),
     );
@@ -291,6 +319,20 @@ class _SnapshotMetric extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SecretaryAction {
+  const _SecretaryAction({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
 }
 
 class _SecretaryActionTile extends StatelessWidget {

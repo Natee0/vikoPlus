@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -63,7 +64,81 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
     context.go('/reports');
   }
 
-  Future<void> _exportFile(
+  Future<({Uint8List bytes, String fileName, String mimeType})> _buildExportFile(
+    String groupId,
+    GroupFinancialYearSummary selectedYear,
+  ) async {
+    final format = _exportFormat;
+    final status = _memberStatus;
+    final groupName = ref.read(activeGroupProvider)?.name ?? '';
+    final locale = Localizations.localeOf(context).languageCode;
+    if (format == ContributionReportExportFormat.pdf) {
+      final report = await ref
+          .read(groupsRepositoryProvider)
+          .contributionReport(groupId, financialYearId: selectedYear.id);
+      final bytes = await buildContributionReportPdf(
+        report: report,
+        groupName: groupName,
+        year: selectedYear.name,
+        memberStatus: status,
+        locale: locale,
+      );
+      return (
+        bytes: bytes,
+        fileName: 'contributions-${selectedYear.id}.pdf',
+        mimeType: 'application/pdf',
+      );
+    }
+
+    final export = await ref.read(groupsRepositoryProvider).exportContributionReport(
+          groupId,
+          financialYearId: selectedYear.id,
+          memberStatus: status.name,
+          format: 'csv',
+        );
+    return (
+      bytes: Uint8List.fromList(utf8.encode('\uFEFF${export.content}')),
+      fileName: export.fileName,
+      mimeType: 'text/csv',
+    );
+  }
+
+  Future<void> _downloadFile(
+    String groupId,
+    GroupFinancialYearSummary selectedYear,
+  ) async {
+    if (_isExporting) return;
+    final dialogTitle = context.vt('Download report');
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _isExporting = true;
+      });
+      final export = await _buildExportFile(groupId, selectedYear);
+      if (!mounted) return;
+      await FilePicker.saveFile(
+        dialogTitle: dialogTitle,
+        fileName: export.fileName,
+        type: _exportFormat == ContributionReportExportFormat.pdf
+            ? FileType.any
+            : FileType.custom,
+        allowedExtensions: _exportFormat == ContributionReportExportFormat.pdf
+            ? null
+            : const ['csv'],
+        bytes: export.bytes,
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
+    } finally {
+      if (mounted) {
+        setState(() => _isExporting = false);
+      }
+    }
+  }
+
+  Future<void> _shareFile(
     String groupId,
     GroupFinancialYearSummary selectedYear,
   ) async {
@@ -74,48 +149,16 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
         _errorMessage = '';
         _isExporting = true;
       });
-      final format = _exportFormat;
-      final status = _memberStatus;
-      final groupName = ref.read(activeGroupProvider)?.name ?? '';
-      final locale = Localizations.localeOf(context).languageCode;
       final box = context.findRenderObject() as RenderBox?;
       final origin = box == null
           ? null
           : box.localToGlobal(Offset.zero) & box.size;
-      late Uint8List bytes;
-      late String fileName;
-      late String mimeType;
-      if (format == ContributionReportExportFormat.pdf) {
-        final report = await ref
-            .read(groupsRepositoryProvider)
-            .contributionReport(groupId, financialYearId: selectedYear.id);
-        bytes = await buildContributionReportPdf(
-          report: report,
-          groupName: groupName,
-          year: selectedYear.name,
-          memberStatus: status,
-          locale: locale,
-        );
-        fileName = 'contributions-${selectedYear.id}.pdf';
-        mimeType = 'application/pdf';
-      } else {
-        final export = await ref
-            .read(groupsRepositoryProvider)
-            .exportContributionReport(
-              groupId,
-              financialYearId: selectedYear.id,
-              memberStatus: status.name,
-              format: 'csv',
-            );
-        bytes = Uint8List.fromList(utf8.encode('\uFEFF${export.content}'));
-        fileName = export.fileName;
-        mimeType = 'text/csv';
-      }
+      final export = await _buildExportFile(groupId, selectedYear);
       if (!mounted) return;
       await SharePlus.instance.share(
         ShareParams(
-          files: [XFile.fromData(bytes, mimeType: mimeType)],
-          fileNameOverrides: [fileName],
+          files: [XFile.fromData(export.bytes, mimeType: export.mimeType)],
+          fileNameOverrides: [export.fileName],
           sharePositionOrigin: origin,
         ),
       );
@@ -287,7 +330,7 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                     FilledButton.icon(
                       onPressed: _isExporting
                           ? null
-                          : () => _exportFile(activeGroup.id, selectedYear),
+                          : () => _downloadFile(activeGroup.id, selectedYear),
                       icon: _isExporting
                           ? const SizedBox(
                               width: 18,
@@ -298,8 +341,16 @@ class _ReportFiltersScreenState extends ConsumerState<ReportFiltersScreen> {
                       label: Text(
                         _isExporting
                             ? AppLocalizations.of(context).preparing
-                            : AppLocalizations.of(context).exportReport,
+                            : context.vt('Download report'),
                       ),
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    OutlinedButton.icon(
+                      onPressed: _isExporting
+                          ? null
+                          : () => _shareFile(activeGroup.id, selectedYear),
+                      icon: const Icon(Icons.ios_share_outlined, size: 18),
+                      label: Text(context.vt('Share report')),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton.icon(

@@ -1038,6 +1038,22 @@ const _swahili = <String, String>{
   'Logout': 'Toka',
   'Logging out': 'Inatoka',
   'End your session on this device': 'Maliza kipindi chako kwenye kifaa hiki',
+  'Historical Records': 'Kumbukumbu za zamani',
+  'Bring old group records into vikoPlus':
+      'Ingiza kumbukumbu za zamani za kikundi kwenye vikoPlus',
+  'For groups that started before using the app.':
+      'Kwa vikundi vilivyoanza kabla ya kutumia programu.',
+  'One by one': 'Moja moja',
+  'Bulk': 'Kwa wingi',
+  'Create a group before importing historical records.':
+      'Unda kikundi kabla ya kuingiza kumbukumbu za zamani.',
+  'Create a group before importing records.':
+      'Unda kikundi kabla ya kuingiza kumbukumbu.',
+  'Add at least one group member before importing records.':
+      'Ongeza angalau mwanachama mmoja kabla ya kuingiza kumbukumbu.',
+  'Select a member for this payment.':
+      'Chagua mwanachama kwa malipo haya.',
+  'Enter a valid payment amount.': 'Weka kiasi sahihi cha malipo.',
   'Single Payment': 'Malipo moja',
   'Contribution type': 'Aina ya mchango',
   'Amount Paid': 'Kiasi kilicholipwa',
@@ -1047,6 +1063,24 @@ const _swahili = <String, String>{
   'Paste CSV rows prepared from the old ledger. Each row should include member number, contribution type, amount, method, paid date, and reference.':
   'Bandika mistari ya CSV kutoka kumbukumbu za zamani. Kila mstari uwe na namba ya mwanachama, aina ya mchango, kiasi, njia, tarehe ya malipo, na rejea.',
   'Share CSV template': 'Shiriki kiolezo cha CSV',
+  'Download CSV template': 'Pakua kiolezo cha CSV',
+  'Paste CSV': 'Bandika CSV',
+  'CSV file': 'Faili la CSV',
+  'Choose CSV file': 'Chagua faili la CSV',
+  'Choose another CSV': 'Chagua CSV nyingine',
+  'Opening file picker': 'Inafungua kichagua faili',
+  'Choose a CSV file from your device.':
+      'Chagua faili la CSV kutoka kwenye kifaa chako.',
+  'Choose a CSV file.': 'Chagua faili la CSV.',
+  'No CSV file was selected.': 'Hakuna faili la CSV lililochaguliwa.',
+  'Could not open the CSV picker.': 'Imeshindikana kufungua kichagua CSV.',
+  'CSV file loaded. Review the preview below before importing.':
+      'Faili la CSV limepakiwa. Kagua mwonekano kabla ya kuingiza.',
+  'Selected CSV file is empty.': 'Faili la CSV ulilochagua halina taarifa.',
+  'Paste or upload a CSV before importing.':
+      'Bandika au pakia CSV kabla ya kuingiza kumbukumbu.',
+  'Download report': 'Pakua ripoti',
+  'Share report': 'Shiriki ripoti',
   'CSV rows': 'Mistari ya CSV',
   'Method': 'Njia',
   'Paid date': 'Tarehe ya malipo',

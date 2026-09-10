@@ -26,7 +26,7 @@
 
 body {
   margin: 0;
-  min-width: 1120px;
+  min-width: 0;
   color: var(--text);
   background:
     radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.22) 1px, transparent 0),
@@ -119,10 +119,12 @@ input:focus {
 }
 
 .auth-page {
-  position: relative;
-  min-height: calc(100vh - 48px);
+  display: flex;
+  height: calc(100vh - 56px);
+  align-items: center;
+  justify-content: center;
   margin: 28px;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--bg);
@@ -154,9 +156,9 @@ input:focus {
 }
 
 .login-card {
-  width: 410px;
-  margin: 120px auto 0;
-  padding: 36px;
+  width: min(410px, 100%);
+  margin: 0;
+  padding: 24px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
@@ -165,9 +167,9 @@ input:focus {
 }
 
 .login-logo {
-  width: 74px;
-  height: 74px;
-  margin-bottom: 18px;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 10px;
   border-radius: 18px;
   object-fit: cover;
 }
@@ -192,13 +194,13 @@ input:focus {
 }
 
 .login-card p {
-  margin: 12px 0 30px;
+  margin: 8px 0 20px;
   color: var(--muted);
 }
 
 .login-card label {
   display: block;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   text-align: left;
 }
 
@@ -244,7 +246,22 @@ input:focus {
 .primary-action {
   display: flex;
   justify-content: center;
-  margin-top: 18px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+@media (max-width: 560px) {
+  .auth-page {
+    height: 100vh;
+    margin: 0;
+    padding: 24px 16px;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .login-card {
+    padding: 24px 20px;
+  }
 }
 
 .login-card footer {

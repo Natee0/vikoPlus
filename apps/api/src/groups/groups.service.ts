@@ -24,6 +24,7 @@ import {
   LoanRepaymentStatus,
   Locale,
   PaymentAllocationStatus,
+  ReminderPackagePurchaseStatus,
   ReceiptStatus,
   SubscriptionPlanStatus,
   SubscriptionState,
@@ -2018,12 +2019,86 @@ export class GroupsService {
 
   async reminderPackages(user: AuthenticatedUser, groupId: string) {
     await this.requireMembership(user, groupId);
+    await this.syncPendingReminderPackagePurchases(groupId);
+    const creditTotals = await this.prisma.reminderPackagePurchase.aggregate({
+      where: {
+        groupId,
+        status: ReminderPackagePurchaseStatus.PAID,
+      },
+      _sum: {
+        quantity: true,
+        usedQuantity: true,
+      },
+      _count: true,
+    });
+    const purchased = creditTotals._sum.quantity ?? 0;
+    const used = creditTotals._sum.usedQuantity ?? 0;
     return {
       packages: await this.prisma.platformPrice.findMany({
         where: { isActive: true },
         orderBy: [{ channel: "asc" }, { amountMinor: "asc" }],
       }),
+      credits: {
+        purchases: creditTotals._count,
+        purchased,
+        used,
+        remaining: Math.max(purchased - used, 0),
+      },
     };
+  }
+
+  private async syncPendingReminderPackagePurchases(groupId: string) {
+    const pendingPurchases = await this.prisma.reminderPackagePurchase.findMany({
+      where: {
+        groupId,
+        status: ReminderPackagePurchaseStatus.PENDING,
+        providerCheckoutId: { not: null },
+      },
+      take: 20,
+      orderBy: { createdAt: "desc" },
+    });
+
+    await Promise.all(
+      pendingPurchases.map(async (purchase) => {
+        if (!purchase.providerCheckoutId) return;
+        try {
+          const providerOrder = await this.billingProvider.getSubscription(
+            purchase.providerCheckoutId,
+          );
+          const nextStatus = this.reminderPurchaseStatusFromProviderStatus(
+            providerOrder.status,
+          );
+          if (!nextStatus) return;
+          await this.prisma.reminderPackagePurchase.update({
+            where: { id: purchase.id },
+            data: {
+              status: nextStatus,
+              ...(nextStatus === ReminderPackagePurchaseStatus.PAID
+                ? { paidAt: new Date() }
+                : {}),
+            },
+          });
+        } catch {
+          // Keep the purchase pending if the provider is temporarily unavailable.
+        }
+      }),
+    );
+  }
+
+  private reminderPurchaseStatusFromProviderStatus(
+    status: string,
+  ): ReminderPackagePurchaseStatus | null {
+    switch (status) {
+      case "active":
+        return ReminderPackagePurchaseStatus.PAID;
+      case "cancelled":
+        return ReminderPackagePurchaseStatus.CANCELLED;
+      case "expired":
+      case "past_due":
+        return ReminderPackagePurchaseStatus.FAILED;
+      default:
+        return null;
+    }
   }
 
   async createReminderPackageCheckout(

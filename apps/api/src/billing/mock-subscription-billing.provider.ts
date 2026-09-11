@@ -73,6 +73,7 @@ export class MockSubscriptionBillingProvider implements SubscriptionBillingProvi
   verifyWebhookSignature(
     payload: Buffer,
     signature: string,
+    _timestamp?: string,
   ): Promise<VerifiedBillingEvent> {
     const secret = this.config.getOrThrow<string>(
       "MOCK_BILLING_WEBHOOK_SECRET",

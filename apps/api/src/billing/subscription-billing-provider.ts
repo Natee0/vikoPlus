@@ -84,5 +84,6 @@ export interface SubscriptionBillingProvider {
   verifyWebhookSignature(
     payload: Buffer,
     signature: string,
+    timestamp?: string,
   ): Promise<VerifiedBillingEvent>;
 }

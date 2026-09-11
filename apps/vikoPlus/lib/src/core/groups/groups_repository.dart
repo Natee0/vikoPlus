@@ -978,10 +978,14 @@ class SendReminderResult {
 }
 
 class ReminderPackagesResult {
-  const ReminderPackagesResult({required this.packages});
+  const ReminderPackagesResult({
+    required this.packages,
+    required this.credits,
+  });
 
   factory ReminderPackagesResult.fromJson(Map<String, dynamic> json) {
     final items = json['packages'];
+    final credits = json['credits'];
     return ReminderPackagesResult(
       packages: items is List
           ? items
@@ -993,10 +997,37 @@ class ReminderPackagesResult {
                 )
                 .toList()
           : const [],
+      credits: ReminderCreditSummary.fromJson(
+        credits is Map ? Map<String, dynamic>.from(credits) : const {},
+      ),
     );
   }
 
   final List<ReminderPackageSummary> packages;
+  final ReminderCreditSummary credits;
+}
+
+class ReminderCreditSummary {
+  const ReminderCreditSummary({
+    required this.purchases,
+    required this.purchased,
+    required this.used,
+    required this.remaining,
+  });
+
+  factory ReminderCreditSummary.fromJson(Map<String, dynamic> json) {
+    return ReminderCreditSummary(
+      purchases: json['purchases'] as int? ?? 0,
+      purchased: json['purchased'] as int? ?? 0,
+      used: json['used'] as int? ?? 0,
+      remaining: json['remaining'] as int? ?? 0,
+    );
+  }
+
+  final int purchases;
+  final int purchased;
+  final int used;
+  final int remaining;
 }
 
 class ReminderPackageSummary {

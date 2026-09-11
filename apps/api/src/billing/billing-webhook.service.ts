@@ -23,10 +23,12 @@ export class BillingWebhookService {
     provider: BillingProvider,
     payload: Buffer,
     signature: string,
+    timestamp?: string,
   ): Promise<{ received: true; eventId: string }> {
     const verified = await this.billingProvider.verifyWebhookSignature(
       payload,
       signature,
+      timestamp,
     );
 
     const event = await this.prisma.billingEvent.upsert({
@@ -198,14 +200,19 @@ export class BillingWebhookService {
       this.reminderPurchaseStatusFromProviderStatus(providerStatus);
     if (!nextStatus) return;
 
-    const purchase = await this.prisma.reminderPackagePurchase.findFirst({
-      where: { providerCheckoutId: orderId },
-    });
+    const purchase =
+      (await this.prisma.reminderPackagePurchase.findFirst({
+        where: { providerCheckoutId: orderId },
+      })) ??
+      (await this.reminderPurchaseFromExternalRef(
+        this.firstString(payload, ["externalRef"]),
+      ));
     if (!purchase) return;
 
     await this.prisma.reminderPackagePurchase.update({
       where: { id: purchase.id },
       data: {
+        providerCheckoutId: orderId,
         status: nextStatus,
         ...(nextStatus === ReminderPackagePurchaseStatus.PAID
           ? { paidAt: new Date() }
@@ -230,6 +237,20 @@ export class BillingWebhookService {
       default:
         return null;
     }
+  }
+
+  private async reminderPurchaseFromExternalRef(externalRef?: string) {
+    if (!externalRef) return null;
+    const [groupId, packageCode] = externalRef.split(":");
+    if (!groupId || !packageCode) return null;
+    return this.prisma.reminderPackagePurchase.findFirst({
+      where: {
+        groupId,
+        platformPrice: { code: packageCode },
+        status: ReminderPackagePurchaseStatus.PENDING,
+      },
+      orderBy: { createdAt: "desc" },
+    });
   }
 
   private firstString(

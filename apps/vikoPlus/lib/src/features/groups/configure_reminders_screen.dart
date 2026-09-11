@@ -551,7 +551,8 @@ class _ReminderPackagePicker extends StatelessWidget {
           );
         }
 
-        final packages = snapshot.data!.packages;
+        final result = snapshot.data!;
+        final packages = result.packages;
         if (packages.isEmpty) {
           return Container(
             padding: AppInsets.compactCard,
@@ -574,6 +575,8 @@ class _ReminderPackagePicker extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            _ReminderCreditCard(credits: result.credits),
+            const SizedBox(height: AppSpacing.sm),
             for (final package in packages) ...[
               _ReminderPackageTile(
                 package: package,
@@ -647,6 +650,61 @@ class _SectionLabel extends StatelessWidget {
       style: Theme.of(context).textTheme.labelMedium?.copyWith(
         color: AppColors.onSurfaceVariant,
         fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _ReminderCreditCard extends StatelessWidget {
+  const _ReminderCreditCard({required this.credits});
+
+  final ReminderCreditSummary credits;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(
+          color: AppColors.primaryContainer.withValues(alpha: 0.20),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.mark_email_unread_outlined, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.vt('Reminder credits'),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  '${context.vt('Purchased')}: ${credits.purchased} · '
+                  '${context.vt('Used')}: ${credits.used}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${credits.remaining}',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
       ),
     );
   }

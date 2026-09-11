@@ -153,21 +153,23 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
   verifyWebhookSignature(
     payload: Buffer,
     signature: string,
+    timestamp?: string,
   ): Promise<VerifiedBillingEvent> {
     const secret = this.config.getOrThrow<string>(
       "SAYARI_PAYMENT_CALLBACK_SECRET",
     );
-    const expected = createHmac("sha256", secret).update(payload).digest("hex");
+    const body = payload.toString("utf8");
+    const signedPayload = timestamp ? `${timestamp}.${body}` : body;
+    const expected = createHmac("sha256", secret)
+      .update(signedPayload)
+      .digest("hex");
     if (!this.safeCompare(signature, expected)) {
       throw new UnauthorizedException(
         "Invalid Sayari payment webhook signature.",
       );
     }
 
-    const parsed = JSON.parse(payload.toString("utf8")) as Record<
-      string,
-      unknown
-    >;
+    const parsed = JSON.parse(body) as Record<string, unknown>;
     const normalized = this.normalizedPayload(parsed);
     const providerEventId =
       this.firstString(normalized, ["eventId", "id", "orderId"]) ??

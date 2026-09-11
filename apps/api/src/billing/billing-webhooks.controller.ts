@@ -14,6 +14,7 @@ export class BillingWebhooksController {
   async receiveWebhook(
     @Param("provider") provider: string,
     @Headers("x-sayari-signature") sayariSignature: string,
+    @Headers("x-sayari-timestamp") sayariTimestamp: string,
     @Headers("x-vikoplus-signature") legacySignature: string,
     @Body() body: Record<string, unknown>,
     @Req() req: { rawBody?: Buffer },
@@ -23,6 +24,7 @@ export class BillingWebhooksController {
       provider.toUpperCase() as BillingProvider,
       payload,
       sayariSignature ?? legacySignature,
+      sayariTimestamp,
     );
   }
 }

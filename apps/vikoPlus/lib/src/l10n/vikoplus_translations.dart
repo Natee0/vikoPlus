@@ -711,6 +711,8 @@ const _swahili = <String, String>{
   'Uwekaji upya wa nenosiri umethibitishwa na vipindi vilivyokuwa hai vimefungwa.',
   'Back to Sign In': 'Rudi kuingia',
   'Configure Reminders': 'Weka vikumbusho',
+  'Set automatic payment reminders and buy credits':
+      'Weka vikumbusho vya malipo na nunua salio',
   'Reminder Package': 'Kifurushi cha vikumbusho',
   'Schedule': 'Ratiba',
   'Message Preview': 'Muonekano wa ujumbe',

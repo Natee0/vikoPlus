@@ -98,7 +98,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
         this.firstString(wallet, ["paymentGatewayUrl", "paymentUrl"]) ??
         this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ??
         "",
-      expiresAt: addMinutes(new Date(), 1),
+      expiresAt: addMinutes(new Date(), 3),
       walletPaymentStarted: true,
     };
   }

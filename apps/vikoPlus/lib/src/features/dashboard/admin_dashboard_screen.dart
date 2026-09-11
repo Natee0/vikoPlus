@@ -80,6 +80,13 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
         color: AppColors.secondaryGreen,
       ),
       _AdminAction(
+        title: context.vt('Configure Reminders'),
+        subtitle: context.vt('Set automatic payment reminders and buy credits'),
+        icon: Icons.notifications_active_outlined,
+        route: _setupRoute('/groups/reminders', activeGroup),
+        color: AppColors.secondaryGreen,
+      ),
+      _AdminAction(
         title: context.vt('Group expenses'),
         subtitle: context.vt('Record and approve group spending'),
         icon: Icons.receipt_long_outlined,

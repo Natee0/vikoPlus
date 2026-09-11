@@ -25,6 +25,8 @@ class SubscriptionPlanScreen extends ConsumerStatefulWidget {
 
 class _SubscriptionPlanScreenState
     extends ConsumerState<SubscriptionPlanScreen> {
+  static const _paymentWaitSeconds = 180;
+
   final _phoneController = TextEditingController();
   String? _selectedPlanCode;
   String? _loadedGroupId;
@@ -32,8 +34,9 @@ class _SubscriptionPlanScreenState
   String _checkoutUrl = '';
   bool _walletPromptStarted = false;
   bool _isWaitingForPayment = false;
+  bool _isPollingPaymentStatus = false;
   int _paymentAttemptToken = 0;
-  int _paymentSecondsRemaining = 62;
+  int _paymentSecondsRemaining = _paymentWaitSeconds;
   String _errorMessage = '';
   bool _isStartingCheckout = false;
   Timer? _paymentExpiryTimer;
@@ -104,7 +107,7 @@ class _SubscriptionPlanScreenState
         _checkoutUrl = '';
         _walletPromptStarted = false;
         _isWaitingForPayment = false;
-        _paymentSecondsRemaining = 62;
+        _paymentSecondsRemaining = _paymentWaitSeconds;
         _errorMessage = '';
         _isStartingCheckout = true;
       });
@@ -161,54 +164,78 @@ class _SubscriptionPlanScreenState
 
   void _startPaymentExpiryTimer(String groupId, int attemptToken) {
     _paymentExpiryTimer?.cancel();
-    final expiresAt = DateTime.now().add(const Duration(seconds: 62));
-    setState(() => _paymentSecondsRemaining = 62);
-    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    final expiresAt = DateTime.now().add(
+      const Duration(seconds: _paymentWaitSeconds),
+    );
+    setState(() => _paymentSecondsRemaining = _paymentWaitSeconds);
+    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
       if (!mounted || attemptToken != _paymentAttemptToken) {
         timer.cancel();
         return;
       }
       final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
-      final nextRemaining = remaining.clamp(0, 62).toInt();
+      final nextRemaining = remaining.clamp(0, _paymentWaitSeconds).toInt();
       if (_paymentSecondsRemaining != nextRemaining) {
         setState(() => _paymentSecondsRemaining = nextRemaining);
       }
       if (nextRemaining <= 0) {
         timer.cancel();
         _expirePaymentAttempt(groupId, attemptToken);
+      } else if (nextRemaining % 3 == 0) {
+        final confirmed = await _confirmPaymentIfReady(groupId, attemptToken);
+        if (confirmed) {
+          timer.cancel();
+        }
       }
     });
   }
 
+  Future<bool> _confirmPaymentIfReady(
+    String groupId,
+    int attemptToken,
+  ) async {
+    if (_isPollingPaymentStatus ||
+        !mounted ||
+        attemptToken != _paymentAttemptToken) {
+      return false;
+    }
+    _isPollingPaymentStatus = true;
+    try {
+      final latest = await ref.read(billingRepositoryProvider).subscription(groupId);
+      if (!mounted || attemptToken != _paymentAttemptToken) return false;
+      if (!latest.hasPaidFeatureAccess) return false;
+      ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
+            hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
+            planCode: latest.planCode,
+            stateValue: latest.state,
+            endsAt: latest.currentPeriodEndsAt,
+          );
+      _paymentExpiryTimer?.cancel();
+      setState(() {
+        _walletPromptStarted = false;
+        _isWaitingForPayment = false;
+        _paymentSecondsRemaining = 0;
+        _checkoutUrl = '';
+        _errorMessage = '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.vt('Payment confirmed.'))),
+      );
+      return true;
+    } on Object {
+      return false;
+    } finally {
+      _isPollingPaymentStatus = false;
+    }
+  }
+
   Future<void> _expirePaymentAttempt(String groupId, int attemptToken) async {
     if (!mounted || attemptToken != _paymentAttemptToken) return;
-    final billing = ref.read(billingRepositoryProvider);
-    try {
-      final latest = await billing.subscription(groupId);
-      if (!mounted || attemptToken != _paymentAttemptToken) return;
-      if (latest.hasPaidFeatureAccess) {
-        ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
-              hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
-              planCode: latest.planCode,
-              stateValue: latest.state,
-              endsAt: latest.currentPeriodEndsAt,
-            );
-        _paymentExpiryTimer?.cancel();
-        setState(() {
-          _isWaitingForPayment = false;
-          _paymentSecondsRemaining = 0;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.vt('Payment confirmed.'))),
-        );
-        return;
-      }
-    } on Object {
-      // If status lookup fails, still try to cancel the expired prompt below.
-    }
+    final confirmed = await _confirmPaymentIfReady(groupId, attemptToken);
+    if (confirmed) return;
 
     try {
-      await billing.cancelSubscription(groupId);
+      await ref.read(billingRepositoryProvider).cancelSubscription(groupId);
     } on Object {
       // The prompt has already expired on the phone; keep the UI recoverable.
     }
@@ -217,7 +244,7 @@ class _SubscriptionPlanScreenState
     setState(() {
       _walletPromptStarted = false;
       _isWaitingForPayment = false;
-      _paymentSecondsRemaining = 62;
+      _paymentSecondsRemaining = _paymentWaitSeconds;
       _checkoutUrl = '';
       _errorMessage = context.vt(
         'Payment prompt expired. Please try again.',

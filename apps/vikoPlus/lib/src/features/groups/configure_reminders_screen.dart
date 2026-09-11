@@ -28,6 +28,8 @@ class ConfigureRemindersScreen extends ConsumerStatefulWidget {
 
 class _ConfigureRemindersScreenState
     extends ConsumerState<ConfigureRemindersScreen> {
+  static const _paymentWaitSeconds = 180;
+
   static const _template =
       'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.';
 
@@ -42,10 +44,13 @@ class _ConfigureRemindersScreenState
   bool _isStartingCheckout = false;
   bool _walletPromptStarted = false;
   bool _isWaitingForPayment = false;
+  bool _isPollingPaymentStatus = false;
+  int _paymentAttemptToken = 0;
+  int _creditBalanceBeforePayment = 0;
   bool _enabled = false;
   bool _loadingSettings = true;
   bool _settingsLoaded = false;
-  int _paymentSecondsRemaining = 62;
+  int _paymentSecondsRemaining = _paymentWaitSeconds;
   final Set<int> _offsets = {-3, 0};
 
   @override
@@ -147,6 +152,8 @@ class _ConfigureRemindersScreenState
     }
 
     try {
+      final attemptToken = ++_paymentAttemptToken;
+      final repository = ref.read(groupsRepositoryProvider);
       setState(() {
         _errorMessage = '';
         _checkoutUrl = '';
@@ -154,9 +161,14 @@ class _ConfigureRemindersScreenState
         _walletPromptStarted = false;
         _isWaitingForPayment = false;
       });
-      final checkout = await ref
-          .read(groupsRepositoryProvider)
-          .createReminderPackageCheckout(
+      final currentCredits = await repository.reminderPackages(groupId);
+      if (!mounted || attemptToken != _paymentAttemptToken) {
+        return;
+      }
+      setState(() {
+        _creditBalanceBeforePayment = currentCredits.credits.remaining;
+      });
+      final checkout = await repository.createReminderPackageCheckout(
             groupId,
             ReminderPackageCheckoutInput(
               packageCode: package.code,
@@ -175,7 +187,7 @@ class _ConfigureRemindersScreenState
         _isWaitingForPayment = checkout.walletPaymentStarted;
       });
       if (checkout.walletPaymentStarted) {
-        _startPaymentExpiryTimer();
+        _startPaymentExpiryTimer(groupId, attemptToken);
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -198,33 +210,86 @@ class _ConfigureRemindersScreenState
     }
   }
 
-  void _startPaymentExpiryTimer() {
+  void _startPaymentExpiryTimer(String groupId, int attemptToken) {
     _paymentExpiryTimer?.cancel();
-    final expiresAt = DateTime.now().add(const Duration(seconds: 62));
-    setState(() => _paymentSecondsRemaining = 62);
-    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
+    final expiresAt = DateTime.now().add(
+      const Duration(seconds: _paymentWaitSeconds),
+    );
+    setState(() => _paymentSecondsRemaining = _paymentWaitSeconds);
+    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted || attemptToken != _paymentAttemptToken) {
         timer.cancel();
         return;
       }
       final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
-      final nextRemaining = remaining.clamp(0, 62).toInt();
+      final nextRemaining = remaining.clamp(0, _paymentWaitSeconds).toInt();
       if (_paymentSecondsRemaining != nextRemaining) {
         setState(() => _paymentSecondsRemaining = nextRemaining);
       }
       if (nextRemaining <= 0) {
         timer.cancel();
+        final confirmed = await _confirmReminderPaymentIfReady(
+          groupId,
+          attemptToken,
+        );
+        if (confirmed) return;
         setState(() {
           _walletPromptStarted = false;
           _isWaitingForPayment = false;
-          _paymentSecondsRemaining = 62;
+          _paymentSecondsRemaining = _paymentWaitSeconds;
           _checkoutUrl = '';
           _errorMessage = context.vt(
             'Payment prompt expired. If you confirmed payment, pull to refresh before buying again.',
           );
         });
+      } else if (nextRemaining % 3 == 0) {
+        final confirmed = await _confirmReminderPaymentIfReady(
+          groupId,
+          attemptToken,
+        );
+        if (confirmed) {
+          timer.cancel();
+        }
       }
     });
+  }
+
+  Future<bool> _confirmReminderPaymentIfReady(
+    String groupId,
+    int attemptToken,
+  ) async {
+    if (_isPollingPaymentStatus ||
+        !mounted ||
+        attemptToken != _paymentAttemptToken) {
+      return false;
+    }
+    _isPollingPaymentStatus = true;
+    try {
+      final result = await ref.read(groupsRepositoryProvider).reminderPackages(
+            groupId,
+          );
+      if (!mounted || attemptToken != _paymentAttemptToken) return false;
+      if (result.credits.remaining <= _creditBalanceBeforePayment) {
+        return false;
+      }
+      final future = Future<ReminderPackagesResult>.value(result);
+      setState(() {
+        _setPackagesFuture(groupId, future);
+        _walletPromptStarted = false;
+        _isWaitingForPayment = false;
+        _paymentSecondsRemaining = 0;
+        _checkoutUrl = '';
+        _errorMessage = '';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.vt('Payment confirmed.'))),
+      );
+      return true;
+    } on Object {
+      return false;
+    } finally {
+      _isPollingPaymentStatus = false;
+    }
   }
 
   ReminderPackageSummary? _selectedPackage(

@@ -1,10 +1,11 @@
 import { Module } from "@nestjs/common";
+import { BillingModule } from "../billing/billing.module";
 import { PlatformModule } from "../platform/platform.module";
 import { AdminController } from "./admin.controller";
 import { AdminService } from "./admin.service";
 
 @Module({
-  imports: [PlatformModule],
+  imports: [BillingModule, PlatformModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

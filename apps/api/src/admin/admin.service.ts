@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -14,6 +15,8 @@ import {
   SubscriptionPlanStatus,
   SubscriptionState,
 } from "@prisma/client";
+import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
+import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
 import { PlatformPricingService } from "../platform/platform-pricing.service";
@@ -31,6 +34,8 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PlatformPricingService,
+    @Inject(SUBSCRIPTION_BILLING_PROVIDER)
+    private readonly billingProvider: SubscriptionBillingProvider,
   ) {}
 
   packageSettings() {
@@ -400,6 +405,8 @@ export class AdminService {
   }
 
   async metrics() {
+    await this.reconcilePendingProviderPayments();
+
     const [
       totalUsers,
       verifiedUsers,
@@ -808,6 +815,104 @@ export class AdminService {
   private numberValue(value: unknown): number | undefined {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
+  }
+
+  private async reconcilePendingProviderPayments(): Promise<void> {
+    const [subscriptions, reminderPurchases] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where: {
+          providerSubscriptionId: { not: null },
+          plan: { priceMinor: { gt: 0 } },
+        },
+        include: {
+          plan: true,
+          transactions: { select: { id: true }, take: 1 },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      }),
+      this.prisma.reminderPackagePurchase.findMany({
+        where: {
+          status: ReminderPackagePurchaseStatus.PENDING,
+          providerCheckoutId: { not: null },
+        },
+        orderBy: { updatedAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    await Promise.all(
+      subscriptions.map(async (subscription) => {
+        if (!subscription.providerSubscriptionId) return;
+        if (
+          subscription.state === SubscriptionState.ACTIVE &&
+          subscription.transactions.length > 0
+        ) {
+          return;
+        }
+        try {
+          const providerOrder = await this.billingProvider.getSubscription(
+            subscription.providerSubscriptionId,
+          );
+          if (providerOrder.status !== "active") return;
+          const now = new Date();
+          await this.prisma.subscription.update({
+            where: { id: subscription.id },
+            data: {
+              state: SubscriptionState.ACTIVE,
+              currentPeriodStartsAt: providerOrder.currentPeriodStartsAt,
+              currentPeriodEndsAt: providerOrder.currentPeriodEndsAt,
+              cancelAtPeriodEnd: providerOrder.cancelAtPeriodEnd,
+              cancelledAt: null,
+              expiredAt: null,
+              suspendedAt: null,
+            },
+          });
+          if (subscription.transactions.length === 0) {
+            await this.prisma.billingTransaction.upsert({
+              where: {
+                providerTransactionId: subscription.providerSubscriptionId,
+              },
+              create: {
+                subscriptionId: subscription.id,
+                providerTransactionId: subscription.providerSubscriptionId,
+                status: BillingTransactionStatus.SUCCEEDED,
+                amountMinor: subscription.plan.priceMinor,
+                currency: subscription.plan.currency,
+                processedAt: now,
+              },
+              update: {
+                status: BillingTransactionStatus.SUCCEEDED,
+                processedAt: now,
+              },
+            });
+          }
+        } catch {
+          // Keep dashboard reads resilient if the provider is temporarily unavailable.
+        }
+      }),
+    );
+
+    await Promise.all(
+      reminderPurchases.map(async (purchase) => {
+        if (!purchase.providerCheckoutId) return;
+        try {
+          const providerOrder = await this.billingProvider.getSubscription(
+            purchase.providerCheckoutId,
+          );
+          if (providerOrder.status !== "active") return;
+          await this.prisma.reminderPackagePurchase.update({
+            where: { id: purchase.id },
+            data: {
+              status: ReminderPackagePurchaseStatus.PAID,
+              paidAt: new Date(),
+            },
+          });
+        } catch {
+          // Keep dashboard reads resilient if the provider is temporarily unavailable.
+        }
+      }),
+    );
   }
 
   private async uniqueGroupSlug(name: string, currentGroupId?: string) {

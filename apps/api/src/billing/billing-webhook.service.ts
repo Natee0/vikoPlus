@@ -142,8 +142,7 @@ export class BillingWebhookService {
 
     if (nextState !== SubscriptionState.ACTIVE) return;
     const transactionRef =
-      this.firstString(payload, ["transid", "reference", "orderId"]) ??
-      orderId;
+      orderId ?? this.firstString(payload, ["transid", "reference"]);
     if (!transactionRef) return;
 
     const amountMinor = this.numberValue(payload["amount"]);

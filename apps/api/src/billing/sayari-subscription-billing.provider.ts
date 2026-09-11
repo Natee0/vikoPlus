@@ -48,13 +48,14 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     const buyerEmail =
       input.buyerEmail?.trim() || `billing+${input.groupId}@vikoplus.co.tz`;
 
+    const externalRef = `${input.groupId}:${input.planCode}:${requestId}`;
     const order = await this.sayariRequest<Record<string, unknown>>(
-      "/api/v1/wallet/ussd-collect",
+      "/api/v1/checkout/orders",
       {
         method: "POST",
-        idempotencyKey: `vikoplus-access-ussd-${requestId}`,
+        idempotencyKey: `vikoplus-access-order-${requestId}`,
         body: {
-          externalRef: `${input.groupId}:${input.planCode}:${requestId}`,
+          externalRef,
           buyerEmail,
           buyerName: input.buyerName,
           buyerPhone: walletMsisdn,
@@ -71,7 +72,6 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
             trialDays: input.trialDays,
             ...input.metadata,
           },
-          expiryMinutes: 1,
         },
       },
     );
@@ -83,10 +83,21 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       );
     }
 
+    const wallet = await this.sayariRequest<Record<string, unknown>>(
+      `/api/v1/checkout/orders/${encodeURIComponent(orderId)}/wallet-payment`,
+      {
+        method: "POST",
+        idempotencyKey: `vikoplus-access-wallet-${requestId}`,
+        body: { msisdn: walletMsisdn },
+      },
+    );
+
     return {
       providerSessionId: orderId,
       checkoutUrl:
-        this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ?? "",
+        this.firstString(wallet, ["paymentGatewayUrl", "paymentUrl"]) ??
+        this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ??
+        "",
       expiresAt: addMinutes(new Date(), 1),
       walletPaymentStarted: true,
     };

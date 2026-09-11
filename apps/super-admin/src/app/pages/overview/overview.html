@@ -35,3 +35,40 @@
   </header>
   <sa-group-table [rows]="groups" />
 </article>
+
+<article class="table-card">
+  <header>
+    <div>
+      <h2>Package metrics</h2>
+      <p>Revenue and usage across access plans and reminder credit packages.</p>
+    </div>
+  </header>
+  <table>
+    <thead>
+      <tr>
+        <th>Package</th>
+        <th>Type</th>
+        <th>Status</th>
+        <th>Revenue</th>
+        <th>Usage</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of productMetrics; track item.name + item.type) {
+        <tr>
+          <td><strong>{{ item.name }}</strong></td>
+          <td>{{ item.type }}</td>
+          <td><span class="status {{ item.statusClass }}">{{ item.status }}</span></td>
+          <td><strong>{{ item.revenue }}</strong></td>
+          <td>{{ item.usage }}</td>
+          <td><small>{{ item.detail }}</small></td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6">No package metrics are available yet.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</article>

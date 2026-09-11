@@ -10,7 +10,9 @@ import {
   GroupContributionPaymentStatus,
   GroupMemberStatus,
   Prisma,
+  ReminderPackagePurchaseStatus,
   SubscriptionPlanStatus,
+  SubscriptionState,
 } from "@prisma/client";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
@@ -412,6 +414,12 @@ export class AdminService {
       remindersSent,
       accessPackages,
       reminderPackages,
+      activeTrials,
+      subscriptionPlans,
+      reminderPackageRows,
+      activeSubscriptionsByPlan,
+      accessRevenueTransactions,
+      reminderPurchases,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.userIdentity.count({ where: { isVerified: true } }),
@@ -420,7 +428,7 @@ export class AdminService {
       this.prisma.groupMember.count({
         where: { status: GroupMemberStatus.ACTIVE },
       }),
-      this.prisma.subscription.count({ where: { state: "ACTIVE" } }),
+      this.prisma.subscription.count({ where: { state: SubscriptionState.ACTIVE } }),
       this.prisma.subscription.count(),
       this.prisma.groupContributionPayment.aggregate({
         where: { status: GroupContributionPaymentStatus.APPROVED },
@@ -438,7 +446,111 @@ export class AdminService {
         where: { status: SubscriptionPlanStatus.ACTIVE },
       }),
       this.prisma.platformPrice.count({ where: { isActive: true } }),
+      this.prisma.subscription.count({ where: { state: SubscriptionState.TRIAL } }),
+      this.prisma.subscriptionPlan.findMany({
+        orderBy: [{ status: "asc" }, { priceMinor: "asc" }],
+      }),
+      this.prisma.platformPrice.findMany({
+        orderBy: [{ isActive: "desc" }, { amountMinor: "asc" }],
+      }),
+      this.prisma.subscription.groupBy({
+        by: ["planId"],
+        where: { state: SubscriptionState.ACTIVE },
+        _count: { _all: true },
+      }),
+      this.prisma.billingTransaction.findMany({
+        where: { status: BillingTransactionStatus.SUCCEEDED },
+        select: {
+          amountMinor: true,
+          currency: true,
+          subscription: {
+            select: {
+              planId: true,
+              plan: { select: { code: true, name: true } },
+            },
+          },
+        },
+      }),
+      this.prisma.reminderPackagePurchase.findMany({
+        where: { status: ReminderPackagePurchaseStatus.PAID },
+        select: {
+          amountMinor: true,
+          currency: true,
+          quantity: true,
+          usedQuantity: true,
+          platformPrice: {
+            select: {
+              id: true,
+              code: true,
+              name: true,
+              channel: true,
+              isActive: true,
+            },
+          },
+        },
+      }),
     ]);
+
+    const activeSubscriptionsByPlanId = new Map(
+      activeSubscriptionsByPlan.map((entry) => [entry.planId, entry._count._all]),
+    );
+    const accessRevenueByPlanId = new Map<
+      string,
+      { revenueMinor: number; transactions: number; currency: string }
+    >();
+    for (const transaction of accessRevenueTransactions) {
+      const planId = transaction.subscription.planId;
+      const current = accessRevenueByPlanId.get(planId) ?? {
+        revenueMinor: 0,
+        transactions: 0,
+        currency: transaction.currency,
+      };
+      current.revenueMinor += transaction.amountMinor;
+      current.transactions += 1;
+      current.currency = transaction.currency;
+      accessRevenueByPlanId.set(planId, current);
+    }
+
+    const reminderRevenueByPackageId = new Map<
+      string,
+      {
+        revenueMinor: number;
+        purchases: number;
+        creditsSold: number;
+        creditsUsed: number;
+        currency: string;
+      }
+    >();
+    for (const purchase of reminderPurchases) {
+      const packageId = purchase.platformPrice.id;
+      const current = reminderRevenueByPackageId.get(packageId) ?? {
+        revenueMinor: 0,
+        purchases: 0,
+        creditsSold: 0,
+        creditsUsed: 0,
+        currency: purchase.currency,
+      };
+      current.revenueMinor += purchase.amountMinor;
+      current.purchases += 1;
+      current.creditsSold += purchase.quantity;
+      current.creditsUsed += purchase.usedQuantity;
+      current.currency = purchase.currency;
+      reminderRevenueByPackageId.set(packageId, current);
+    }
+
+    const reminderRevenueMinor = reminderPurchases.reduce(
+      (total, purchase) => total + purchase.amountMinor,
+      0,
+    );
+    const reminderCreditsSold = reminderPurchases.reduce(
+      (total, purchase) => total + purchase.quantity,
+      0,
+    );
+    const reminderCreditsUsed = reminderPurchases.reduce(
+      (total, purchase) => total + purchase.usedQuantity,
+      0,
+    );
+    const accessRevenueMinor = billingTransactions._sum.amountMinor ?? 0;
 
     return {
       users: {
@@ -455,6 +567,7 @@ export class AdminService {
         total: totalSubscriptions,
         active: activeSubscriptions,
         activeAccessPackages: accessPackages,
+        activeTrials,
       },
       contributions: {
         approvedPayments: contributionPayments._count,
@@ -463,10 +576,49 @@ export class AdminService {
       billing: {
         successfulTransactions: billingTransactions._count,
         successfulAmountMinor: billingTransactions._sum.amountMinor ?? 0,
+        totalRevenueMinor: accessRevenueMinor + reminderRevenueMinor,
+        accessRevenueMinor,
+        reminderRevenueMinor,
       },
       reminders: {
         sentCampaigns: remindersSent,
         activePackages: reminderPackages,
+        paidPackages: reminderPurchases.length,
+        creditsSold: reminderCreditsSold,
+        creditsUsed: reminderCreditsUsed,
+        remainingCredits: Math.max(reminderCreditsSold - reminderCreditsUsed, 0),
+      },
+      packages: {
+        accessPlans: subscriptionPlans.map((plan) => {
+          const revenue = accessRevenueByPlanId.get(plan.id);
+          return {
+            code: plan.code,
+            name: plan.name,
+            status: plan.status,
+            priceMinor: plan.priceMinor,
+            currency: plan.currency,
+            interval: plan.interval,
+            intervalCount: plan.intervalCount,
+            trialDays: plan.trialDays,
+            activeSubscriptions: activeSubscriptionsByPlanId.get(plan.id) ?? 0,
+            successfulTransactions: revenue?.transactions ?? 0,
+            revenueMinor: revenue?.revenueMinor ?? 0,
+          };
+        }),
+        reminderPackages: reminderPackageRows.map((item) => {
+          const revenue = reminderRevenueByPackageId.get(item.id);
+          return {
+            code: item.code,
+            name: item.name,
+            channel: item.channel,
+            isActive: item.isActive,
+            purchases: revenue?.purchases ?? 0,
+            creditsSold: revenue?.creditsSold ?? 0,
+            creditsUsed: revenue?.creditsUsed ?? 0,
+            revenueMinor: revenue?.revenueMinor ?? 0,
+            currency: revenue?.currency ?? "TZS",
+          };
+        }),
       },
     };
   }

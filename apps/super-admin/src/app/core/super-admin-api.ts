@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom, Observable, timeout } from 'rxjs';
 
-import { GroupRow, StatCard, UserRow } from '../shared/super-admin-data';
+import { GroupRow, ProductMetricRow, StatCard, UserRow } from '../shared/super-admin-data';
 
 const ACCESS_TOKEN_KEY = 'vikoplus.superAdmin.accessToken';
 const REFRESH_TOKEN_KEY = 'vikoplus.superAdmin.refreshToken';
@@ -24,10 +24,54 @@ export type SuperAdminUser = LoginResponse['user'];
 type MetricsResponse = {
   users?: { total?: number; verifiedIdentities?: number; platformAdmins?: number };
   groups?: { total?: number; activeMembers?: number; pendingInvitations?: number };
-  subscriptions?: { total?: number; active?: number; activeAccessPackages?: number };
+  subscriptions?: {
+    total?: number;
+    active?: number;
+    activeAccessPackages?: number;
+    activeTrials?: number;
+  };
   contributions?: { approvedPayments?: number; approvedAmountMinor?: number };
-  billing?: { successfulTransactions?: number; successfulAmountMinor?: number };
-  reminders?: { sentCampaigns?: number; activePackages?: number };
+  billing?: {
+    successfulTransactions?: number;
+    successfulAmountMinor?: number;
+    totalRevenueMinor?: number;
+    accessRevenueMinor?: number;
+    reminderRevenueMinor?: number;
+  };
+  reminders?: {
+    sentCampaigns?: number;
+    activePackages?: number;
+    paidPackages?: number;
+    creditsSold?: number;
+    creditsUsed?: number;
+    remainingCredits?: number;
+  };
+  packages?: {
+    accessPlans?: Array<{
+      code: string;
+      name: string;
+      status: string;
+      priceMinor: number;
+      currency: string;
+      interval: string;
+      intervalCount: number;
+      trialDays: number;
+      activeSubscriptions: number;
+      successfulTransactions: number;
+      revenueMinor: number;
+    }>;
+    reminderPackages?: Array<{
+      code: string;
+      name: string;
+      channel?: string | null;
+      isActive: boolean;
+      purchases: number;
+      creditsSold: number;
+      creditsUsed: number;
+      revenueMinor: number;
+      currency: string;
+    }>;
+  };
 };
 
 type AdminGroupsResponse = {
@@ -213,11 +257,44 @@ export class SuperAdminApi {
         delta: `${this.number(metrics.users?.verifiedIdentities ?? 0)} verified identities`,
       },
       {
-        label: 'Annual recurring revenue',
-        value: this.money(metrics.billing?.successfulAmountMinor ?? 0, 'TZS'),
-        delta: `${metrics.subscriptions?.active ?? 0} active subscriptions`,
+        label: 'Total product revenue',
+        value: this.money(metrics.billing?.totalRevenueMinor ?? 0, 'TZS'),
+        delta: `${this.money(metrics.billing?.accessRevenueMinor ?? 0, 'TZS')} access`,
+      },
+      {
+        label: 'Reminder revenue',
+        value: this.money(metrics.billing?.reminderRevenueMinor ?? 0, 'TZS'),
+        delta: `${this.number(metrics.reminders?.remainingCredits ?? 0)} credits remaining`,
+      },
+      {
+        label: 'Package activity',
+        value: this.number(metrics.subscriptions?.active ?? 0),
+        delta: `${this.number(metrics.subscriptions?.activeTrials ?? 0)} trials, ${this.number(metrics.reminders?.paidPackages ?? 0)} reminder buys`,
       },
     ];
+  }
+
+  async productMetrics(): Promise<ProductMetricRow[]> {
+    const metrics = await this.metrics();
+    const accessRows = (metrics.packages?.accessPlans ?? []).map((plan) => ({
+      name: plan.name,
+      type: 'Access plan',
+      status: plan.status,
+      statusClass: this.statusClass(plan.status),
+      revenue: this.money(plan.revenueMinor, plan.currency),
+      usage: `${this.number(plan.activeSubscriptions)} active groups`,
+      detail: `${this.number(plan.successfulTransactions)} payments · ${this.money(plan.priceMinor, plan.currency)} / ${this.intervalLabel(plan.interval, plan.intervalCount)}`,
+    }));
+    const reminderRows = (metrics.packages?.reminderPackages ?? []).map((item) => ({
+      name: item.name,
+      type: item.channel ?? 'Reminder',
+      status: item.isActive ? 'ACTIVE' : 'INACTIVE',
+      statusClass: item.isActive ? ('active' as const) : ('pending' as const),
+      revenue: this.money(item.revenueMinor, item.currency),
+      usage: `${this.number(item.creditsUsed)} / ${this.number(item.creditsSold)} used`,
+      detail: `${this.number(item.purchases)} purchases · ${this.number(Math.max(item.creditsSold - item.creditsUsed, 0))} credits remaining`,
+    }));
+    return [...accessRows, ...reminderRows];
   }
 
   async groupStats(): Promise<StatCard[]> {
@@ -490,5 +567,21 @@ export class SuperAdminApi {
       day: '2-digit',
       year: 'numeric',
     }).format(new Date(value));
+  }
+
+  private intervalLabel(interval: string, intervalCount: number): string {
+    const count = Math.max(intervalCount, 1);
+    const unit = interval === 'YEAR' ? 'year' : 'month';
+    return count === 1 ? unit : `${count} ${unit}s`;
+  }
+
+  private statusClass(status: string): 'active' | 'pending' | 'flagged' {
+    if (status === 'ACTIVE') {
+      return 'active';
+    }
+    if (status === 'ARCHIVED') {
+      return 'flagged';
+    }
+    return 'pending';
   }
 }

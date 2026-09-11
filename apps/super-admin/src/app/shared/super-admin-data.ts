@@ -25,3 +25,13 @@ export type UserRow = {
   twoFa: 'Enabled' | 'Disabled';
   lastActive: string;
 };
+
+export type ProductMetricRow = {
+  name: string;
+  type: string;
+  status: string;
+  statusClass: 'active' | 'pending' | 'flagged';
+  revenue: string;
+  usage: string;
+  detail: string;
+};

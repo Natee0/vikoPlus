@@ -302,9 +302,11 @@ export class GroupsService {
       },
       orderBy: { updatedAt: "desc" },
     });
-    return {
-      groups: memberships.map((membership) => {
-        const subscription = membership.group.subscriptions[0] ?? null;
+    const groups = await Promise.all(
+      memberships.map(async (membership) => {
+        const subscription = await this.syncProviderSubscription(
+          membership.group.subscriptions[0] ?? null,
+        );
         return {
           id: membership.groupId,
           membershipId: membership.id,
@@ -326,7 +328,8 @@ export class GroupsService {
             : null,
         };
       }),
-    };
+    );
+    return { groups };
   }
 
   async createGroup(user: AuthenticatedUser, input: CreateGroupDto) {
@@ -3373,6 +3376,7 @@ export class GroupsService {
         group: {
           include: {
             subscriptions: {
+              include: { plan: true },
               orderBy: { updatedAt: "desc" },
               take: 1,
             },
@@ -3381,7 +3385,9 @@ export class GroupsService {
       },
     });
     if (!membership) throw new ForbiddenException("Group access denied.");
-    const subscription = membership.group.subscriptions[0] ?? null;
+    const subscription = await this.syncProviderSubscription(
+      membership.group.subscriptions[0] ?? null,
+    );
     if (
       !subscription ||
       !hasPaidFeatureAccess({
@@ -3398,6 +3404,84 @@ export class GroupsService {
       throw new ForbiddenException("Role is not allowed for this action.");
     }
     return membership;
+  }
+
+  private async syncProviderSubscription<
+    T extends {
+      id: string;
+      providerSubscriptionId: string | null;
+      state: SubscriptionState;
+      currentPeriodStartsAt: Date | null;
+      currentPeriodEndsAt: Date | null;
+      cancelAtPeriodEnd: boolean;
+      plan: {
+        interval: BillingInterval;
+        intervalCount: number;
+      };
+    },
+  >(subscription: T | null): Promise<T | null> {
+    if (!subscription?.providerSubscriptionId) return subscription;
+
+    try {
+      const providerSubscription = await this.billingProvider.getSubscription(
+        subscription.providerSubscriptionId,
+      );
+      const nextState = this.mapProviderSubscriptionStatus(
+        providerSubscription.status,
+      );
+      const activePeriodStartsAt = new Date();
+      const activePeriodEndsAt = this.addBillingPeriod(
+        activePeriodStartsAt,
+        subscription.plan.interval,
+        subscription.plan.intervalCount,
+      );
+      const updated = await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: {
+          state: nextState,
+          cancelAtPeriodEnd: providerSubscription.cancelAtPeriodEnd,
+          currentPeriodStartsAt:
+            nextState === SubscriptionState.ACTIVE
+              ? activePeriodStartsAt
+              : null,
+          currentPeriodEndsAt:
+            nextState === SubscriptionState.ACTIVE
+              ? activePeriodEndsAt
+              : null,
+          cancelledAt:
+            nextState === SubscriptionState.CANCELLED ? new Date() : null,
+          expiredAt: nextState === SubscriptionState.EXPIRED ? new Date() : null,
+          suspendedAt:
+            nextState === SubscriptionState.SUSPENDED ? new Date() : null,
+        },
+        include: { plan: true },
+      });
+      return updated as unknown as T;
+    } catch {
+      return subscription;
+    }
+  }
+
+  private mapProviderSubscriptionStatus(status: string): SubscriptionState {
+    if (status === "active") return SubscriptionState.ACTIVE;
+    if (status === "cancelled") return SubscriptionState.CANCELLED;
+    if (status === "suspended") return SubscriptionState.SUSPENDED;
+    if (status === "expired") return SubscriptionState.EXPIRED;
+    return SubscriptionState.PAST_DUE;
+  }
+
+  private addBillingPeriod(
+    date: Date,
+    interval: BillingInterval,
+    intervalCount: number,
+  ): Date {
+    const next = new Date(date);
+    if (interval === BillingInterval.YEAR) {
+      next.setFullYear(next.getFullYear() + intervalCount);
+    } else {
+      next.setMonth(next.getMonth() + intervalCount);
+    }
+    return next;
   }
 
   private async membersWithOutstandingObligations(groupId: string): Promise<

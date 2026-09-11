@@ -572,6 +572,12 @@ const _swahili = <String, String>{
   'Create group': 'Unda kikundi',
   'Create Group': 'Unda kikundi',
   'Join group': 'Jiunge na kikundi',
+  'Search groups...': 'Tafuta vikundi...',
+  'Clear search': 'Futa utafutaji',
+  'No matching groups': 'Hakuna vikundi vinavyolingana',
+  'Try another group name or clear the search.':
+      'Jaribu jina lingine la kikundi au futa utafutaji.',
+  'Group actions': 'Vitendo vya kikundi',
   'Groups you can access': 'Vikundi unavyoweza kufikia',
   'No groups yet': 'Bado hakuna vikundi',
   'Create a group or join one with an invitation code.':
@@ -751,6 +757,12 @@ const _swahili = <String, String>{
       'Weka namba ya simu ili kupokea ombi la USSD la Sayari Pay.',
   'Sending payment prompt': 'Inatuma ombi la malipo',
   'Send payment prompt': 'Tuma ombi la malipo',
+  'Activating free trial': 'Inawasha majaribio ya bure',
+  'Start free trial': 'Anza majaribio ya bure',
+  'Free trial activated.': 'Majaribio ya bure yamewashwa.',
+  'Starter is free for your first group. No phone payment is needed.':
+      'Starter ni bure kwa kikundi chako cha kwanza. Hakuna malipo ya simu yanayohitajika.',
+  'Open My Groups': 'Fungua vikundi vyangu',
   'Payment prompt sent': 'Ombi la malipo limetumwa',
   'Payment prompt sent to your phone.':
       'Ombi la malipo limetumwa kwenye simu yako.',

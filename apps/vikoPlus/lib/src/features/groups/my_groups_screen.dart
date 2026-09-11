@@ -24,11 +24,20 @@ class MyGroupsScreen extends ConsumerStatefulWidget {
 
 class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
   late Future<MyGroupsResult> _groupsFuture;
+  final _searchController = TextEditingController();
+  String _searchQuery = '';
+  bool _showGroupActions = false;
 
   @override
   void initState() {
     super.initState();
     _groupsFuture = _loadGroups();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<MyGroupsResult> _loadGroups() {
@@ -80,144 +89,208 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
         const AuthLogoutIconButton(),
       ],
       onRefresh: _refresh,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            context.vt(
-              'Choose a group to open, create a new group, or join one using an invitation.',
-            ),
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge
-                ?.copyWith(color: AppColors.onSurfaceVariant),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Row(
-            children: [
-              Expanded(
-                child: _GroupActionButton(
-                  label: context.vt('Create group'),
-                  route: '/groups/create?returnTo=${Uri.encodeComponent('/groups')}',
-                  icon: Icons.add_circle_outline,
-                  filled: true,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _GroupActionButton(
-                  label: context.vt('Join group'),
-                  route: '/groups/join?returnTo=${Uri.encodeComponent('/groups')}',
-                  icon: Icons.group_add_outlined,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          SectionHeader(title: context.vt('Groups you can access')),
-          const SizedBox(height: AppSpacing.sm),
-          FutureBuilder<MyGroupsResult>(
-            future: _groupsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState != ConnectionState.done) {
-                return const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.md),
-                    child: CircularProgressIndicator(),
+      child: SizedBox(
+        height: MediaQuery.sizeOf(context).height -
+            MediaQuery.paddingOf(context).vertical -
+            AppSizes.topBarHeight -
+            AppSpacing.xl,
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  context.vt(
+                    'Choose a group to open, create a new group, or join one using an invitation.',
                   ),
-                );
-              }
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge
+                      ?.copyWith(color: AppColors.onSurfaceVariant),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _GroupSearchField(
+                  controller: _searchController,
+                  query: _searchQuery,
+                  onChanged: (value) {
+                    setState(() => _searchQuery = value);
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                SectionHeader(title: context.vt('Groups you can access')),
+                const SizedBox(height: AppSpacing.sm),
+                Expanded(
+                  child: FutureBuilder<MyGroupsResult>(
+                    future: _groupsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState != ConnectionState.done) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(AppSpacing.md),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
 
-              if (snapshot.hasError) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    AuthErrorMessage(
-                      message: context.vt(
-                        AuthFailure.from(snapshot.error!).message,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    OutlinedButton.icon(
-                      onPressed: _reload,
-                      icon: const Icon(Icons.refresh),
-                      label: Text(context.vt('Try again')),
-                    ),
-                  ],
-                );
-              }
-
-              final groups = snapshot.data?.groups ?? const [];
-              if (groups.isEmpty) {
-                return const _EmptyGroupsCard();
-              }
-
-              return Column(
-                children: [
-                  for (final group in groups) ...[
-                    _GroupAccessCard(
-                      group: group,
-                      onOpen: () {
-                        ref.read(activeGroupProvider.notifier).setGroup(group);
-                        if (group.hasPaidFeatureAccess == false) {
-                          if (group.role == 'GROUP_ADMIN') {
-                            context.go(
-                              '/billing/plans?groupId=${Uri.encodeComponent(group.id)}',
-                            );
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  context.vt(
-                                    'Group access has expired. Ask the group admin to renew the plan.',
-                                  ),
-                                ),
+                      if (snapshot.hasError) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            AuthErrorMessage(
+                              message: context.vt(
+                                AuthFailure.from(snapshot.error!).message,
                               ),
-                            );
-                          }
-                          return;
-                        }
-                        context.go(routeForGroupRole(group.role));
-                      },
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                  ],
-                ],
-              );
-            },
-          ),
-        ],
+                            ),
+                            const SizedBox(height: AppSpacing.sm),
+                            OutlinedButton.icon(
+                              onPressed: _reload,
+                              icon: const Icon(Icons.refresh),
+                              label: Text(context.vt('Try again')),
+                            ),
+                          ],
+                        );
+                      }
+
+                      final groups = snapshot.data?.groups ?? const [];
+                      if (groups.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [_EmptyGroupsCard()],
+                        );
+                      }
+
+                      final filteredGroups = _filteredGroups(groups);
+                      if (filteredGroups.isEmpty) {
+                        return ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            _NoMatchingGroupsCard(
+                              onClear: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            ),
+                          ],
+                        );
+                      }
+
+                      return ListView.separated(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        padding: const EdgeInsets.only(
+                          bottom: AppSpacing.xl + AppSpacing.lg,
+                        ),
+                        itemCount: filteredGroups.length,
+                        separatorBuilder: (_, _) =>
+                            const SizedBox(height: AppSpacing.sm),
+                        itemBuilder: (context, index) {
+                          final group = filteredGroups[index];
+                          return _GroupAccessCard(
+                            group: group,
+                            onOpen: () => _openGroup(group),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            _GroupActionFab(
+              expanded: _showGroupActions,
+              onToggle: () {
+                setState(() => _showGroupActions = !_showGroupActions);
+              },
+              onCreate: () {
+                setState(() => _showGroupActions = false);
+                context.go(
+                  '/groups/create?returnTo=${Uri.encodeComponent('/groups')}',
+                );
+              },
+              onJoin: () {
+                setState(() => _showGroupActions = false);
+                context.go(
+                  '/groups/join?returnTo=${Uri.encodeComponent('/groups')}',
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  List<GroupAccessSummary> _filteredGroups(List<GroupAccessSummary> groups) {
+    final query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) return groups;
+    return groups.where((group) {
+      return group.name.toLowerCase().contains(query) ||
+          _formatRoleLabel(group.role).toLowerCase().contains(query);
+    }).toList();
+  }
+
+  void _openGroup(GroupAccessSummary group) {
+    ref.read(activeGroupProvider.notifier).setGroup(group);
+    if (group.hasPaidFeatureAccess == false) {
+      if (group.role == 'GROUP_ADMIN') {
+        context.go(
+          '/billing/plans?groupId=${Uri.encodeComponent(group.id)}',
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.vt(
+                'Group access has expired. Ask the group admin to renew the plan.',
+              ),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+    context.go(routeForGroupRole(group.role));
+  }
 }
 
-class _GroupActionButton extends StatelessWidget {
-  const _GroupActionButton({
-    required this.label,
-    required this.route,
-    required this.icon,
-    this.filled = false,
+class _GroupSearchField extends StatelessWidget {
+  const _GroupSearchField({
+    required this.controller,
+    required this.query,
+    required this.onChanged,
   });
 
-  final String label;
-  final String route;
-  final IconData icon;
-  final bool filled;
+  final TextEditingController controller;
+  final String query;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    if (filled) {
-      return FilledButton.icon(
-        onPressed: () => context.go(route),
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-      );
-    }
-
-    return OutlinedButton.icon(
-      onPressed: () => context.go(route),
-      icon: Icon(icon, size: 18),
-      label: Text(label),
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        prefixIcon: const Icon(Icons.search),
+        suffixIcon: query.isEmpty
+            ? null
+            : IconButton(
+                tooltip: context.vt('Clear search'),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+                icon: const Icon(Icons.close),
+              ),
+        hintText: context.vt('Search groups...'),
+        filled: true,
+        fillColor: AppColors.surfaceContainerLowest,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          borderSide: const BorderSide(color: AppColors.outlineVariant),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          borderSide: const BorderSide(color: AppColors.outlineVariant),
+        ),
+      ),
     );
   }
 }
@@ -258,6 +331,150 @@ class _EmptyGroupsCard extends StatelessWidget {
                 ?.copyWith(color: AppColors.onSurfaceVariant, height: 1.35),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _NoMatchingGroupsCard extends StatelessWidget {
+  const _NoMatchingGroupsCard({required this.onClear});
+
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.card,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          const CircleAvatar(
+            radius: 28,
+            backgroundColor: AppColors.surfaceContainer,
+            child: Icon(Icons.search_off_outlined, color: AppColors.primary),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            context.vt('No matching groups'),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.onSurface,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            context.vt('Try another group name or clear the search.'),
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: AppColors.onSurfaceVariant,
+                  height: 1.35,
+                ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          OutlinedButton.icon(
+            onPressed: onClear,
+            icon: const Icon(Icons.close),
+            label: Text(context.vt('Clear search')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupActionFab extends StatelessWidget {
+  const _GroupActionFab({
+    required this.expanded,
+    required this.onToggle,
+    required this.onCreate,
+    required this.onJoin,
+  });
+
+  final bool expanded;
+  final VoidCallback onToggle;
+  final VoidCallback onCreate;
+  final VoidCallback onJoin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      right: 0,
+      bottom: AppSpacing.md,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (expanded) ...[
+            _FabOption(
+              label: context.vt('Create group'),
+              icon: Icons.add_circle_outline,
+              onPressed: onCreate,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+            _FabOption(
+              label: context.vt('Join group'),
+              icon: Icons.group_add_outlined,
+              onPressed: onJoin,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+          ],
+          FloatingActionButton.extended(
+            heroTag: 'my-groups-actions',
+            onPressed: onToggle,
+            icon: Icon(expanded ? Icons.close : Icons.add),
+            label: Text(context.vt('Group actions')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FabOption extends StatelessWidget {
+  const _FabOption({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceContainerLowest,
+      elevation: 3,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(AppRadii.pill),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.xs),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: AppColors.onSurface,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -411,13 +628,7 @@ class _GroupAccessCard extends StatelessWidget {
   }
 
   String _roleLabel(String role) {
-    return role
-        .toLowerCase()
-        .replaceAll('_', ' ')
-        .split(' ')
-        .where((part) => part.isNotEmpty)
-        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
-        .join(' ');
+    return _formatRoleLabel(role);
   }
 
   String _statusLabel(String status) {
@@ -429,6 +640,16 @@ class _GroupAccessCard extends StatelessWidget {
         .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
         .join(' ');
   }
+}
+
+String _formatRoleLabel(String role) {
+  return role
+      .toLowerCase()
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((part) => part.isNotEmpty)
+      .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+      .join(' ');
 }
 
 class _MiniChip extends StatelessWidget {

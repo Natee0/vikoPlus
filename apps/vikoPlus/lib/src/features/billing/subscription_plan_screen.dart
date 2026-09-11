@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -89,7 +88,8 @@ class _SubscriptionPlanScreenState
   ) async {
     if (_isStartingCheckout || _isWaitingForPayment) return;
     final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
+    final isFreeTrial = plan.priceMinor <= 0;
+    if (!isFreeTrial && phone.isEmpty) {
       setState(() {
         _errorMessage = context.vt(
           'Enter a phone number to receive the Sayari Pay USSD prompt.',
@@ -116,23 +116,35 @@ class _SubscriptionPlanScreenState
               planCode: plan.code,
               successUrl: _billingReturnUri('/billing/success').toString(),
               cancelUrl: _billingReturnUri('/billing/cancelled').toString(),
-              buyerPhone: phone,
+              buyerPhone: isFreeTrial ? null : phone,
             ),
           );
       if (!mounted) return;
       setState(() {
-        _checkoutUrl = checkout.checkoutUrl;
+        _checkoutUrl = checkout.walletPaymentStarted ? '' : checkout.checkoutUrl;
         _walletPromptStarted = checkout.walletPaymentStarted;
         _isWaitingForPayment = checkout.walletPaymentStarted;
       });
       if (checkout.walletPaymentStarted) {
         _startPaymentExpiryTimer(groupId, attemptToken);
       }
+      if (!checkout.walletPaymentStarted && isFreeTrial) {
+        final latest = await ref.read(billingRepositoryProvider).subscription(groupId);
+        if (!mounted || attemptToken != _paymentAttemptToken) return;
+        ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
+              hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
+              planCode: latest.planCode,
+              stateValue: latest.state,
+              endsAt: latest.currentPeriodEndsAt,
+            );
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             checkout.walletPaymentStarted
                 ? context.vt('Payment prompt sent to your phone.')
+                : isFreeTrial
+                ? context.vt('Free trial activated.')
                 : context.vt('Checkout link is ready.'),
           ),
         ),
@@ -246,6 +258,8 @@ class _SubscriptionPlanScreenState
 
                 final plans = snapshot.data!.plans;
                 final selected = _selectedPlan(plans);
+                final selectedIsFreeTrial =
+                    selected != null && selected.priceMinor <= 0;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -286,42 +300,35 @@ class _SubscriptionPlanScreenState
                         const SizedBox(height: AppSpacing.sm),
                       ],
                     ],
-                    AuthField(
-                      label: context.vt('Payment phone number'),
-                      hint: context.vt('Example: 0744000000'),
-                      icon: Icons.phone_iphone_outlined,
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      textInputAction: TextInputAction.done,
-                      helperText: context.vt(
-                        'Sayari Pay will send a USSD prompt to this number.',
+                    if (!selectedIsFreeTrial)
+                      AuthField(
+                        label: context.vt('Payment phone number'),
+                        hint: context.vt('Example: 0744000000'),
+                        icon: Icons.phone_iphone_outlined,
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        textInputAction: TextInputAction.done,
+                        helperText: context.vt(
+                          'Sayari Pay will send a USSD prompt to this number.',
+                        ),
+                        onSubmitted: (_) {
+                          if (selected != null && !_isWaitingForPayment) {
+                            _startCheckout(activeGroup.id, selected);
+                          }
+                        },
+                      )
+                    else
+                      _FreeTrialNotice(
+                        message: context.vt(
+                          'Starter is free for your first group. No phone payment is needed.',
+                        ),
                       ),
-                      onSubmitted: (_) {
-                        if (selected != null && !_isWaitingForPayment) {
-                          _startCheckout(activeGroup.id, selected);
-                        }
-                      },
-                    ),
                     if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.sm),
                       _PaymentPromptCard(
                         url: _checkoutUrl,
                         walletPromptStarted: _walletPromptStarted,
                         secondsRemaining: _paymentSecondsRemaining,
-                        onCopy: () async {
-                          if (_checkoutUrl.isEmpty) return;
-                          await Clipboard.setData(
-                            ClipboardData(text: _checkoutUrl),
-                          );
-                          if (!context.mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                context.vt('Checkout link copied.'),
-                              ),
-                            ),
-                          );
-                        },
                       ),
                     ],
                     const SizedBox(height: AppSpacing.md),
@@ -343,16 +350,20 @@ class _SubscriptionPlanScreenState
                           : const Icon(Icons.lock_outline, size: 18),
                       label: Text(
                         _isStartingCheckout
-                            ? context.vt('Sending payment prompt')
+                            ? selectedIsFreeTrial
+                                ? context.vt('Activating free trial')
+                                : context.vt('Sending payment prompt')
                             : _isWaitingForPayment
                                 ? context.vt('Waiting for confirmation')
-                                : context.vt('Send payment prompt'),
+                                : selectedIsFreeTrial
+                                    ? context.vt('Start free trial')
+                                    : context.vt('Send payment prompt'),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton(
-                      onPressed: () => context.go('/dashboard'),
-                      child: Text(context.vt('Open admin dashboard')),
+                      onPressed: () => context.go('/groups'),
+                      child: Text(context.vt('Open My Groups')),
                     ),
                   ],
                 );
@@ -381,6 +392,44 @@ class _MissingGroupState extends StatelessWidget {
           child: Text(context.vt('Choose Group')),
         ),
       ],
+    );
+  }
+}
+
+class _FreeTrialNotice extends StatelessWidget {
+  const _FreeTrialNotice({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.primaryContainer.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(
+          color: AppColors.primaryContainer.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.card_giftcard_outlined,
+            color: AppColors.primaryContainer,
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: AppColors.onSurface,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -585,17 +634,15 @@ class _PaymentPromptCard extends StatelessWidget {
     required this.url,
     required this.walletPromptStarted,
     required this.secondsRemaining,
-    required this.onCopy,
   });
 
   final String url;
   final bool walletPromptStarted;
   final int secondsRemaining;
-  final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
-    final isUssdPrompt = walletPromptStarted && url.isEmpty;
+    final isUssdPrompt = walletPromptStarted;
     return Container(
       padding: AppInsets.compactCard,
       decoration: BoxDecoration(
@@ -682,12 +729,6 @@ class _PaymentPromptCard extends StatelessWidget {
               ],
             ),
           ),
-          if (url.isNotEmpty)
-            IconButton(
-              tooltip: context.vt('Copy checkout link'),
-              onPressed: onCopy,
-              icon: const Icon(Icons.copy_outlined),
-            ),
         ],
       ),
     );

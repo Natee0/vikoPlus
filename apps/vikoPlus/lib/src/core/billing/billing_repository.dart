@@ -26,6 +26,13 @@ class BillingRepository {
     return GroupSubscriptionSummary.fromJson(_responseBody(response.data));
   }
 
+  Future<GroupSubscriptionSummary> cancelSubscription(String groupId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/subscription/cancel',
+    );
+    return GroupSubscriptionSummary.fromJson(_responseBody(response.data));
+  }
+
   Future<BillingCheckoutResult> createAccessCheckout(
     String groupId,
     AccessCheckoutInput input,
@@ -182,17 +189,20 @@ class GroupSubscriptionSummary {
 class BillingCheckoutResult {
   const BillingCheckoutResult({
     required this.checkoutUrl,
+    required this.walletPaymentStarted,
     this.expiresAt,
   });
 
   factory BillingCheckoutResult.fromJson(Map<String, dynamic> json) {
     return BillingCheckoutResult(
-      checkoutUrl: _requiredString(json, 'checkoutUrl'),
+      checkoutUrl: json['checkoutUrl'] as String? ?? '',
+      walletPaymentStarted: json['walletPaymentStarted'] as bool? ?? false,
       expiresAt: _parseDate(json['expiresAt']),
     );
   }
 
   final String checkoutUrl;
+  final bool walletPaymentStarted;
   final DateTime? expiresAt;
 }
 

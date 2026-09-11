@@ -36,7 +36,11 @@ export class SubscriptionsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param("groupId") groupId: string,
     @Body() body: CreateCheckoutDto,
-  ): Promise<{ checkoutUrl: string; expiresAt: Date }> {
+  ): Promise<{
+    checkoutUrl: string;
+    expiresAt: Date;
+    walletPaymentStarted: boolean;
+  }> {
     return this.subscriptions.createCheckout(user, groupId, body);
   }
 

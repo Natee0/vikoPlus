@@ -34,29 +34,33 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
   async createCheckoutSession(
     input: CreateCheckoutSessionInput,
   ): Promise<CheckoutSession> {
-    if (!input.buyerEmail) {
-      throw new BadRequestException(
-        "Buyer email is required for Sayari Payments.",
-      );
-    }
     if (!input.buyerName) {
       throw new BadRequestException(
         "Buyer name is required for Sayari Payments.",
       );
     }
+    const walletMsisdn = this.normalizeMsisdn(input.buyerPhone);
+    if (!walletMsisdn) {
+      throw new BadRequestException("Mobile money phone number is required.");
+    }
+
+    const requestId = randomUUID();
+    const buyerEmail =
+      input.buyerEmail?.trim() || `billing+${input.groupId}@vikoplus.co.tz`;
 
     const order = await this.sayariRequest<Record<string, unknown>>(
-      "/api/v1/checkout/orders",
+      "/api/v1/wallet/ussd-collect",
       {
         method: "POST",
-        idempotencyKey: `vikoplus-access-order-${input.groupId}-${input.planCode}`,
+        idempotencyKey: `vikoplus-access-ussd-${requestId}`,
         body: {
-          externalRef: `${input.groupId}:${input.planCode}`,
-          buyerEmail: input.buyerEmail,
+          externalRef: `${input.groupId}:${input.planCode}:${requestId}`,
+          buyerEmail,
           buyerName: input.buyerName,
-          buyerPhone: this.normalizeMsisdn(input.buyerPhone),
+          buyerPhone: walletMsisdn,
           amount: input.amountMinor,
           currency: input.currency,
+          msisdn: walletMsisdn,
           metadata: {
             product: input.productType,
             productName: input.productName,
@@ -69,6 +73,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
           },
           successUrl: input.successUrl,
           cancelUrl: input.cancelUrl,
+          expiryMinutes: 30,
         },
       },
     );
@@ -80,23 +85,12 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       );
     }
 
-    if (input.buyerPhone) {
-      await this.sayariRequest<Record<string, unknown>>(
-        `/api/v1/checkout/orders/${encodeURIComponent(orderId)}/wallet-payment`,
-        {
-          method: "POST",
-          idempotencyKey: `vikoplus-access-wallet-${input.groupId}-${input.planCode}`,
-          body: { msisdn: this.normalizeMsisdn(input.buyerPhone) },
-        },
-      );
-    }
-
     return {
       providerSessionId: orderId,
       checkoutUrl:
-        this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ??
-        input.successUrl,
+        this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ?? "",
       expiresAt: addMinutes(new Date(), 30),
+      walletPaymentStarted: true,
     };
   }
 
@@ -110,11 +104,21 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     return this.providerSubscriptionFromOrder(providerSubscriptionId, order);
   }
 
-  cancelSubscription(
+  async cancelSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription> {
-    return Promise.resolve(
-      mockProviderSubscription(providerSubscriptionId, "cancelled", true),
+    const order = await this.sayariRequest<Record<string, unknown>>(
+      `/api/v1/checkout/orders/${encodeURIComponent(providerSubscriptionId)}`,
+      {
+        method: "DELETE",
+        idempotencyKey: `vikoplus-access-cancel-${providerSubscriptionId}`,
+      },
+    );
+    const status = this.firstString(order, ["status", "paymentStatus"]);
+    return mockProviderSubscription(
+      providerSubscriptionId,
+      this.isCompletedStatus(status) ? "active" : "cancelled",
+      true,
     );
   }
 
@@ -215,7 +219,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     const status = this.firstString(order, ["status", "paymentStatus"]);
     return mockProviderSubscription(
       orderId,
-      status === "PAID" ? "active" : "trialing",
+      this.isCompletedStatus(status) ? "active" : "trialing",
       false,
     );
   }
@@ -253,6 +257,12 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     if (digits.startsWith("0")) return `255${digits.slice(1)}`;
     if (digits.length === 9) return `255${digits}`;
     return digits;
+  }
+
+  private isCompletedStatus(status?: string): boolean {
+    return ["COMPLETED", "PAID", "SUCCESS"].includes(
+      String(status ?? "").toUpperCase(),
+    );
   }
 
   private safeCompare(actual: string, expected: string): boolean {

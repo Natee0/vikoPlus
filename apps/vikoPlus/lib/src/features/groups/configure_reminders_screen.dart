@@ -35,7 +35,6 @@ class _ConfigureRemindersScreenState
   String? _selectedPackageCode;
   String? _loadedPackagesGroupId;
   Future<ReminderPackagesResult>? _packagesFuture;
-  int _packageQuantity = 100;
   bool _isSubmitting = false;
   bool _isStartingCheckout = false;
   bool _enabled = false;
@@ -137,7 +136,7 @@ class _ConfigureRemindersScreenState
             groupId,
             ReminderPackageCheckoutInput(
               packageCode: package.code,
-              quantity: _packageQuantity,
+              quantity: package.quantity,
               successUrl: _billingReturnUri('/billing/success').toString(),
               cancelUrl: _billingReturnUri('/billing/cancelled').toString(),
             ),
@@ -305,15 +304,11 @@ class _ConfigureRemindersScreenState
             groupId: groupId,
             packagesFuture: _packagesFor(groupId),
             selectedPackageCode: _selectedPackageCode,
-            packageQuantity: _packageQuantity,
             isStartingCheckout: _isStartingCheckout,
             formatters: formatters,
             selectedPackage: _selectedPackage,
             onPackageSelected: (code) {
               setState(() => _selectedPackageCode = code);
-            },
-            onQuantityChanged: (quantity) {
-              setState(() => _packageQuantity = quantity);
             },
             onStartCheckout: _startPackageCheckout,
           ),
@@ -439,25 +434,21 @@ class _ReminderPackagePicker extends StatelessWidget {
     required this.groupId,
     required this.packagesFuture,
     required this.selectedPackageCode,
-    required this.packageQuantity,
     required this.isStartingCheckout,
     required this.formatters,
     required this.selectedPackage,
     required this.onPackageSelected,
-    required this.onQuantityChanged,
     required this.onStartCheckout,
   });
 
   final String? groupId;
   final Future<ReminderPackagesResult>? packagesFuture;
   final String? selectedPackageCode;
-  final int packageQuantity;
   final bool isStartingCheckout;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
   selectedPackage;
   final ValueChanged<String> onPackageSelected;
-  final ValueChanged<int> onQuantityChanged;
   final ValueChanged<ReminderPackageSummary> onStartCheckout;
 
   @override
@@ -507,15 +498,15 @@ class _ReminderPackagePicker extends StatelessWidget {
         }
 
         final selected = selectedPackage(packages);
-        final totalMinor = (selected?.amountMinor ?? 0) * packageQuantity;
+        final totalMinor =
+            (selected?.amountMinor ?? 0) * (selected?.quantity ?? 1);
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             for (final package in packages) ...[
               _ReminderPackageTile(
                 package: package,
-                price:
-                    '${formatters.money(package.amountMinor, currency: package.currency)} ${context.vt('per message')}',
+                price: _packagePrice(context, package),
                 selected:
                     package.code ==
                     (selectedPackageCode ?? selected?.code ?? ''),
@@ -524,38 +515,6 @@ class _ReminderPackagePicker extends StatelessWidget {
               const SizedBox(height: AppSpacing.xs),
             ],
             const SizedBox(height: AppSpacing.xs),
-            DropdownButtonFormField<int>(
-              initialValue: packageQuantity,
-              decoration: InputDecoration(
-                labelText: context.vt('Message credits'),
-                prefixIcon: const Icon(Icons.confirmation_number_outlined),
-              ),
-              items: [
-                DropdownMenuItem(
-                  value: 100,
-                  child: Text(context.vt('100 messages')),
-                ),
-                DropdownMenuItem(
-                  value: 500,
-                  child: Text(context.vt('500 messages')),
-                ),
-                DropdownMenuItem(
-                  value: 1000,
-                  child: Text(context.vt('1,000 messages')),
-                ),
-                DropdownMenuItem(
-                  value: 5000,
-                  child: Text(context.vt('5,000 messages')),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) {
-                  return;
-                }
-                onQuantityChanged(value);
-              },
-            ),
-            const SizedBox(height: AppSpacing.sm),
             _CheckoutTotalCard(
               total: formatters.money(
                 totalMinor,
@@ -584,6 +543,21 @@ class _ReminderPackagePicker extends StatelessWidget {
         );
       },
     );
+  }
+
+  String _packagePrice(
+    BuildContext context,
+    ReminderPackageSummary package,
+  ) {
+    final creditsLabel = context.vt(
+      package.quantity == 1 ? 'message' : 'messages',
+    );
+    final price = formatters.money(
+      package.amountMinor,
+      currency: package.currency,
+    );
+    return '${package.quantity} $creditsLabel - '
+        '$price ${context.vt('per message')}';
   }
 }
 

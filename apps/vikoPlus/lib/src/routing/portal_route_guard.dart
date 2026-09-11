@@ -19,16 +19,25 @@ enum PortalArea {
 }
 
 class PortalRouteGuard extends ConsumerWidget {
-  const PortalRouteGuard({required this.area, required this.child, super.key});
+  const PortalRouteGuard({
+    required this.area,
+    required this.child,
+    this.allowExpiredAccess = false,
+    super.key,
+  });
 
   final PortalArea area;
   final Widget child;
+  final bool allowExpiredAccess;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final activeGroup = ref.watch(activeGroupProvider);
     final authenticated = ref.watch(authSessionProvider).isAuthenticated;
     final role = activeGroup?.role;
+    final billingRoute = activeGroup == null
+        ? '/groups'
+        : '/billing/plans?groupId=${Uri.encodeComponent(activeGroup.id)}';
     final allowed = switch (area) {
       PortalArea.admin => role == 'GROUP_ADMIN',
       PortalArea.treasurer => role == 'GROUP_ADMIN' || role == 'TREASURER',
@@ -41,13 +50,21 @@ class PortalRouteGuard extends ConsumerWidget {
       PortalArea.member => role == 'MEMBER',
       PortalArea.group => role == 'MEMBER' || isStaffPortalRole(role),
     };
+    final accessAllowed =
+        activeGroup?.hasPaidFeatureAccess != false || allowExpiredAccess;
 
-    if (authenticated && allowed) return child;
+    if (authenticated && allowed && accessAllowed) return child;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted || !TickerMode.valuesOf(context).enabled) return;
       if (ModalRoute.of(context)?.isCurrent == false) return;
-      context.go(authenticated ? portalHomeRoute(activeGroup) : '/sign-in');
+      if (!authenticated) {
+        context.go('/sign-in');
+      } else if (allowed && !accessAllowed) {
+        context.go(role == 'GROUP_ADMIN' ? billingRoute : '/groups');
+      } else {
+        context.go(portalHomeRoute(activeGroup));
+      }
     });
 
     return const Scaffold(

@@ -33,6 +33,7 @@ export class MockSubscriptionBillingProvider implements SubscriptionBillingProvi
       providerSessionId: `mock_checkout_${randomUUID()}`,
       checkoutUrl: `vikoplus://billing/mock-checkout?groupId=${input.groupId}&product=${input.productType}&code=${input.planCode}&interval=${input.interval}&intervalCount=${input.intervalCount}&trialDays=${input.trialDays}`,
       expiresAt: addMinutes(new Date(), 30),
+      walletPaymentStarted: Boolean(input.buyerPhone),
     });
   }
 

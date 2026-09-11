@@ -1,5 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { BillingEventStatus, BillingProvider, Prisma } from "@prisma/client";
+import {
+  BillingEventStatus,
+  BillingProvider,
+  BillingTransactionStatus,
+  Prisma,
+  SubscriptionState,
+} from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "./billing-provider.token";
 import { SubscriptionBillingProvider } from "./subscription-billing-provider";
@@ -39,6 +45,143 @@ export class BillingWebhookService {
       update: {},
     });
 
+    if (event.status === BillingEventStatus.PROCESSED) {
+      return { received: true, eventId: event.id };
+    }
+
+    try {
+      await this.processSubscriptionPaymentEvent(verified.payload);
+      await this.prisma.billingEvent.update({
+        where: { id: event.id },
+        data: {
+          status: BillingEventStatus.PROCESSED,
+          processedAt: new Date(),
+          failureReason: null,
+        },
+      });
+    } catch (error) {
+      await this.prisma.billingEvent.update({
+        where: { id: event.id },
+        data: {
+          status: BillingEventStatus.FAILED,
+          failureReason:
+            error instanceof Error ? error.message : "Billing event failed.",
+        },
+      });
+      throw error;
+    }
+
     return { received: true, eventId: event.id };
+  }
+
+  private async processSubscriptionPaymentEvent(
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const orderId = this.firstString(payload, ["orderId", "providerRef"]);
+    const externalRef = this.firstString(payload, ["externalRef"]);
+    const providerStatus = this.firstString(payload, [
+      "paymentStatus",
+      "status",
+      "result",
+    ]);
+    const nextState = this.subscriptionStateFromProviderStatus(providerStatus);
+    if (!nextState) return;
+
+    const subscription = orderId
+      ? await this.prisma.subscription.findFirst({
+          where: { providerSubscriptionId: orderId },
+          include: { plan: true },
+        })
+      : await this.subscriptionFromExternalRef(externalRef);
+    if (!subscription) return;
+
+    const now = new Date();
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        providerSubscriptionId: orderId ?? subscription.providerSubscriptionId,
+        state: nextState,
+        ...(nextState === SubscriptionState.CANCELLED
+          ? { cancelledAt: now }
+          : {}),
+        ...(nextState === SubscriptionState.SUSPENDED
+          ? { suspendedAt: now }
+          : {}),
+        ...(nextState === SubscriptionState.EXPIRED ? { expiredAt: now } : {}),
+      },
+    });
+
+    if (nextState !== SubscriptionState.ACTIVE) return;
+    const transactionRef =
+      this.firstString(payload, ["transid", "reference", "orderId"]) ??
+      orderId;
+    if (!transactionRef) return;
+
+    const amountMinor = this.numberValue(payload["amount"]);
+    await this.prisma.billingTransaction.upsert({
+      where: { providerTransactionId: transactionRef },
+      create: {
+        subscriptionId: subscription.id,
+        providerTransactionId: transactionRef,
+        status: BillingTransactionStatus.SUCCEEDED,
+        amountMinor: amountMinor ?? subscription.plan.priceMinor,
+        currency: this.firstString(payload, ["currency"]) ?? subscription.plan.currency,
+        processedAt: now,
+      },
+      update: {
+        status: BillingTransactionStatus.SUCCEEDED,
+        processedAt: now,
+      },
+    });
+  }
+
+  private async subscriptionFromExternalRef(externalRef?: string) {
+    if (!externalRef) return null;
+    const [groupId, planCode] = externalRef.split(":");
+    if (!groupId || !planCode) return null;
+    return this.prisma.subscription.findFirst({
+      where: {
+        groupId,
+        plan: { code: planCode },
+      },
+      include: { plan: true },
+      orderBy: { updatedAt: "desc" },
+    });
+  }
+
+  private subscriptionStateFromProviderStatus(
+    status?: string,
+  ): SubscriptionState | null {
+    switch (String(status ?? "").toUpperCase()) {
+      case "COMPLETED":
+      case "PAID":
+      case "SUCCESS":
+        return SubscriptionState.ACTIVE;
+      case "FAILED":
+        return SubscriptionState.PAST_DUE;
+      case "CANCELLED":
+        return SubscriptionState.CANCELLED;
+      case "EXPIRED":
+        return SubscriptionState.EXPIRED;
+      default:
+        return null;
+    }
+  }
+
+  private firstString(
+    payload: Record<string, unknown>,
+    keys: string[],
+  ): string | undefined {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (typeof value === "number") return String(value);
+    }
+    return undefined;
+  }
+
+  private numberValue(value: unknown): number | undefined {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
   }
 }

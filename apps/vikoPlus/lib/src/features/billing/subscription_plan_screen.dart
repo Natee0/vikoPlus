@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,12 +26,24 @@ class SubscriptionPlanScreen extends ConsumerStatefulWidget {
 
 class _SubscriptionPlanScreenState
     extends ConsumerState<SubscriptionPlanScreen> {
+  final _phoneController = TextEditingController();
   String? _selectedPlanCode;
   String? _loadedGroupId;
   Future<AccessPlansResult>? _plansFuture;
   String _checkoutUrl = '';
+  bool _walletPromptStarted = false;
+  bool _isWaitingForPayment = false;
+  int _paymentAttemptToken = 0;
   String _errorMessage = '';
   bool _isStartingCheckout = false;
+  Timer? _paymentExpiryTimer;
+
+  @override
+  void dispose() {
+    _paymentExpiryTimer?.cancel();
+    _phoneController.dispose();
+    super.dispose();
+  }
 
   Uri _billingReturnUri(String path) {
     final apiBaseUri = Uri.parse(AppConfig.VIKOPLUS_API_BASE_URL);
@@ -72,11 +86,23 @@ class _SubscriptionPlanScreenState
     String groupId,
     AccessPlanSummary plan,
   ) async {
-    if (_isStartingCheckout) return;
+    if (_isStartingCheckout || _isWaitingForPayment) return;
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() {
+        _errorMessage = context.vt(
+          'Enter a phone number to receive the Sayari Pay USSD prompt.',
+        );
+      });
+      return;
+    }
 
     try {
+      final attemptToken = ++_paymentAttemptToken;
       setState(() {
         _checkoutUrl = '';
+        _walletPromptStarted = false;
+        _isWaitingForPayment = false;
         _errorMessage = '';
         _isStartingCheckout = true;
       });
@@ -88,13 +114,26 @@ class _SubscriptionPlanScreenState
               planCode: plan.code,
               successUrl: _billingReturnUri('/billing/success').toString(),
               cancelUrl: _billingReturnUri('/billing/cancelled').toString(),
+              buyerPhone: phone,
             ),
           );
-      await Clipboard.setData(ClipboardData(text: checkout.checkoutUrl));
       if (!mounted) return;
-      setState(() => _checkoutUrl = checkout.checkoutUrl);
+      setState(() {
+        _checkoutUrl = checkout.checkoutUrl;
+        _walletPromptStarted = checkout.walletPaymentStarted;
+        _isWaitingForPayment = checkout.walletPaymentStarted;
+      });
+      if (checkout.walletPaymentStarted) {
+        _startPaymentExpiryTimer(groupId, attemptToken);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Checkout link copied to clipboard.')),
+        SnackBar(
+          content: Text(
+            checkout.walletPaymentStarted
+                ? context.vt('Payment prompt sent to your phone.')
+                : context.vt('Checkout link is ready.'),
+          ),
+        ),
       );
     } on Object catch (error) {
       if (!mounted) return;
@@ -106,6 +145,53 @@ class _SubscriptionPlanScreenState
     }
   }
 
+  void _startPaymentExpiryTimer(String groupId, int attemptToken) {
+    _paymentExpiryTimer?.cancel();
+    _paymentExpiryTimer = Timer(const Duration(seconds: 62), () {
+      _expirePaymentAttempt(groupId, attemptToken);
+    });
+  }
+
+  Future<void> _expirePaymentAttempt(String groupId, int attemptToken) async {
+    if (!mounted || attemptToken != _paymentAttemptToken) return;
+    final billing = ref.read(billingRepositoryProvider);
+    try {
+      final latest = await billing.subscription(groupId);
+      if (!mounted || attemptToken != _paymentAttemptToken) return;
+      if (latest.hasPaidFeatureAccess || latest.state == 'ACTIVE') {
+        ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
+              hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
+              planCode: latest.planCode,
+              stateValue: latest.state,
+              endsAt: latest.currentPeriodEndsAt,
+            );
+        setState(() => _isWaitingForPayment = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.vt('Payment confirmed.'))),
+        );
+        return;
+      }
+    } on Object {
+      // If status lookup fails, still try to cancel the expired prompt below.
+    }
+
+    try {
+      await billing.cancelSubscription(groupId);
+    } on Object {
+      // The prompt has already expired on the phone; keep the UI recoverable.
+    }
+
+    if (!mounted || attemptToken != _paymentAttemptToken) return;
+    setState(() {
+      _walletPromptStarted = false;
+      _isWaitingForPayment = false;
+      _checkoutUrl = '';
+      _errorMessage = context.vt(
+        'Payment prompt expired. Please try again.',
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
@@ -114,7 +200,7 @@ class _SubscriptionPlanScreenState
     );
 
     return VikoplusScreen(
-      title: 'Group Access',
+      title: context.vt('Group Access'),
       backRoute: '/groups/onboarding-success',
       onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
@@ -132,8 +218,8 @@ class _SubscriptionPlanScreenState
                 }
 
                 if (snapshot.hasError || snapshot.data == null) {
-                  return const AuthErrorMessage(
-                    message: 'Could not load access plans.',
+                  return AuthErrorMessage(
+                    message: context.vt('Could not load access plans.'),
                   );
                 }
 
@@ -143,7 +229,7 @@ class _SubscriptionPlanScreenState
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      'Activate ${activeGroup.name}',
+                      '${context.vt('Activate')} ${activeGroup.name}',
                       style:
                           Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 color: AppColors.onSurface,
@@ -152,7 +238,9 @@ class _SubscriptionPlanScreenState
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
-                      'The group administrator pays platform access for this group. Member contributions remain separate manual records.',
+                      context.vt(
+                        'The group administrator pays platform access for this group. Member contributions remain separate manual records.',
+                      ),
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                             color: AppColors.onSurfaceVariant,
                           ),
@@ -177,18 +265,38 @@ class _SubscriptionPlanScreenState
                         const SizedBox(height: AppSpacing.sm),
                       ],
                     ],
-                    if (_checkoutUrl.isNotEmpty) ...[
+                    AuthField(
+                      label: context.vt('Payment phone number'),
+                      hint: context.vt('Example: 0744000000'),
+                      icon: Icons.phone_iphone_outlined,
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      textInputAction: TextInputAction.done,
+                      helperText: context.vt(
+                        'Sayari Pay will send a USSD prompt to this number.',
+                      ),
+                      onSubmitted: (_) {
+                        if (selected != null && !_isWaitingForPayment) {
+                          _startCheckout(activeGroup.id, selected);
+                        }
+                      },
+                    ),
+                    if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      _CheckoutLinkCard(
+                      _PaymentPromptCard(
                         url: _checkoutUrl,
+                        walletPromptStarted: _walletPromptStarted,
                         onCopy: () async {
+                          if (_checkoutUrl.isEmpty) return;
                           await Clipboard.setData(
                             ClipboardData(text: _checkoutUrl),
                           );
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Checkout link copied.'),
+                            SnackBar(
+                              content: Text(
+                                context.vt('Checkout link copied.'),
+                              ),
                             ),
                           );
                         },
@@ -201,7 +309,9 @@ class _SubscriptionPlanScreenState
                     FilledButton.icon(
                       onPressed: selected == null || _isStartingCheckout
                           ? null
-                          : () => _startCheckout(activeGroup.id, selected),
+                          : _isWaitingForPayment
+                              ? null
+                              : () => _startCheckout(activeGroup.id, selected),
                       icon: _isStartingCheckout
                           ? const SizedBox(
                               width: 18,
@@ -211,14 +321,16 @@ class _SubscriptionPlanScreenState
                           : const Icon(Icons.lock_outline, size: 18),
                       label: Text(
                         _isStartingCheckout
-                            ? 'Creating checkout'
-                            : 'Create checkout link',
+                            ? context.vt('Sending payment prompt')
+                            : _isWaitingForPayment
+                                ? context.vt('Waiting for confirmation')
+                                : context.vt('Send payment prompt'),
                       ),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     OutlinedButton(
                       onPressed: () => context.go('/dashboard'),
-                      child: const Text('Open admin dashboard'),
+                      child: Text(context.vt('Open admin dashboard')),
                     ),
                   ],
                 );
@@ -238,11 +350,13 @@ class _MissingGroupState extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AuthErrorMessage(message: 'Select a group to manage billing.'),
+        AuthErrorMessage(
+          message: context.vt('Select a group to manage billing.'),
+        ),
         const SizedBox(height: AppSpacing.md),
         FilledButton(
           onPressed: onChooseGroup,
-          child: const Text('Choose Group'),
+          child: Text(context.vt('Choose Group')),
         ),
       ],
     );
@@ -267,7 +381,7 @@ class _NoPlansCard extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Text(
-              'Access plans are not available yet.',
+              context.vt('Access plans are not available yet.'),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppColors.onSurfaceVariant,
                   ),
@@ -381,12 +495,23 @@ class _AccessPlanCard extends StatelessWidget {
               ],
               if (plan.trialDays > 0) ...[
                 const SizedBox(height: AppSpacing.sm),
-                _IncludedFeature(label: '${plan.trialDays} days free trial'),
+                _IncludedFeature(
+                  label: context.vt('{days} days free trial').replaceAll(
+                        '{days}',
+                        '${plan.trialDays}',
+                      ),
+                ),
               ],
-              const _IncludedFeature(label: 'Admin dashboard and member register'),
-              const _IncludedFeature(label: 'Contribution tracking and reports'),
-              const _IncludedFeature(
-                label: 'Manual member payments stay separate from app access',
+              _IncludedFeature(
+                label: context.vt('Admin dashboard and member register'),
+              ),
+              _IncludedFeature(
+                label: context.vt('Contribution tracking and reports'),
+              ),
+              _IncludedFeature(
+                label: context.vt(
+                  'Manual member payments stay separate from app access',
+                ),
               ),
             ],
           ),
@@ -433,10 +558,15 @@ class _IncludedFeature extends StatelessWidget {
   }
 }
 
-class _CheckoutLinkCard extends StatelessWidget {
-  const _CheckoutLinkCard({required this.url, required this.onCopy});
+class _PaymentPromptCard extends StatelessWidget {
+  const _PaymentPromptCard({
+    required this.url,
+    required this.walletPromptStarted,
+    required this.onCopy,
+  });
 
   final String url;
+  final bool walletPromptStarted;
   final VoidCallback onCopy;
 
   @override
@@ -457,7 +587,11 @@ class _CheckoutLinkCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Checkout link ready',
+                  context.vt(
+                    walletPromptStarted
+                        ? 'Payment prompt sent'
+                        : 'Checkout link ready',
+                  ),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                         color: AppColors.onSurface,
                         fontWeight: FontWeight.w700,
@@ -465,8 +599,12 @@ class _CheckoutLinkCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  url,
-                  maxLines: 1,
+                  url.isEmpty
+                      ? context.vt(
+                          'Confirm the USSD prompt on your phone to complete payment.',
+                        )
+                      : url,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceVariant,
@@ -475,11 +613,12 @@ class _CheckoutLinkCard extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Copy checkout link',
-            onPressed: onCopy,
-            icon: const Icon(Icons.copy_outlined),
-          ),
+          if (url.isNotEmpty)
+            IconButton(
+              tooltip: context.vt('Copy checkout link'),
+              onPressed: onCopy,
+              icon: const Icon(Icons.copy_outlined),
+            ),
         ],
       ),
     );

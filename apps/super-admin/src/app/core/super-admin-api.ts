@@ -75,6 +75,7 @@ export type ReminderPackage = {
   description?: string | null;
   channel: 'SMS' | 'WHATSAPP' | 'BOTH';
   amountMinor: number;
+  quantity: number;
   currency: string;
   isActive: boolean;
 };
@@ -108,6 +109,7 @@ export type CreateReminderPackageInput = {
   description?: string;
   channel: 'SMS' | 'WHATSAPP' | 'BOTH';
   amountMinor: number;
+  quantity: number;
   currency: string;
   isActive?: boolean;
 };

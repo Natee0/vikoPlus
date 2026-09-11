@@ -418,9 +418,10 @@ export class CreateReminderPackageCheckoutDto {
   @Length(3, 80)
   packageCode!: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
-  quantity!: number;
+  quantity?: number;
 
   @IsUrl({ require_tld: false })
   successUrl!: string;

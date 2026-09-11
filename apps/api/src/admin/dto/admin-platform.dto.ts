@@ -132,6 +132,11 @@ export class CreateReminderPackageDto {
   @Min(1)
   amountMinor!: number;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
+
   @IsString()
   @Length(3, 3)
   currency!: string;
@@ -161,6 +166,11 @@ export class UpdateReminderPackageDto {
   @IsInt()
   @Min(1)
   amountMinor?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  quantity?: number;
 
   @IsOptional()
   @IsString()

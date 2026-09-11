@@ -9,11 +9,16 @@ export type SubscriptionAccessInput = {
 export function hasPaidFeatureAccess(input: SubscriptionAccessInput): boolean {
   const now = input.now ?? new Date();
 
-  if (
-    input.state === SubscriptionState.TRIAL ||
-    input.state === SubscriptionState.ACTIVE
-  ) {
-    return true;
+  if (input.state === SubscriptionState.ACTIVE) {
+    return input.currentPeriodEndsAt
+      ? input.currentPeriodEndsAt.getTime() > now.getTime()
+      : true;
+  }
+
+  if (input.state === SubscriptionState.TRIAL) {
+    return input.currentPeriodEndsAt
+      ? input.currentPeriodEndsAt.getTime() > now.getTime()
+      : false;
   }
 
   if (input.state === SubscriptionState.GRACE_PERIOD) {

@@ -1,0 +1,1 @@
+ALTER TABLE "PlatformPrice" ADD COLUMN "quantity" INTEGER NOT NULL DEFAULT 1;

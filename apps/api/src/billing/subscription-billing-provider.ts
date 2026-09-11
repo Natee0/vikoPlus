@@ -34,6 +34,7 @@ export type CheckoutSession = {
   providerSessionId: string;
   checkoutUrl: string;
   expiresAt: Date;
+  walletPaymentStarted?: boolean;
 };
 
 export type ProviderSubscription = {

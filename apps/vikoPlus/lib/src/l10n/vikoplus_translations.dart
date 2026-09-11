@@ -740,6 +740,40 @@ const _swahili = <String, String>{
   'Create checkout link': 'Tengeneza kiungo cha malipo',
   'Checkout link ready': 'Kiungo cha malipo kiko tayari',
   'Copy checkout link': 'Nakili kiungo cha malipo',
+  'Group Access': 'Ufikiaji wa kikundi',
+  'Activate': 'Washa',
+  'Could not load access plans.': 'Mipango ya ufikiaji haijapakiwa.',
+  'Payment phone number': 'Namba ya simu ya malipo',
+  'Example: 0744000000': 'Mfano: 0744000000',
+  'Sayari Pay will send a USSD prompt to this number.':
+      'Sayari Pay itatuma ombi la USSD kwenye namba hii.',
+  'Enter a phone number to receive the Sayari Pay USSD prompt.':
+      'Weka namba ya simu ili kupokea ombi la USSD la Sayari Pay.',
+  'Sending payment prompt': 'Inatuma ombi la malipo',
+  'Send payment prompt': 'Tuma ombi la malipo',
+  'Payment prompt sent': 'Ombi la malipo limetumwa',
+  'Payment prompt sent to your phone.':
+      'Ombi la malipo limetumwa kwenye simu yako.',
+  'Confirm the USSD prompt on your phone to complete payment.':
+      'Thibitisha ombi la USSD kwenye simu yako ili kukamilisha malipo.',
+  'Waiting for confirmation': 'Inasubiri uthibitisho',
+  'Payment confirmed.': 'Malipo yamethibitishwa.',
+  'Payment prompt expired. Please try again.':
+      'Ombi la malipo limeisha muda. Tafadhali jaribu tena.',
+  'Checkout link is ready.': 'Kiungo cha malipo kiko tayari.',
+  'Select a group to manage billing.':
+      'Chagua kikundi ili kusimamia malipo ya mfumo.',
+  'Access plans are not available yet.':
+      'Mipango ya ufikiaji bado haipatikani.',
+  '{days} days free trial': 'Majaribio ya siku {days} bure',
+  'Admin dashboard and member register':
+      'Dashibodi ya msimamizi na rejista ya wanachama',
+  'Contribution tracking and reports':
+      'Ufuatiliaji wa michango na ripoti',
+  'Manual member payments stay separate from app access':
+      'Malipo ya michango ya wanachama yanabaki tofauti na ufikiaji wa app',
+  'The group administrator pays platform access for this group. Member contributions remain separate manual records.':
+      'Msimamizi wa kikundi hulipia ufikiaji wa mfumo kwa kikundi hiki. Michango ya wanachama hubaki kwenye kumbukumbu tofauti za kawaida.',
   'SMS and WhatsApp reminders': 'Vikumbusho vya SMS na WhatsApp',
   'Reminder messages': 'Ujumbe wa vikumbusho',
   'Estimated checkout total': 'Makadirio ya jumla ya malipo',

@@ -25,6 +25,8 @@ import {
   Locale,
   PaymentAllocationStatus,
   ReceiptStatus,
+  SubscriptionPlanStatus,
+  SubscriptionState,
   UserIdentityType,
 } from "@prisma/client";
 import type { GroupMember, Prisma } from "@prisma/client";
@@ -32,6 +34,8 @@ import { createHash, randomBytes, randomInt } from "crypto";
 import { ConfigService } from "@nestjs/config";
 
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
+import { ApiErrorCode } from "../common/errors/api-error-code";
+import { hasPaidFeatureAccess } from "../common/subscriptions/subscription-access.policy";
 import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
@@ -285,20 +289,43 @@ export class GroupsService {
     const memberships = await this.prisma.groupMember.findMany({
       where: { userId: user.id, status: GroupMemberStatus.ACTIVE },
       include: {
-        group: { include: { _count: { select: { members: true } } } },
+        group: {
+          include: {
+            _count: { select: { members: true } },
+            subscriptions: {
+              include: { plan: true },
+              orderBy: { updatedAt: "desc" },
+              take: 1,
+            },
+          },
+        },
       },
       orderBy: { updatedAt: "desc" },
     });
     return {
-      groups: memberships.map((membership) => ({
-        id: membership.groupId,
-        membershipId: membership.id,
-        name: membership.group.name,
-        role: membership.role,
-        status: membership.status,
-        membersCount: membership.group._count.members,
-        logoUrl: this.imageUrl(membership.group.logoObjectKey),
-      })),
+      groups: memberships.map((membership) => {
+        const subscription = membership.group.subscriptions[0] ?? null;
+        return {
+          id: membership.groupId,
+          membershipId: membership.id,
+          name: membership.group.name,
+          role: membership.role,
+          status: membership.status,
+          membersCount: membership.group._count.members,
+          logoUrl: this.imageUrl(membership.group.logoObjectKey),
+          subscription: subscription
+            ? {
+                planCode: subscription.plan.code,
+                state: subscription.state,
+                currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+                hasPaidFeatureAccess: hasPaidFeatureAccess({
+                  state: subscription.state,
+                  currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+                }),
+              }
+            : null,
+        };
+      }),
     };
   }
 
@@ -315,35 +342,71 @@ export class GroupsService {
     const email =
       identities.find((identity) => identity.type === UserIdentityType.EMAIL)
         ?.value ?? null;
-    const group = await this.prisma.group.create({
-      data: {
-        name,
-        slug,
-        type: input.type?.trim() || undefined,
-        description: input.description?.trim() || undefined,
-        location: input.location?.trim() || undefined,
-        currency: input.currency?.trim().toUpperCase() || "TZS",
-        billingOwnerUserId: user.id,
-        establishedAt: input.establishedAt
-          ? new Date(input.establishedAt)
-          : undefined,
-        historicalDataStartsAt: input.historicalDataStartsAt
-          ? new Date(input.historicalDataStartsAt)
-          : undefined,
-        members: {
-          create: {
-            userId: user.id,
-            memberNumber: "MBR-000001",
-            fullName: await this.displayName(user.id),
-            phone,
-            email,
-            role: GroupRole.GROUP_ADMIN,
-            status: GroupMemberStatus.ACTIVE,
-            joinedAt: new Date(),
+    const displayName = await this.displayName(user.id);
+    const group = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.group.create({
+        data: {
+          name,
+          slug,
+          type: input.type?.trim() || undefined,
+          description: input.description?.trim() || undefined,
+          location: input.location?.trim() || undefined,
+          currency: input.currency?.trim().toUpperCase() || "TZS",
+          billingOwnerUserId: user.id,
+          establishedAt: input.establishedAt
+            ? new Date(input.establishedAt)
+            : undefined,
+          historicalDataStartsAt: input.historicalDataStartsAt
+            ? new Date(input.historicalDataStartsAt)
+            : undefined,
+          members: {
+            create: {
+              userId: user.id,
+              memberNumber: "MBR-000001",
+              fullName: displayName,
+              phone,
+              email,
+              role: GroupRole.GROUP_ADMIN,
+              status: GroupMemberStatus.ACTIVE,
+              joinedAt: new Date(),
+            },
           },
         },
-      },
-      include: { members: true },
+        include: { members: true },
+      });
+      const starterPlan = await this.findStarterPlan(tx);
+      if (starterPlan) {
+        const startsAt = new Date();
+        await tx.billingCustomer.create({
+          data: {
+            groupId: created.id,
+            userId: user.id,
+            provider: this.billingProvider.provider,
+            providerCustomerId: `starter_${created.id}`,
+            email,
+            phone,
+            subscriptions: {
+              create: {
+                id: `${created.id}:${starterPlan.id}`,
+                groupId: created.id,
+                planId: starterPlan.id,
+                provider: this.billingProvider.provider,
+                state: SubscriptionState.TRIAL,
+                currentPeriodStartsAt: startsAt,
+                currentPeriodEndsAt: this.addDays(
+                  startsAt,
+                  Math.max(1, starterPlan.trialDays),
+                ),
+                trialEndsAt: this.addDays(
+                  startsAt,
+                  Math.max(1, starterPlan.trialDays),
+                ),
+              },
+            },
+          },
+        });
+      }
+      return created;
     });
     await this.prisma.auditLog.create({
       data: {
@@ -398,6 +461,21 @@ export class GroupsService {
       }),
       currency: invitation.group.currency,
     };
+  }
+
+  private findStarterPlan(db: Prisma.TransactionClient | PrismaService) {
+    return db.subscriptionPlan.findFirst({
+      where: {
+        status: SubscriptionPlanStatus.ACTIVE,
+        priceMinor: 0,
+        trialDays: { gt: 0 },
+        OR: [
+          { code: { contains: "starter", mode: "insensitive" } },
+          { name: { contains: "starter", mode: "insensitive" } },
+        ],
+      },
+      orderBy: [{ trialDays: "desc" }, { createdAt: "asc" }],
+    });
   }
 
   async joinGroup(user: AuthenticatedUser, input: JoinGroupDto) {
@@ -1966,7 +2044,8 @@ export class GroupsService {
     if (!reminderPackage?.isActive) {
       throw new NotFoundException("Reminder package was not found.");
     }
-    const amountMinor = reminderPackage.amountMinor * input.quantity;
+    const quantity = reminderPackage.quantity;
+    const amountMinor = reminderPackage.amountMinor * quantity;
     const customer = await this.billingProvider.createCustomer({
       groupId,
       name: group.name,
@@ -1987,7 +2066,7 @@ export class GroupsService {
       metadata: {
         packageId: reminderPackage.id,
         channel: reminderPackage.channel,
-        quantity: input.quantity,
+        quantity,
       },
       successUrl: input.successUrl,
       cancelUrl: input.cancelUrl,
@@ -2002,7 +2081,7 @@ export class GroupsService {
         createdByUserId: user.id,
         provider: this.billingProvider.provider,
         providerCheckoutId: checkout.providerSessionId,
-        quantity: input.quantity,
+        quantity,
         amountMinor,
         currency: reminderPackage.currency,
         checkoutUrl: checkout.checkoutUrl,
@@ -2019,7 +2098,7 @@ export class GroupsService {
         newValue: {
           packageCode: reminderPackage.code,
           channel: reminderPackage.channel,
-          quantity: input.quantity,
+          quantity,
           amountMinor,
           currency: reminderPackage.currency,
         },
@@ -2032,6 +2111,7 @@ export class GroupsService {
       expiresAt: checkout.expiresAt,
       amountMinor,
       currency: reminderPackage.currency,
+      quantity,
     };
   }
 
@@ -3289,8 +3369,31 @@ export class GroupsService {
   ) {
     const membership = await this.prisma.groupMember.findFirst({
       where: { userId: user.id, groupId, status: GroupMemberStatus.ACTIVE },
+      include: {
+        group: {
+          include: {
+            subscriptions: {
+              orderBy: { updatedAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+      },
     });
     if (!membership) throw new ForbiddenException("Group access denied.");
+    const subscription = membership.group.subscriptions[0] ?? null;
+    if (
+      !subscription ||
+      !hasPaidFeatureAccess({
+        state: subscription.state,
+        currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+      })
+    ) {
+      throw new ForbiddenException({
+        code: ApiErrorCode.SubscriptionExpired,
+        message: "Group access has expired. Upgrade your plan to continue.",
+      });
+    }
     if (allowedRoles && !allowedRoles.includes(membership.role)) {
       throw new ForbiddenException("Role is not allowed for this action.");
     }

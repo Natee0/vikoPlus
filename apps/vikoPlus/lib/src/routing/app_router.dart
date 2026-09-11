@@ -206,6 +206,7 @@ final appRouter = GoRouter(
       path: '/billing/plans',
       builder: (context, state) => const PortalRouteGuard(
         area: PortalArea.admin,
+        allowExpiredAccess: true,
         child: SubscriptionPlanScreen(),
       ),
     ),
@@ -213,6 +214,7 @@ final appRouter = GoRouter(
       path: '/billing',
       builder: (context, state) => const PortalRouteGuard(
         area: PortalArea.admin,
+        allowExpiredAccess: true,
         child: BillingOverviewScreen(),
       ),
     ),

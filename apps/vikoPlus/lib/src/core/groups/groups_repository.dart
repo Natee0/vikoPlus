@@ -45,6 +45,24 @@ class ActiveGroupNotifier extends Notifier<GroupAccessSummary?> {
     state = current.copyWith(logoUrl: logoUrl);
   }
 
+  void updateSubscriptionAccess({
+    required bool hasPaidFeatureAccess,
+    String? planCode,
+    String? stateValue,
+    DateTime? endsAt,
+  }) {
+    final current = state;
+    if (current == null) {
+      return;
+    }
+    state = current.copyWith(
+      hasPaidFeatureAccess: hasPaidFeatureAccess,
+      subscriptionPlanCode: planCode,
+      subscriptionState: stateValue,
+      subscriptionEndsAt: endsAt,
+    );
+  }
+
   void clear() {
     state = null;
   }
@@ -611,17 +629,30 @@ class GroupAccessSummary {
     required this.role,
     required this.status,
     required this.membersCount,
+    this.hasPaidFeatureAccess = true,
+    this.subscriptionPlanCode,
+    this.subscriptionState,
+    this.subscriptionEndsAt,
     this.membershipId,
     this.logoUrl,
   });
 
   factory GroupAccessSummary.fromJson(Map<String, dynamic> json) {
+    final subscription = json['subscription'];
+    final subscriptionMap = subscription is Map
+        ? Map<String, dynamic>.from(subscription)
+        : const <String, dynamic>{};
     return GroupAccessSummary(
       id: _requiredString(json, 'id'),
       name: _requiredString(json, 'name'),
       role: json['role'] as String? ?? 'MEMBER',
       status: json['status'] as String? ?? 'ACTIVE',
       membersCount: json['membersCount'] as int? ?? 0,
+      hasPaidFeatureAccess:
+          subscriptionMap['hasPaidFeatureAccess'] as bool? ?? false,
+      subscriptionPlanCode: subscriptionMap['planCode'] as String?,
+      subscriptionState: subscriptionMap['state'] as String?,
+      subscriptionEndsAt: _parseDate(subscriptionMap['currentPeriodEndsAt']),
       membershipId: json['membershipId'] as String?,
       logoUrl: json['logoUrl'] as String?,
     );
@@ -633,6 +664,10 @@ class GroupAccessSummary {
     String? role,
     String? status,
     int? membersCount,
+    bool? hasPaidFeatureAccess,
+    String? subscriptionPlanCode,
+    String? subscriptionState,
+    DateTime? subscriptionEndsAt,
     String? membershipId,
     String? logoUrl,
   }) {
@@ -642,6 +677,10 @@ class GroupAccessSummary {
       role: role ?? this.role,
       status: status ?? this.status,
       membersCount: membersCount ?? this.membersCount,
+      hasPaidFeatureAccess: hasPaidFeatureAccess ?? this.hasPaidFeatureAccess,
+      subscriptionPlanCode: subscriptionPlanCode ?? this.subscriptionPlanCode,
+      subscriptionState: subscriptionState ?? this.subscriptionState,
+      subscriptionEndsAt: subscriptionEndsAt ?? this.subscriptionEndsAt,
       membershipId: membershipId ?? this.membershipId,
       logoUrl: logoUrl ?? this.logoUrl,
     );
@@ -652,6 +691,10 @@ class GroupAccessSummary {
   final String role;
   final String status;
   final int membersCount;
+  final bool? hasPaidFeatureAccess;
+  final String? subscriptionPlanCode;
+  final String? subscriptionState;
+  final DateTime? subscriptionEndsAt;
   final String? membershipId;
   final String? logoUrl;
 }
@@ -962,6 +1005,7 @@ class ReminderPackageSummary {
     required this.code,
     required this.name,
     required this.amountMinor,
+    required this.quantity,
     required this.currency,
     required this.isActive,
     this.description,
@@ -976,6 +1020,7 @@ class ReminderPackageSummary {
       description: json['description'] as String?,
       channel: json['channel'] as String?,
       amountMinor: json['amountMinor'] as int? ?? 0,
+      quantity: json['quantity'] as int? ?? 1,
       currency: json['currency'] as String? ?? 'TZS',
       isActive: json['isActive'] as bool? ?? false,
     );
@@ -987,6 +1032,7 @@ class ReminderPackageSummary {
   final String? description;
   final String? channel;
   final int amountMinor;
+  final int quantity;
   final String currency;
   final bool isActive;
 }
@@ -994,16 +1040,16 @@ class ReminderPackageSummary {
 class ReminderPackageCheckoutInput {
   const ReminderPackageCheckoutInput({
     required this.packageCode,
-    required this.quantity,
     required this.successUrl,
     required this.cancelUrl,
+    this.quantity,
     this.buyerEmail,
     this.buyerName,
     this.buyerPhone,
   });
 
   final String packageCode;
-  final int quantity;
+  final int? quantity;
   final String successUrl;
   final String cancelUrl;
   final String? buyerEmail;
@@ -1013,10 +1059,11 @@ class ReminderPackageCheckoutInput {
   Map<String, dynamic> toJson() {
     final json = <String, dynamic>{
       'packageCode': packageCode.trim(),
-      'quantity': quantity,
       'successUrl': successUrl,
       'cancelUrl': cancelUrl,
     };
+    final quantityValue = quantity;
+    if (quantityValue != null) json['quantity'] = quantityValue;
     final emailValue = _nonEmpty(buyerEmail);
     final nameValue = _nonEmpty(buyerName);
     final phoneValue = _nonEmpty(buyerPhone);

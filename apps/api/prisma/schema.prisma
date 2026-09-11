@@ -690,6 +690,7 @@ model PlatformPrice {
   description     String?
   channel         ReminderChannel?
   amountMinor     Int
+  quantity        Int       @default(1)
   currency        String    @default("TZS")
   isActive        Boolean   @default(true)
   updatedByUserId String?

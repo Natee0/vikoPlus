@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Inject,
   Injectable,
@@ -61,8 +62,16 @@ export class SubscriptionsService {
 
   async listAvailablePlans(user: AuthenticatedUser, groupId: string) {
     await this.requireBillingAuthority(user, groupId);
+    const hasExistingSubscription = await this.prisma.subscription.count({
+      where: { groupId },
+    });
     const plans = await this.prisma.subscriptionPlan.findMany({
-      where: { status: SubscriptionPlanStatus.ACTIVE },
+      where: {
+        status: SubscriptionPlanStatus.ACTIVE,
+        ...(hasExistingSubscription
+          ? { NOT: { priceMinor: 0, trialDays: { gt: 0 } } }
+          : {}),
+      },
       orderBy: [
         { interval: "asc" },
         { intervalCount: "asc" },
@@ -88,7 +97,11 @@ export class SubscriptionsService {
     user: AuthenticatedUser,
     groupId: string,
     input: CreateCheckoutDto,
-  ): Promise<{ checkoutUrl: string; expiresAt: Date }> {
+  ): Promise<{
+    checkoutUrl: string;
+    expiresAt: Date;
+    walletPaymentStarted: boolean;
+  }> {
     await this.requireBillingAuthority(user, groupId);
 
     const [group, plan, identity] = await Promise.all([
@@ -111,12 +124,65 @@ export class SubscriptionsService {
         message: "Subscription plan was not found.",
       });
     }
+    if (plan.priceMinor <= 0) {
+      const existingSubscriptionCount = await this.prisma.subscription.count({
+        where: { groupId },
+      });
+      if (existingSubscriptionCount > 0) {
+        throw new BadRequestException(
+          "Starter access can only be used once per group.",
+        );
+      }
+      const periodStartsAt = new Date();
+      await this.prisma.subscription.upsert({
+        where: { id: `${groupId}:${plan.id}` },
+        create: {
+          id: `${groupId}:${plan.id}`,
+          groupId,
+          planId: plan.id,
+          provider: this.billingProvider.provider,
+          state: SubscriptionState.TRIAL,
+          trialEndsAt: addDays(periodStartsAt, Math.max(1, plan.trialDays)),
+          currentPeriodStartsAt: periodStartsAt,
+          currentPeriodEndsAt: addDays(
+            periodStartsAt,
+            Math.max(1, plan.trialDays),
+          ),
+        },
+        update: {
+          planId: plan.id,
+          state: SubscriptionState.TRIAL,
+          trialEndsAt: addDays(periodStartsAt, Math.max(1, plan.trialDays)),
+          currentPeriodStartsAt: periodStartsAt,
+          currentPeriodEndsAt: addDays(
+            periodStartsAt,
+            Math.max(1, plan.trialDays),
+          ),
+          cancelAtPeriodEnd: false,
+          cancelledAt: null,
+          expiredAt: null,
+          suspendedAt: null,
+        },
+      });
+      return {
+        checkoutUrl: "",
+        expiresAt: addDays(periodStartsAt, Math.max(1, plan.trialDays)),
+        walletPaymentStarted: false,
+      };
+    }
+
+    const buyerPhone = input.buyerPhone ?? identity.phone;
+    if (!buyerPhone?.trim()) {
+      throw new BadRequestException(
+        "Enter a phone number to receive the Sayari Pay USSD prompt.",
+      );
+    }
 
     const providerCustomer = await this.billingProvider.createCustomer({
       groupId,
       name: group.name,
       email: input.buyerEmail ?? identity.email,
-      phone: input.buyerPhone ?? identity.phone,
+      phone: buyerPhone,
     });
     const billingProvider = this.billingProvider.provider;
 
@@ -132,12 +198,12 @@ export class SubscriptionsService {
         provider: billingProvider,
         providerCustomerId: providerCustomer.providerCustomerId,
         email: input.buyerEmail ?? identity.email,
-        phone: input.buyerPhone ?? identity.phone,
+        phone: buyerPhone,
       },
       update: {},
     });
 
-    await this.prisma.subscription.upsert({
+    const subscription = await this.prisma.subscription.upsert({
       where: { id: `${groupId}:${plan.id}` },
       create: {
         id: `${groupId}:${plan.id}`,
@@ -170,12 +236,27 @@ export class SubscriptionsService {
       cancelUrl: input.cancelUrl,
       buyerEmail: input.buyerEmail ?? identity.email,
       buyerName: input.buyerName ?? group.name,
-      buyerPhone: input.buyerPhone ?? identity.phone,
+      buyerPhone,
+    });
+
+    const periodStartsAt = new Date();
+    await this.prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        providerSubscriptionId: checkout.providerSessionId,
+        currentPeriodStartsAt: periodStartsAt,
+        currentPeriodEndsAt: addBillingPeriod(
+          periodStartsAt,
+          plan.interval,
+          plan.intervalCount,
+        ),
+      },
     });
 
     return {
       checkoutUrl: checkout.checkoutUrl,
       expiresAt: checkout.expiresAt,
+      walletPaymentStarted: checkout.walletPaymentStarted ?? false,
     };
   }
 
@@ -327,4 +408,18 @@ function mapProviderStatus(status: string): SubscriptionState {
 
 function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 24 * 60 * 60_000);
+}
+
+function addBillingPeriod(
+  date: Date,
+  interval: "MONTH" | "YEAR",
+  intervalCount: number,
+): Date {
+  const next = new Date(date);
+  if (interval === "YEAR") {
+    next.setFullYear(next.getFullYear() + intervalCount);
+  } else {
+    next.setMonth(next.getMonth() + intervalCount);
+  }
+  return next;
 }

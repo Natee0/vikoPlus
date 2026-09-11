@@ -71,9 +71,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
             trialDays: input.trialDays,
             ...input.metadata,
           },
-          successUrl: input.successUrl,
-          cancelUrl: input.cancelUrl,
-          expiryMinutes: 30,
+          expiryMinutes: 1,
         },
       },
     );
@@ -89,7 +87,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       providerSessionId: orderId,
       checkoutUrl:
         this.firstString(order, ["paymentGatewayUrl", "paymentUrl"]) ?? "",
-      expiresAt: addMinutes(new Date(), 30),
+      expiresAt: addMinutes(new Date(), 1),
       walletPaymentStarted: true,
     };
   }
@@ -194,7 +192,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     const payload = await this.readJson(response);
     if (!response.ok) {
       throw new ServiceUnavailableException({
-        message: "Sayari Payments request failed.",
+        message: this.providerErrorMessage(payload),
         statusCode: response.status,
         providerPayload: payload,
       });
@@ -210,6 +208,33 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     } catch {
       return { raw: text };
     }
+  }
+
+  private providerErrorMessage(payload: Record<string, unknown>): string {
+    const directMessage = this.firstString(payload, [
+      "message",
+      "error",
+      "detail",
+      "result",
+      "resultMessage",
+    ]);
+    if (directMessage) return `Sayari Payments request failed: ${directMessage}`;
+
+    const data = payload.data;
+    if (data && typeof data === "object") {
+      const nestedMessage = this.firstString(data as Record<string, unknown>, [
+        "message",
+        "error",
+        "detail",
+        "result",
+        "resultMessage",
+      ]);
+      if (nestedMessage) {
+        return `Sayari Payments request failed: ${nestedMessage}`;
+      }
+    }
+
+    return "Sayari Payments request failed. Please check the payment number and try again.";
   }
 
   private providerSubscriptionFromOrder(

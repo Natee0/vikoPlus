@@ -765,6 +765,12 @@ const _swahili = <String, String>{
       'Chagua kikundi ili kusimamia malipo ya mfumo.',
   'Access plans are not available yet.':
       'Mipango ya ufikiaji bado haipatikani.',
+  'Access expired': 'Ufikiaji umeisha',
+  'Renew plan': 'Lipia mpango',
+  'Admin renewal required': 'Msimamizi anatakiwa kulipia',
+  'Group access has expired. Ask the group admin to renew the plan.':
+      'Ufikiaji wa kikundi umeisha. Mwombe msimamizi wa kikundi alipe mpango.',
+  '{count} members': 'Wanachama {count}',
   '{days} days free trial': 'Majaribio ya siku {days} bure',
   'Admin dashboard and member register':
       'Dashibodi ya msimamizi na rejista ya wanachama',

@@ -158,6 +158,24 @@ class _MyGroupsScreenState extends ConsumerState<MyGroupsScreen> {
                       group: group,
                       onOpen: () {
                         ref.read(activeGroupProvider.notifier).setGroup(group);
+                        if (group.hasPaidFeatureAccess == false) {
+                          if (group.role == 'GROUP_ADMIN') {
+                            context.go(
+                              '/billing/plans?groupId=${Uri.encodeComponent(group.id)}',
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  context.vt(
+                                    'Group access has expired. Ask the group admin to renew the plan.',
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+                          return;
+                        }
                         context.go(routeForGroupRole(group.role));
                       },
                     ),
@@ -254,6 +272,7 @@ class _GroupAccessCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final highlighted = group.role == 'GROUP_ADMIN';
+    final expired = group.hasPaidFeatureAccess == false;
     final accent = highlighted ? AppColors.primaryContainer : AppColors.primary;
     final role = _roleLabel(group.role);
 
@@ -261,9 +280,11 @@ class _GroupAccessCard extends StatelessWidget {
       color: AppColors.surfaceContainerLowest,
       shape: RoundedRectangleBorder(
         side: BorderSide(
-          color: highlighted
-              ? AppColors.primaryContainer
-              : AppColors.outlineVariant,
+          color: expired
+              ? AppColors.warning
+              : highlighted
+                  ? AppColors.primaryContainer
+                  : AppColors.outlineVariant,
           width: highlighted ? 1.6 : 1,
         ),
         borderRadius: BorderRadius.circular(AppRadii.lg),
@@ -310,8 +331,10 @@ class _GroupAccessCard extends StatelessWidget {
                         ),
                         const SizedBox(width: AppSpacing.xs),
                         StatusPill(
-                          label: _statusLabel(group.status),
-                          color: group.status == 'INVITED'
+                          label: expired
+                              ? context.vt('Access expired')
+                              : _statusLabel(group.status),
+                          color: expired || group.status == 'INVITED'
                               ? AppColors.warning
                               : AppColors.primaryGreen,
                         ),
@@ -332,9 +355,18 @@ class _GroupAccessCard extends StatelessWidget {
                       children: [
                         _MiniChip(label: role, icon: Icons.badge_outlined),
                         _MiniChip(
-                          label: '${group.membersCount} members',
+                          label: context
+                              .vt('{count} members')
+                              .replaceAll('{count}', '${group.membersCount}'),
                           icon: Icons.groups_2_outlined,
                         ),
+                        if (expired)
+                          _MiniChip(
+                            label: group.role == 'GROUP_ADMIN'
+                                ? context.vt('Renew plan')
+                                : context.vt('Admin renewal required'),
+                            icon: Icons.lock_clock_outlined,
+                          ),
                       ],
                     ),
                   ],

@@ -245,6 +245,7 @@ class _SubscriptionPlanScreenState
         _errorMessage = '';
       });
       messenger.showSnackBar(SnackBar(content: Text(confirmedMessage)));
+      context.go('/groups');
       return true;
     } on Object {
       return false;

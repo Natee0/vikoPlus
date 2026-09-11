@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/billing/billing_repository.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../l10n/vikoplus_translations.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -56,8 +58,9 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
     );
 
     return VikoplusScreen(
-      title: 'Billing',
-      backRoute: '/billing/plans',
+      title: context.vt('Service Payment Summary'),
+      backRoute: portalHomeRoute(activeGroup),
+      preferBackRoute: true,
       onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
@@ -77,32 +80,53 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const AuthErrorMessage(
-                        message: 'No group access subscription is active yet.',
+                      AuthErrorMessage(
+                        message: context.vt(
+                          'No group access subscription is active yet.',
+                        ),
                       ),
                       const SizedBox(height: AppSpacing.md),
                       FilledButton(
                         onPressed: () => context.go('/billing/plans'),
-                        child: const Text('Choose Access Plan'),
+                        child: Text(context.vt('Choose Access Plan')),
                       ),
                     ],
                   );
                 }
 
                 final subscription = snapshot.data!;
+                if (activeGroup.hasPaidFeatureAccess !=
+                        subscription.hasPaidFeatureAccess ||
+                    activeGroup.subscriptionPlanCode != subscription.planCode ||
+                    activeGroup.subscriptionState != subscription.state ||
+                    activeGroup.subscriptionEndsAt !=
+                        subscription.currentPeriodEndsAt) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    ref
+                        .read(activeGroupProvider.notifier)
+                        .updateSubscriptionAccess(
+                          hasPaidFeatureAccess:
+                              subscription.hasPaidFeatureAccess,
+                          planCode: subscription.planCode,
+                          stateValue: subscription.state,
+                          endsAt: subscription.currentPeriodEndsAt,
+                        );
+                  });
+                }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _BillingStatusCard(
-                      title: 'Group',
+                      title: context.vt('Group'),
                       value: activeGroup.name,
                       icon: Icons.groups_2_outlined,
                       color: AppColors.primaryContainer,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _BillingStatusCard(
-                      title: 'Access status',
-                      value: _statusLabel(subscription),
+                      title: context.vt('Access status'),
+                      value: _statusLabel(context, subscription),
                       icon: Icons.verified_user_outlined,
                       color: subscription.hasPaidFeatureAccess
                           ? AppColors.secondary
@@ -110,7 +134,7 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _BillingStatusCard(
-                      title: 'Plan',
+                      title: context.vt('Plan'),
                       value: subscription.planCode,
                       icon: Icons.workspace_premium_outlined,
                       color: AppColors.tertiaryFixedDim,
@@ -119,8 +143,8 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
                       const SizedBox(height: AppSpacing.sm),
                       _BillingStatusCard(
                         title: subscription.cancelAtPeriodEnd
-                            ? 'Ends on'
-                            : 'Renews on',
+                            ? context.vt('Ends on')
+                            : context.vt('Renews on'),
                         value: formatters.date(
                           subscription.currentPeriodEndsAt!,
                         ),
@@ -145,7 +169,9 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
                           const SizedBox(width: AppSpacing.sm),
                           Expanded(
                             child: Text(
-                              'This billing only covers Vikoplus platform access. Member contributions and loans remain manual group records.',
+                              context.vt(
+                                'This billing only covers Vikoplus platform access. Member contributions and loans remain manual group records.',
+                              ),
                               style: Theme.of(context)
                                   .textTheme
                                   .bodyMedium
@@ -161,12 +187,12 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
                     OutlinedButton.icon(
                       onPressed: () => context.go('/billing/plans'),
                       icon: const Icon(Icons.credit_card_outlined),
-                      label: const Text('Change access plan'),
+                      label: Text(context.vt('Change access plan')),
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     FilledButton(
-                      onPressed: () => context.go('/dashboard'),
-                      child: const Text('Open admin dashboard'),
+                      onPressed: () => context.go(portalHomeRoute(activeGroup)),
+                      child: Text(context.vt('Open admin dashboard')),
                     ),
                   ],
                 );
@@ -175,9 +201,13 @@ class _BillingOverviewScreenState extends ConsumerState<BillingOverviewScreen> {
     );
   }
 
-  String _statusLabel(GroupSubscriptionSummary subscription) {
+  String _statusLabel(
+    BuildContext context,
+    GroupSubscriptionSummary subscription,
+  ) {
     final state = subscription.state.replaceAll('_', ' ').toLowerCase();
-    return '${state[0].toUpperCase()}${state.substring(1)}';
+    final label = '${state[0].toUpperCase()}${state.substring(1)}';
+    return context.vt(label);
   }
 }
 
@@ -191,11 +221,13 @@ class _MissingGroupState extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const AuthErrorMessage(message: 'Select a group to manage billing.'),
+        AuthErrorMessage(
+          message: context.vt('Select a group to manage billing.'),
+        ),
         const SizedBox(height: AppSpacing.md),
         FilledButton(
           onPressed: onChooseGroup,
-          child: const Text('Choose Group'),
+          child: Text(context.vt('Choose Group')),
         ),
       ],
     );

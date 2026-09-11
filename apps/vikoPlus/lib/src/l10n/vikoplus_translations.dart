@@ -754,6 +754,9 @@ const _swahili = <String, String>{
   'Buy reminder package': 'Nunua kifurushi cha vikumbusho',
   'Reminder payment prompt sent to your phone.':
       'Ombi la malipo ya vikumbusho limetumwa kwenye simu yako.',
+  'Reminder package purchased': 'Kifurushi cha vikumbusho kimenunuliwa',
+  'Finish the reminder schedule, then save to continue.':
+      'Kamilisha ratiba ya vikumbusho, kisha hifadhi kuendelea.',
   'Enter your mobile money PIN on the phone prompt. Reminder credits unlock after Sayari confirms payment.':
       'Weka PIN ya malipo ya simu kwenye ombi lililotumwa. Salio la vikumbusho litafunguka baada ya Sayari kuthibitisha malipo.',
   'Payment prompt expired. If you confirmed payment, pull to refresh before buying again.':
@@ -761,6 +764,22 @@ const _swahili = <String, String>{
   'Checkout link ready': 'Kiungo cha malipo kiko tayari',
   'Copy checkout link': 'Nakili kiungo cha malipo',
   'Group Access': 'Ufikiaji wa kikundi',
+  'Service Payment Summary': 'Muhtasari wa malipo ya huduma',
+  'No group access subscription is active yet.':
+      'Hakuna usajili hai wa ufikiaji wa kikundi kwa sasa.',
+  'Choose Access Plan': 'Chagua mpango wa ufikiaji',
+  'Access status': 'Hali ya ufikiaji',
+  'Plan': 'Mpango',
+  'Ends on': 'Unaisha tarehe',
+  'Renews on': 'Unahuishwa tarehe',
+  'This billing only covers Vikoplus platform access. Member contributions and loans remain manual group records.':
+      'Malipo haya yanahusu ufikiaji wa jukwaa la Vikoplus pekee. Michango na mikopo ya wanachama hubaki kuwa rekodi za kikundi.',
+  'Change access plan': 'Badilisha mpango wa ufikiaji',
+  'Open admin dashboard': 'Fungua dashibodi ya msimamizi',
+  'Trial': 'Majaribio',
+  'Past due': 'Muda wa malipo umepita',
+  'Cancelled': 'Imeghairiwa',
+  'Expired': 'Imeisha muda',
   'Activate': 'Washa',
   'Could not load access plans.': 'Mipango ya ufikiaji haijapakiwa.',
   'Payment phone number': 'Namba ya simu ya malipo',

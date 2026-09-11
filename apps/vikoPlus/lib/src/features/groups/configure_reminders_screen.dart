@@ -40,12 +40,14 @@ class _ConfigureRemindersScreenState
   String? _loadedPackagesGroupId;
   Future<ReminderPackagesResult>? _packagesFuture;
   final _paymentPhoneController = TextEditingController();
+  final _continueActionKey = GlobalKey();
   Timer? _paymentExpiryTimer;
   bool _isSubmitting = false;
   bool _isStartingCheckout = false;
   bool _walletPromptStarted = false;
   bool _isWaitingForPayment = false;
   bool _isPollingPaymentStatus = false;
+  bool _reminderPaymentConfirmed = false;
   int _paymentAttemptToken = 0;
   int _creditBalanceBeforePayment = 0;
   bool _enabled = false;
@@ -170,6 +172,7 @@ class _ConfigureRemindersScreenState
       }
       setState(() {
         _creditBalanceBeforePayment = currentCredits.credits.remaining;
+        _reminderPaymentConfirmed = false;
       });
       final checkout = await repository.createReminderPackageCheckout(
             groupId,
@@ -306,11 +309,22 @@ class _ConfigureRemindersScreenState
         _setPackagesFuture(groupId, future);
         _walletPromptStarted = false;
         _isWaitingForPayment = false;
+        _reminderPaymentConfirmed = true;
         _paymentSecondsRemaining = 0;
         _checkoutUrl = '';
         _errorMessage = '';
       });
       messenger.showSnackBar(SnackBar(content: Text(confirmedMessage)));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final targetContext = _continueActionKey.currentContext;
+        if (!mounted || targetContext == null) return;
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutCubic,
+          alignment: 0.82,
+        );
+      });
       return true;
     } on Object {
       return false;
@@ -462,6 +476,7 @@ class _ConfigureRemindersScreenState
             selectedPackageCode: _selectedPackageCode,
             isStartingCheckout: _isStartingCheckout,
             isWaitingForPayment: _isWaitingForPayment,
+            isPaymentConfirmed: _reminderPaymentConfirmed,
             formatters: formatters,
             selectedPackage: _selectedPackage,
             onPackageSelected: (code) {
@@ -469,24 +484,29 @@ class _ConfigureRemindersScreenState
             },
             onStartCheckout: _startPackageCheckout,
           ),
-          const SizedBox(height: AppSpacing.sm),
-          AuthField(
-            label: context.vt('Payment phone number'),
-            hint: '0785 123 456',
-            icon: Icons.phone_android_outlined,
-            controller: _paymentPhoneController,
-            keyboardType: TextInputType.phone,
-            helperText: context.vt(
-              'Sayari Pay will send a USSD prompt to this number.',
-            ),
-          ),
-          if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
+          if (!_reminderPaymentConfirmed) ...[
             const SizedBox(height: AppSpacing.sm),
-            _ReminderPaymentPromptCard(
-              walletPromptStarted: _walletPromptStarted,
-              url: _checkoutUrl,
-              secondsRemaining: _paymentSecondsRemaining,
+            AuthField(
+              label: context.vt('Payment phone number'),
+              hint: '0785 123 456',
+              icon: Icons.phone_android_outlined,
+              controller: _paymentPhoneController,
+              keyboardType: TextInputType.phone,
+              helperText: context.vt(
+                'Sayari Pay will send a USSD prompt to this number.',
+              ),
             ),
+            if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
+              const SizedBox(height: AppSpacing.sm),
+              _ReminderPaymentPromptCard(
+                walletPromptStarted: _walletPromptStarted,
+                url: _checkoutUrl,
+                secondsRemaining: _paymentSecondsRemaining,
+              ),
+            ],
+          ] else ...[
+            const SizedBox(height: AppSpacing.sm),
+            const _ReminderPaymentConfirmedCard(),
           ],
           const SizedBox(height: AppSpacing.md),
           _SectionLabel(context.vt('Schedule')),
@@ -519,6 +539,7 @@ class _ConfigureRemindersScreenState
           AuthErrorMessage(message: _errorMessage),
           const SizedBox(height: AppSpacing.sm),
           FilledButton.icon(
+            key: _continueActionKey,
             onPressed: _isSubmitting
                 ? null
                 : () => _save(configureLater: false),
@@ -597,6 +618,7 @@ class _ReminderPackagePicker extends StatelessWidget {
     required this.selectedPackageCode,
     required this.isStartingCheckout,
     required this.isWaitingForPayment,
+    required this.isPaymentConfirmed,
     required this.formatters,
     required this.selectedPackage,
     required this.onPackageSelected,
@@ -608,6 +630,7 @@ class _ReminderPackagePicker extends StatelessWidget {
   final String? selectedPackageCode;
   final bool isStartingCheckout;
   final bool isWaitingForPayment;
+  final bool isPaymentConfirmed;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
   selectedPackage;
@@ -680,34 +703,38 @@ class _ReminderPackagePicker extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
             ],
-            const SizedBox(height: AppSpacing.xs),
-            _CheckoutTotalCard(
-              total: formatters.money(
-                totalMinor,
-                currency: selected?.currency ?? 'TZS',
+            if (!isPaymentConfirmed) ...[
+              const SizedBox(height: AppSpacing.xs),
+              _CheckoutTotalCard(
+                total: formatters.money(
+                  totalMinor,
+                  currency: selected?.currency ?? 'TZS',
+                ),
               ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            OutlinedButton.icon(
-              onPressed:
-                  selected == null || isStartingCheckout || isWaitingForPayment
-                  ? null
-                  : () => onStartCheckout(selected),
-              icon: isStartingCheckout || isWaitingForPayment
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.lock_outline, size: 18),
-              label: Text(
-                isStartingCheckout
-                    ? context.vt('Sending payment prompt')
-                    : isWaitingForPayment
-                    ? context.vt('Waiting for confirmation')
-                    : context.vt('Buy reminder package'),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed:
+                    selected == null ||
+                        isStartingCheckout ||
+                        isWaitingForPayment
+                    ? null
+                    : () => onStartCheckout(selected),
+                icon: isStartingCheckout || isWaitingForPayment
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.lock_outline, size: 18),
+                label: Text(
+                  isStartingCheckout
+                      ? context.vt('Sending payment prompt')
+                      : isWaitingForPayment
+                      ? context.vt('Waiting for confirmation')
+                      : context.vt('Buy reminder package'),
+                ),
               ),
-            ),
+            ],
           ],
         );
       },
@@ -869,6 +896,51 @@ class _ReminderPaymentPromptCard extends StatelessWidget {
                     ),
                   ),
                 ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReminderPaymentConfirmedCard extends StatelessWidget {
+  const _ReminderPaymentConfirmedCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.compactCard,
+      decoration: BoxDecoration(
+        color: AppColors.secondaryContainer.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_outline, color: AppColors.secondary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.vt('Reminder package purchased'),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: AppColors.onSurface,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  context.vt(
+                    'Finish the reminder schedule, then save to continue.',
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
           ),

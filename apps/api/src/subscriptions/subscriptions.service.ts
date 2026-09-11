@@ -63,13 +63,16 @@ export class SubscriptionsService {
 
   async listAvailablePlans(user: AuthenticatedUser, groupId: string) {
     await this.requireBillingAuthority(user, groupId);
-    const hasExistingSubscription = await this.prisma.subscription.count({
-      where: { groupId },
-    });
+    const [hasExistingSubscription, hasUsedStarter] = await Promise.all([
+      this.prisma.subscription.count({
+        where: { groupId },
+      }),
+      this.hasUsedStarterAccess(user.id, groupId),
+    ]);
     const plans = await this.prisma.subscriptionPlan.findMany({
       where: {
         status: SubscriptionPlanStatus.ACTIVE,
-        ...(hasExistingSubscription
+        ...(hasExistingSubscription || hasUsedStarter
           ? { NOT: { priceMinor: 0, trialDays: { gt: 0 } } }
           : {}),
       },
@@ -132,6 +135,11 @@ export class SubscriptionsService {
       if (existingSubscriptionCount > 0) {
         throw new BadRequestException(
           "Starter access can only be used once per group.",
+        );
+      }
+      if (await this.hasUsedStarterAccess(user.id, groupId)) {
+        throw new BadRequestException(
+          "Starter access can only be used for your first group.",
         );
       }
       const periodStartsAt = new Date();
@@ -461,6 +469,23 @@ export class SubscriptionsService {
     } catch {
       return subscription;
     }
+  }
+
+  private async hasUsedStarterAccess(
+    userId: string,
+    currentGroupId: string,
+  ): Promise<boolean> {
+    const count = await this.prisma.subscription.count({
+      where: {
+        groupId: { not: currentGroupId },
+        group: { billingOwnerUserId: userId },
+        plan: {
+          priceMinor: 0,
+          trialDays: { gt: 0 },
+        },
+      },
+    });
+    return count > 0;
   }
 }
 

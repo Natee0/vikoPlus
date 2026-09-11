@@ -15,8 +15,8 @@ export class LoginPage {
     private readonly router: Router,
   ) {}
 
-  email = 'evans.kiprop@vikoplus.co.ke';
-  password = 'institution-passphrase';
+  email = '';
+  password = '';
   remember = true;
   errorMessage = '';
   isSubmitting = false;
@@ -27,7 +27,7 @@ export class LoginPage {
     this.errorMessage = '';
     try {
       await this.api.login(this.email, this.password);
-      await this.router.navigateByUrl('/console/overview');
+      await this.router.navigateByUrl('/dashboard/overview');
     } catch (error) {
       this.errorMessage =
         error instanceof Error

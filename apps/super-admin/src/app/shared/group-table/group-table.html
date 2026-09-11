@@ -8,10 +8,13 @@
       <th>Members</th>
       <th>Balance</th>
       <th>Status</th>
+      @if (showActions) {
+        <th>Actions</th>
+      }
     </tr>
   </thead>
   <tbody>
-    @for (group of rows; track group.name) {
+    @for (group of rows; track group.id ?? group.name) {
       <tr>
         <td>
           <strong>{{ group.name }}</strong>
@@ -32,6 +35,18 @@
             {{ group.status }}
           </span>
         </td>
+        @if (showActions) {
+          <td>
+            <div class="row-actions">
+              <button type="button" (click)="editGroup.emit(group)">Edit</button>
+              <button type="button" class="danger" (click)="deleteGroup.emit(group)">Delete</button>
+            </div>
+          </td>
+        }
+      </tr>
+    } @empty {
+      <tr>
+        <td [attr.colspan]="showActions ? 8 : 7">No groups are available yet.</td>
       </tr>
     }
   </tbody>

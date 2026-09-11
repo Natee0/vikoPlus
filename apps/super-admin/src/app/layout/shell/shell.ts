@@ -14,6 +14,19 @@ export class ShellPage {
     private readonly router: Router,
   ) {}
 
+  get operatorName(): string {
+    return this.api.currentUser?.displayName ?? 'Super Admin';
+  }
+
+  get operatorInitials(): string {
+    return this.operatorName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() ?? '')
+      .join('') || 'SA';
+  }
+
   signOut(): void {
     this.api.logout();
     void this.router.navigateByUrl('/login');

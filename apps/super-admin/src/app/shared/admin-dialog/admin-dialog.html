@@ -1,0 +1,57 @@
+@if (open && config) {
+  <div class="dialog-backdrop" role="presentation" (click)="cancel()">
+    <section
+      class="dialog-card"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="config.title"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <h2>{{ config.title }}</h2>
+        @if (config.message) {
+          <p>{{ config.message }}</p>
+        }
+      </header>
+
+      @if (fields.length > 0) {
+        <div class="dialog-fields">
+          @for (field of fields; track field.name) {
+            <label>
+              <span>{{ field.label }}</span>
+              @if (field.type === 'select') {
+                <select [(ngModel)]="values[field.name]">
+                  @for (option of field.options ?? []; track option.value) {
+                    <option [ngValue]="option.value">{{ option.label }}</option>
+                  }
+                </select>
+              } @else if (field.type === 'textarea') {
+                <textarea rows="3" [(ngModel)]="values[field.name]"></textarea>
+              } @else {
+                <input
+                  [type]="field.type === 'number' ? 'number' : 'text'"
+                  [(ngModel)]="values[field.name]"
+                />
+              }
+            </label>
+          }
+        </div>
+      }
+
+      <footer>
+        <button type="button" (click)="cancel()" [disabled]="isBusy">
+          {{ config.cancelLabel ?? 'Cancel' }}
+        </button>
+        <button
+          type="button"
+          [class.primary]="!config.danger"
+          [class.danger]="config.danger"
+          (click)="confirm()"
+          [disabled]="isBusy || !canConfirm"
+        >
+          {{ config.confirmLabel ?? 'Confirm' }}
+        </button>
+      </footer>
+    </section>
+  </div>
+}

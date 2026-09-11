@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
+  AuditAction,
   BillingTransactionStatus,
   GroupContributionPaymentStatus,
   GroupMemberStatus,
@@ -15,8 +16,10 @@ import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PrismaService } from "../prisma/prisma.service";
 import { PlatformPricingService } from "../platform/platform-pricing.service";
 import {
+  CreateAdminGroupDto,
   CreateAccessPlanDto,
   CreateReminderPackageDto,
+  UpdateAdminGroupDto,
   UpdateAccessPlanDto,
   UpdateReminderPackageDto,
 } from "./dto/admin-platform.dto";
@@ -30,6 +33,137 @@ export class AdminService {
 
   packageSettings() {
     return this.pricing.adminPackages();
+  }
+
+  async createGroup(user: AuthenticatedUser, input: CreateAdminGroupDto) {
+    const name = input.name.trim();
+    const group = await this.prisma.group.create({
+      data: {
+        name,
+        slug: await this.uniqueGroupSlug(name),
+        type: input.type?.trim() || undefined,
+        description: input.description?.trim() || undefined,
+        location: input.location?.trim() || undefined,
+        currency: input.currency?.trim().toUpperCase() || "TZS",
+        billingOwnerUserId: user.id,
+      },
+    });
+    await this.auditPackageChange(user, "Group", group.id, {
+      action: AuditAction.GROUP_UPDATED,
+      group,
+    });
+    return group;
+  }
+
+  async updateGroup(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: UpdateAdminGroupDto,
+  ) {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException("At least one field must be provided.");
+    }
+    await this.ensureGroupExists(groupId);
+    const name = input.name?.trim();
+    const group = await this.prisma.group.update({
+      where: { id: groupId },
+      data: {
+        name,
+        slug: name ? await this.uniqueGroupSlug(name, groupId) : undefined,
+        type: input.type?.trim(),
+        description: input.description?.trim(),
+        location: input.location?.trim(),
+        currency: input.currency?.trim().toUpperCase(),
+      },
+    });
+    await this.auditPackageChange(user, "Group", group.id, {
+      action: AuditAction.GROUP_UPDATED,
+      group,
+    });
+    return group;
+  }
+
+  async deleteGroup(user: AuthenticatedUser, groupId: string) {
+    await this.ensureGroupExists(groupId);
+    const deleted = await this.prisma.$transaction(async (tx) => {
+      const group = await tx.group.findUniqueOrThrow({
+        where: { id: groupId },
+        select: { id: true, name: true },
+      });
+
+      await tx.auditLog.deleteMany({ where: { groupId } });
+      await tx.reminderDelivery.deleteMany({ where: { groupId } });
+      await tx.reminderCampaign.deleteMany({ where: { groupId } });
+      await tx.reminderTemplate.deleteMany({ where: { groupId } });
+      await tx.groupReminderRule.deleteMany({ where: { groupId } });
+      await tx.groupPaymentRule.deleteMany({ where: { groupId } });
+      await tx.reminderPackagePurchase.deleteMany({ where: { groupId } });
+
+      await tx.billingTransaction.deleteMany({
+        where: { subscription: { groupId } },
+      });
+      await tx.billingInvoice.deleteMany({
+        where: { subscription: { groupId } },
+      });
+      await tx.subscription.deleteMany({ where: { groupId } });
+      await tx.billingPaymentMethod.deleteMany({
+        where: { billingCustomer: { groupId } },
+      });
+      await tx.billingCustomer.deleteMany({ where: { groupId } });
+
+      await tx.loanRepayment.deleteMany({ where: { groupId } });
+      await tx.groupLoan.deleteMany({ where: { groupId } });
+      await tx.loanGuarantor.deleteMany({
+        where: {
+          OR: [
+            { application: { groupId } },
+            { member: { groupId } },
+          ],
+        },
+      });
+      await tx.loanApplication.deleteMany({ where: { groupId } });
+      await tx.groupExpense.deleteMany({ where: { groupId } });
+
+      await tx.receipt.deleteMany({ where: { groupId } });
+      await tx.paymentAllocation.deleteMany({
+        where: {
+          OR: [
+            { payment: { groupId } },
+            { plan: { groupId } },
+            { period: { groupId } },
+            { obligation: { member: { groupId } } },
+          ],
+        },
+      });
+      await tx.groupContributionPayment.deleteMany({ where: { groupId } });
+      await tx.memberContributionObligation.deleteMany({
+        where: {
+          OR: [
+            { member: { groupId } },
+            { plan: { groupId } },
+            { period: { groupId } },
+          ],
+        },
+      });
+      await tx.groupInvitation.deleteMany({ where: { groupId } });
+      await tx.contributionPeriod.deleteMany({ where: { groupId } });
+      await tx.contributionPlan.deleteMany({ where: { groupId } });
+      await tx.financialYear.deleteMany({ where: { groupId } });
+      await tx.groupMember.deleteMany({ where: { groupId } });
+      await tx.group.delete({ where: { id: groupId } });
+
+      await tx.auditLog.create({
+        data: {
+          actorUserId: user.id,
+          action: AuditAction.GROUP_UPDATED,
+          entityType: "Group",
+          entityId: group.id,
+          newValue: { deleted: true, name: group.name },
+        },
+      });
+      return group;
+    });
+    return { id: deleted.id, deleted: true };
   }
 
   async groups() {
@@ -376,6 +510,38 @@ export class AdminService {
     });
     if (!existing) {
       throw new NotFoundException("Reminder package was not found.");
+    }
+  }
+
+  private async ensureGroupExists(groupId: string): Promise<void> {
+    const existing = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new NotFoundException("Group was not found.");
+    }
+  }
+
+  private async uniqueGroupSlug(name: string, currentGroupId?: string) {
+    const base =
+      name
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") || "group";
+    let slug = base;
+    let index = 2;
+    while (true) {
+      const existing = await this.prisma.group.findUnique({
+        where: { slug },
+        select: { id: true },
+      });
+      if (!existing || existing.id === currentGroupId) {
+        return slug;
+      }
+      slug = `${base}-${index}`;
+      index += 1;
     }
   }
 

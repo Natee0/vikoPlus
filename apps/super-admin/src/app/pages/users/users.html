@@ -1,20 +1,23 @@
 <section class="page-heading">
   <div>
-    <p>Users and Access</p>
-    <h1>Users and Access</h1>
-    <span>Manage platform members, group administrators, and access roles across Vikoplus.</span>
-  </div>
-  <div class="heading-actions">
-    <button>Export Directory</button>
-    <button class="primary">Invite User</button>
+    <p>Users</p>
+    <h1>User access</h1>
+    <span>Platform users, group roles, and identity status.</span>
   </div>
 </section>
 
 <section class="stats-grid compact-stats">
-  <article class="stat-card"><span>Total Users</span><strong>42,860</strong><small>+8.2%</small></article>
-  <article class="stat-card"><span>Group Admins</span><strong>3,410</strong><small>+206 added</small></article>
-  <article class="stat-card"><span>Active Today</span><strong>28,450</strong><small>66.4%</small></article>
-  <article class="stat-card"><span>2FA Protected</span><strong>98.5%</strong><small>Excellent</small></article>
+  @for (stat of stats; track stat.label) {
+    <article class="stat-card">
+      <span>{{ stat.label }}</span>
+      <strong>{{ stat.value }}</strong>
+      <small>{{ stat.delta }}</small>
+    </article>
+  } @empty {
+    @if (!isLoading && !errorMessage) {
+      <article class="notice-card">No user metrics are available yet.</article>
+    }
+  }
 </section>
 
 <article class="table-card">
@@ -24,12 +27,6 @@
   @if (errorMessage) {
     <p class="inline-notice warning">{{ errorMessage }}</p>
   }
-  <div class="filters">
-    <input type="search" placeholder="Search by name, email, or phone..." />
-    <button>All Roles</button>
-    <button>All Statuses</button>
-    <button>Reset</button>
-  </div>
   <table>
     <thead>
       <tr>
@@ -53,6 +50,10 @@
           <td><span class="status active">{{ user.kyc }}</span></td>
           <td>{{ user.twoFa }}</td>
           <td>{{ user.lastActive }}</td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6">No users are available yet.</td>
         </tr>
       }
     </tbody>

@@ -1,20 +1,26 @@
 <section class="page-heading">
   <div>
-    <p>Institutions / Groups Registry</p>
-    <h1>Groups and SACCOs</h1>
-    <span>Manage community chamas, institutions, SACCOs, and multi-tenant saving portfolios.</span>
+    <p>Groups</p>
+    <h1>Group registry</h1>
+    <span>All groups currently visible to the platform admin.</span>
   </div>
-  <div class="heading-actions">
-    <button>Export</button>
-    <button class="primary">Add New Group</button>
-  </div>
+  <button class="primary" type="button" (click)="createGroup()" [disabled]="isSaving">
+    Add group
+  </button>
 </section>
 
 <section class="stats-grid compact-stats">
-  <article class="stat-card"><span>Total Groups</span><strong>1,248</strong><small>+8.4%</small></article>
-  <article class="stat-card"><span>Active SACCOs</span><strong>1,162</strong><small>93% active</small></article>
-  <article class="stat-card"><span>Pending Verification</span><strong>68</strong><small>18 urgent</small></article>
-  <article class="stat-card"><span>Total Group Balance</span><strong>KES 482.9M</strong><small>+12.4%</small></article>
+  @for (stat of stats; track stat.label) {
+    <article class="stat-card">
+      <span>{{ stat.label }}</span>
+      <strong>{{ stat.value }}</strong>
+      <small>{{ stat.delta }}</small>
+    </article>
+  } @empty {
+    @if (!isLoading && !errorMessage) {
+      <article class="notice-card">No group metrics are available yet.</article>
+    }
+  }
 </section>
 
 <article class="table-card">
@@ -24,11 +30,18 @@
   @if (errorMessage) {
     <p class="inline-notice warning">{{ errorMessage }}</p>
   }
-  <div class="filters">
-    <input type="search" placeholder="Filter by group name, code or keyword..." />
-    <button>All Types</button>
-    <button>All Statuses</button>
-    <button>All Countries</button>
-  </div>
-  <sa-group-table [rows]="groups" />
+  <sa-group-table
+    [rows]="groups"
+    [showActions]="true"
+    (editGroup)="editGroup($event)"
+    (deleteGroup)="deleteGroup($event)"
+  />
 </article>
+
+<sa-admin-dialog
+  [open]="dialogOpen"
+  [config]="dialogConfig"
+  [isBusy]="isSaving"
+  (cancelled)="closeDialog()"
+  (confirmed)="confirmDialog($event)"
+/>

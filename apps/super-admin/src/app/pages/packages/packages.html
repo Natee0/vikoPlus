@@ -1,42 +1,158 @@
 <section class="page-heading">
   <div>
-    <p>Packages and Billing</p>
-    <h1>Subscription Plans</h1>
-    <span>Manage pricing tiers, billing cycles, and feature access for groups.</span>
+    <p>Packages</p>
+    <h1>Plans and reminders</h1>
+    <span>Manage group access subscriptions and reminder credit packages shown in the mobile app.</span>
   </div>
-  <div class="heading-actions">
-    <button>KES</button>
-    <button>Monthly</button>
-    <button class="primary">Create Plan</button>
+  <div class="row-actions">
+    <button type="button" (click)="applyDefaults()" [disabled]="isSaving">
+      Apply Vikoplus rules
+    </button>
+    <button class="primary" type="button" (click)="addAccessPlan()" [disabled]="isSaving">
+      Add subscription
+    </button>
+    <button class="primary" type="button" (click)="addReminderPackage()" [disabled]="isSaving">
+      Add reminder
+    </button>
   </div>
 </section>
 
 <section class="stats-grid compact-stats">
-  <article class="stat-card"><span>Active Paid Plans</span><strong>1,120</strong><small>+14.8%</small></article>
-  <article class="stat-card"><span>Active Trials</span><strong>128</strong><small>32 groups expiring</small></article>
-  <article class="stat-card"><span>Average MRR / Group</span><strong>KES 11,200</strong><small>+7.4%</small></article>
-  <article class="stat-card"><span>Group Retention</span><strong>99.2%</strong><small>0.8% monthly churn</small></article>
+  @for (stat of stats; track stat.label) {
+    <article class="stat-card">
+      <span>{{ stat.label }}</span>
+      <strong>{{ stat.value }}</strong>
+      <small>{{ stat.delta }}</small>
+    </article>
+  } @empty {
+    @if (!isLoading && !errorMessage) {
+      <article class="notice-card">No package metrics are available yet.</article>
+    }
+  }
 </section>
 
-<section class="plans">
+@if (errorMessage) {
+  <section class="page-heading">
+    <p class="inline-notice warning">{{ errorMessage }}</p>
+  </section>
+}
+
+<article class="table-card">
+  <header>
+    <div>
+      <h2>Subscription plans</h2>
+      <p>Access plans used by group billing screens.</p>
+    </div>
+  </header>
   @if (isLoading) {
-    <article class="notice-card">Loading packages...</article>
+    <p class="inline-notice">Loading subscription plans...</p>
   }
-  @if (errorMessage) {
-    <article class="notice-card warning">{{ errorMessage }}</article>
+  <table>
+    <thead>
+      <tr>
+        <th>Plan</th>
+        <th>Price</th>
+        <th>Billing</th>
+        <th>Trial</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (plan of plans; track plan.code) {
+        <tr>
+          <td>
+            <strong>{{ plan.name }}</strong>
+            <small>{{ plan.code }} · {{ plan.description }}</small>
+          </td>
+          <td>{{ money(plan.priceMinor, plan.currency) }}</td>
+          <td>{{ accessCadence(plan) }}</td>
+          <td>{{ plan.trialDays }} days</td>
+          <td><span class="status active">{{ plan.status }}</span></td>
+          <td>
+            <div class="row-actions">
+              <button type="button" (click)="editAccessPlan(plan)" [disabled]="isSaving">Edit</button>
+              <button
+                type="button"
+                class="danger"
+                (click)="archiveAccessPlan(plan)"
+                [disabled]="isSaving || plan.status === 'ARCHIVED'"
+              >
+                Archive
+              </button>
+            </div>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="6">No subscription plans are available yet.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</article>
+
+<article class="table-card">
+  <header>
+    <div>
+      <h2>Reminder packages</h2>
+      <p>Reminder credit packages used by reminder checkout screens.</p>
+    </div>
+  </header>
+  @if (isLoading) {
+    <p class="inline-notice">Loading reminder packages...</p>
   }
-  @for (plan of plans; track plan.name) {
-    <article [class.featured]="plan.featured">
-      <small>{{ plan.badge }}</small>
-      <h2>{{ plan.name }}</h2>
-      <p>{{ plan.description }}</p>
-      <strong>{{ plan.price }}</strong>
-      <ul>
-        @for (feature of plan.features; track feature) {
-          <li>{{ feature }}</li>
-        }
-      </ul>
-      <button>{{ plan.featured ? 'Edit Plan' : 'Build Plan' }}</button>
-    </article>
-  }
-</section>
+  <table>
+    <thead>
+      <tr>
+        <th>Package</th>
+        <th>Channel</th>
+        <th>Price per reminder</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (item of reminderPackages; track item.code) {
+        <tr>
+          <td>
+            <strong>{{ item.name }}</strong>
+            <small>{{ item.code }} · {{ item.description }}</small>
+          </td>
+          <td>{{ item.channel }}</td>
+          <td>{{ money(item.amountMinor, item.currency) }}</td>
+          <td>
+            <span class="status" [class.active]="item.isActive">
+              {{ item.isActive ? 'ACTIVE' : 'INACTIVE' }}
+            </span>
+          </td>
+          <td>
+            <div class="row-actions">
+              <button type="button" (click)="editReminderPackage(item)" [disabled]="isSaving">Edit</button>
+              <button
+                type="button"
+                [class.danger]="item.isActive"
+                (click)="toggleReminderPackage(item)"
+                [disabled]="isSaving"
+              >
+                {{ item.isActive ? 'Disable' : 'Enable' }}
+              </button>
+            </div>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="5">No reminder packages are available yet.</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</article>
+
+<sa-admin-dialog
+  [open]="dialogOpen"
+  [config]="dialogConfig"
+  [isBusy]="isSaving"
+  (cancelled)="closeDialog()"
+  (confirmed)="confirmDialog($event)"
+/>

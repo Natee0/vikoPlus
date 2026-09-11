@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -14,8 +15,10 @@ import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PlatformAdminGuard } from "../common/auth/platform-admin.guard";
 import { AdminService } from "./admin.service";
 import {
+  CreateAdminGroupDto,
   CreateAccessPlanDto,
   CreateReminderPackageDto,
+  UpdateAdminGroupDto,
   UpdateAccessPlanDto,
   UpdateReminderPackageDto,
 } from "./dto/admin-platform.dto";
@@ -35,6 +38,34 @@ export class AdminController {
   @Get("groups")
   groups() {
     return this.admin.groups();
+  }
+
+  @Post("groups")
+  @Throttle({ default: { limit: 20, ttl: 60000, blockDuration: 300000 } })
+  createGroup(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() body: CreateAdminGroupDto,
+  ) {
+    return this.admin.createGroup(user, body);
+  }
+
+  @Patch("groups/:groupId")
+  @Throttle({ default: { limit: 30, ttl: 60000, blockDuration: 300000 } })
+  updateGroup(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: UpdateAdminGroupDto,
+  ) {
+    return this.admin.updateGroup(user, groupId, body);
+  }
+
+  @Delete("groups/:groupId")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
+  deleteGroup(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.admin.deleteGroup(user, groupId);
   }
 
   @Get("users")

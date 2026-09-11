@@ -1939,7 +1939,7 @@ export class GroupsService {
     await this.requireMembership(user, groupId);
     return {
       packages: await this.prisma.platformPrice.findMany({
-        where: { isActive: true, channel: "SMS" },
+        where: { isActive: true },
         orderBy: [{ channel: "asc" }, { amountMinor: "asc" }],
       }),
     };
@@ -1966,11 +1966,6 @@ export class GroupsService {
     if (!reminderPackage?.isActive) {
       throw new NotFoundException("Reminder package was not found.");
     }
-    if (reminderPackage.channel !== "SMS")
-      throw new BadRequestException(
-        "Only SMS packages are available until WhatsApp is connected.",
-      );
-
     const amountMinor = reminderPackage.amountMinor * input.quantity;
     const customer = await this.billingProvider.createCustomer({
       groupId,

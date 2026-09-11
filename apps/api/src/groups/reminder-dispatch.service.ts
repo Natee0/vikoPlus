@@ -43,7 +43,7 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
             where: {
               groupId,
               status: "PAID",
-              platformPrice: { channel: "SMS" },
+              platformPrice: { channel: { in: ["SMS", "BOTH"] } },
             },
             orderBy: { paidAt: "asc" },
           });

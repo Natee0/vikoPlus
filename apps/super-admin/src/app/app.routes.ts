@@ -12,7 +12,7 @@ export const routes: Routes = [
   { path: 'login', component: LoginPage },
   { path: '', pathMatch: 'full', redirectTo: 'login' },
   {
-    path: 'console',
+    path: 'dashboard',
     component: ShellPage,
     canActivate: [superAdminAuthGuard],
     children: [
@@ -23,5 +23,6 @@ export const routes: Routes = [
       { path: '', pathMatch: 'full', redirectTo: 'overview' },
     ],
   },
+  { path: 'console', redirectTo: 'dashboard/overview' },
   { path: '**', redirectTo: 'login' },
 ];

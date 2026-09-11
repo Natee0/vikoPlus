@@ -1,27 +1,24 @@
 <main class="portal">
   <aside class="sidebar">
-    <a class="brand compact" routerLink="/console/overview">
-      <span class="brand-mark">V</span>
+    <a class="brand compact" routerLink="/dashboard/overview">
+      <img class="brand-logo" src="/vikoPlus-logo.png" alt="Vikoplus" />
       <span>
         <strong>Vikoplus</strong>
-        <small>Platform Admin</small>
+        <small>Super Admin</small>
       </span>
     </a>
 
     <nav>
-      <a routerLink="/console/overview" routerLinkActive="active">Overview</a>
-      <a routerLink="/console/groups" routerLinkActive="active">Groups & Chamas</a>
-      <a routerLink="/console/users" routerLinkActive="active">Users & Access</a>
-      <a routerLink="/console/packages" routerLinkActive="active">Packages & Billing</a>
-      <a href="#">Financial Health</a>
-      <a href="#">Audit Logs</a>
-      <a href="#">Settings</a>
+      <a routerLink="/dashboard/overview" routerLinkActive="active">Overview</a>
+      <a routerLink="/dashboard/groups" routerLinkActive="active">Groups</a>
+      <a routerLink="/dashboard/users" routerLinkActive="active">Users</a>
+      <a routerLink="/dashboard/packages" routerLinkActive="active">Packages</a>
     </nav>
 
     <div class="operator">
-      <span>EK</span>
+      <span>{{ operatorInitials }}</span>
       <div>
-        <strong>Evans Kiprop</strong>
+        <strong>{{ operatorName }}</strong>
         <small>Super Admin</small>
       </div>
     </div>
@@ -29,11 +26,11 @@
 
   <section class="content-shell">
     <header class="topbar">
-      <input type="search" placeholder="Search groups, users, invoices..." />
+      <div>
+        <strong>Admin dashboard</strong>
+        <span>Live platform data</span>
+      </div>
       <div class="topbar-actions">
-        <button>KES</button>
-        <button>USD</button>
-        <button>Refresh</button>
         <button type="button" (click)="signOut()">Sign out</button>
       </div>
     </header>

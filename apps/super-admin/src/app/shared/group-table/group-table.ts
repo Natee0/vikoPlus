@@ -1,4 +1,4 @@
-import { Component, Input } from '@angular/core';
+import { Component, EventEmitter, Input, Output } from '@angular/core';
 
 import { GroupRow } from '../super-admin-data';
 
@@ -9,4 +9,7 @@ import { GroupRow } from '../super-admin-data';
 })
 export class GroupTableComponent {
   @Input() rows: GroupRow[] = [];
+  @Input() showActions = false;
+  @Output() editGroup = new EventEmitter<GroupRow>();
+  @Output() deleteGroup = new EventEmitter<GroupRow>();
 }

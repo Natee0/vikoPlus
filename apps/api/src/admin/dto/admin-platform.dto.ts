@@ -32,7 +32,7 @@ export class CreateAccessPlanDto {
   description?: string;
 
   @IsInt()
-  @Min(1)
+  @Min(0)
   priceMinor!: number;
 
   @IsString()
@@ -76,7 +76,7 @@ export class UpdateAccessPlanDto {
 
   @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   priceMinor?: number;
 
   @IsOptional()
@@ -170,4 +170,59 @@ export class UpdateReminderPackageDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+}
+
+export class CreateAdminGroupDto {
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
+}
+
+export class UpdateAdminGroupDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @Length(2, 100)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  @Length(3, 3)
+  currency?: string;
 }

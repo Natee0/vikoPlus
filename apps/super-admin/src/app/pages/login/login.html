@@ -1,16 +1,22 @@
 <main class="auth-page">
   <form class="login-card" (ngSubmit)="submit()">
     <img class="login-logo" src="/vikoPlus-logo.png" alt="Vikoplus logo" />
+    <p class="eyebrow">Super Admin</p>
     <h1>Sign in</h1>
 
     <label>
       <span>Email</span>
-      <input name="email" type="email" [(ngModel)]="email" />
+      <input name="email" type="email" autocomplete="email" [(ngModel)]="email" />
     </label>
 
     <label>
       <span>Password</span>
-      <input name="password" type="password" [(ngModel)]="password" />
+      <input
+        name="password"
+        type="password"
+        autocomplete="current-password"
+        [(ngModel)]="password"
+      />
     </label>
 
     <label class="remember">

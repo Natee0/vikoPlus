@@ -420,6 +420,7 @@ export class AdminService {
       activeSubscriptionsByPlan,
       accessRevenueTransactions,
       reminderPurchases,
+      billingEvents,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.userIdentity.count({ where: { isVerified: true } }),
@@ -489,11 +490,47 @@ export class AdminService {
           },
         },
       }),
+      this.prisma.billingEvent.findMany({
+        select: { payload: true },
+      }),
     ]);
 
     const activeSubscriptionsByPlanId = new Map(
       activeSubscriptionsByPlan.map((entry) => [entry.planId, entry._count._all]),
     );
+    const planByCode = new Map(subscriptionPlans.map((plan) => [plan.code, plan]));
+    const reminderPackageByCode = new Map(
+      reminderPackageRows.map((item) => [item.code, item]),
+    );
+    const completedProviderOrders = new Map<
+      string,
+      {
+        externalRef: string;
+        productCode: string;
+        amountMinor: number;
+        currency: string;
+      }
+    >();
+    for (const event of billingEvents) {
+      const payload = event.payload as Record<string, unknown>;
+      const status = this.firstString(payload, [
+        "paymentStatus",
+        "status",
+        "result",
+      ]);
+      if (String(status ?? "").toUpperCase() !== "COMPLETED") continue;
+      const orderId = this.firstString(payload, ["orderId", "providerRef"]);
+      const externalRef = this.firstString(payload, ["externalRef"]);
+      if (!orderId || !externalRef) continue;
+      const [, productCode] = externalRef.split(":");
+      if (!productCode) continue;
+      completedProviderOrders.set(orderId, {
+        externalRef,
+        productCode,
+        amountMinor: this.numberValue(payload["amount"]) ?? 0,
+        currency: this.firstString(payload, ["currency"]) ?? "TZS",
+      });
+    }
     const accessRevenueByPlanId = new Map<
       string,
       { revenueMinor: number; transactions: number; currency: string }
@@ -510,6 +547,45 @@ export class AdminService {
       current.currency = transaction.currency;
       accessRevenueByPlanId.set(planId, current);
     }
+    const providerAccessRevenueByPlanCode = new Map<
+      string,
+      { revenueMinor: number; transactions: number; currency: string }
+    >();
+    const providerReminderRevenueByPackageCode = new Map<
+      string,
+      { revenueMinor: number; purchases: number; creditsSold: number; currency: string }
+    >();
+    for (const order of completedProviderOrders.values()) {
+      const plan = planByCode.get(order.productCode);
+      if (plan) {
+        const current = providerAccessRevenueByPlanCode.get(order.productCode) ?? {
+          revenueMinor: 0,
+          transactions: 0,
+          currency: order.currency,
+        };
+        current.revenueMinor += order.amountMinor;
+        current.transactions += 1;
+        current.currency = order.currency;
+        providerAccessRevenueByPlanCode.set(order.productCode, current);
+        continue;
+      }
+      const reminderPackage = reminderPackageByCode.get(order.productCode);
+      if (reminderPackage) {
+        const current =
+          providerReminderRevenueByPackageCode.get(order.productCode) ?? {
+            revenueMinor: 0,
+            purchases: 0,
+            creditsSold: 0,
+            currency: order.currency,
+          };
+        current.revenueMinor += order.amountMinor;
+        current.purchases += 1;
+        current.creditsSold += reminderPackage.quantity;
+        current.currency = order.currency;
+        providerReminderRevenueByPackageCode.set(order.productCode, current);
+      }
+    }
+    const hasProviderOrderRevenue = completedProviderOrders.size > 0;
 
     const reminderRevenueByPackageId = new Map<
       string,
@@ -550,7 +626,33 @@ export class AdminService {
       (total, purchase) => total + purchase.usedQuantity,
       0,
     );
-    const accessRevenueMinor = billingTransactions._sum.amountMinor ?? 0;
+    const providerAccessRevenueMinor = [
+      ...providerAccessRevenueByPlanCode.values(),
+    ].reduce((total, item) => total + item.revenueMinor, 0);
+    const providerAccessTransactions = [
+      ...providerAccessRevenueByPlanCode.values(),
+    ].reduce((total, item) => total + item.transactions, 0);
+    const providerReminderRevenueMinor = [
+      ...providerReminderRevenueByPackageCode.values(),
+    ].reduce((total, item) => total + item.revenueMinor, 0);
+    const providerReminderPurchases = [
+      ...providerReminderRevenueByPackageCode.values(),
+    ].reduce((total, item) => total + item.purchases, 0);
+    const providerReminderCreditsSold = [
+      ...providerReminderRevenueByPackageCode.values(),
+    ].reduce((total, item) => total + item.creditsSold, 0);
+    const accessRevenueMinor = hasProviderOrderRevenue
+      ? providerAccessRevenueMinor
+      : billingTransactions._sum.amountMinor ?? 0;
+    const effectiveReminderRevenueMinor = hasProviderOrderRevenue
+      ? providerReminderRevenueMinor
+      : reminderRevenueMinor;
+    const effectiveReminderPurchases = hasProviderOrderRevenue
+      ? providerReminderPurchases
+      : reminderPurchases.length;
+    const effectiveReminderCreditsSold = hasProviderOrderRevenue
+      ? providerReminderCreditsSold
+      : reminderCreditsSold;
 
     return {
       users: {
@@ -574,23 +676,31 @@ export class AdminService {
         approvedAmountMinor: contributionPayments._sum.amountMinor ?? 0,
       },
       billing: {
-        successfulTransactions: billingTransactions._count,
-        successfulAmountMinor: billingTransactions._sum.amountMinor ?? 0,
-        totalRevenueMinor: accessRevenueMinor + reminderRevenueMinor,
+        successfulTransactions: hasProviderOrderRevenue
+          ? providerAccessTransactions
+          : billingTransactions._count,
+        successfulAmountMinor: accessRevenueMinor,
+        totalRevenueMinor: accessRevenueMinor + effectiveReminderRevenueMinor,
         accessRevenueMinor,
-        reminderRevenueMinor,
+        reminderRevenueMinor: effectiveReminderRevenueMinor,
       },
       reminders: {
         sentCampaigns: remindersSent,
         activePackages: reminderPackages,
-        paidPackages: reminderPurchases.length,
-        creditsSold: reminderCreditsSold,
+        paidPackages: effectiveReminderPurchases,
+        creditsSold: effectiveReminderCreditsSold,
         creditsUsed: reminderCreditsUsed,
-        remainingCredits: Math.max(reminderCreditsSold - reminderCreditsUsed, 0),
+        remainingCredits: Math.max(
+          effectiveReminderCreditsSold - reminderCreditsUsed,
+          0,
+        ),
       },
       packages: {
         accessPlans: subscriptionPlans.map((plan) => {
-          const revenue = accessRevenueByPlanId.get(plan.id);
+          const providerRevenue = providerAccessRevenueByPlanCode.get(plan.code);
+          const revenue = hasProviderOrderRevenue
+            ? providerRevenue
+            : accessRevenueByPlanId.get(plan.id);
           return {
             code: plan.code,
             name: plan.name,
@@ -606,7 +716,13 @@ export class AdminService {
           };
         }),
         reminderPackages: reminderPackageRows.map((item) => {
-          const revenue = reminderRevenueByPackageId.get(item.id);
+          const providerRevenue = providerReminderRevenueByPackageCode.get(
+            item.code,
+          );
+          const revenue = hasProviderOrderRevenue
+            ? providerRevenue
+            : reminderRevenueByPackageId.get(item.id);
+          const localUsage = reminderRevenueByPackageId.get(item.id);
           return {
             code: item.code,
             name: item.name,
@@ -614,7 +730,7 @@ export class AdminService {
             isActive: item.isActive,
             purchases: revenue?.purchases ?? 0,
             creditsSold: revenue?.creditsSold ?? 0,
-            creditsUsed: revenue?.creditsUsed ?? 0,
+            creditsUsed: localUsage?.creditsUsed ?? 0,
             revenueMinor: revenue?.revenueMinor ?? 0,
             currency: revenue?.currency ?? "TZS",
           };
@@ -675,6 +791,23 @@ export class AdminService {
     if (!existing) {
       throw new NotFoundException("Group was not found.");
     }
+  }
+
+  private firstString(
+    payload: Record<string, unknown>,
+    keys: string[],
+  ): string | undefined {
+    for (const key of keys) {
+      const value = payload[key];
+      if (typeof value === "string" && value.trim()) return value.trim();
+      if (typeof value === "number") return String(value);
+    }
+    return undefined;
+  }
+
+  private numberValue(value: unknown): number | undefined {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
   }
 
   private async uniqueGroupSlug(name: string, currentGroupId?: string) {

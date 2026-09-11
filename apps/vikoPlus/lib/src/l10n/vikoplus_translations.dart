@@ -792,6 +792,8 @@ const _swahili = <String, String>{
   'Payment confirmed.': 'Malipo yamethibitishwa.',
   'Payment prompt expired. Please try again.':
       'Ombi la malipo limeisha muda. Tafadhali jaribu tena.',
+  'Payment confirmation timed out. If you entered your PIN, refresh before trying again.':
+      'Muda wa kuthibitisha malipo umeisha. Kama uliweka PIN, onyesha upya kabla ya kujaribu tena.',
   'Checkout link is ready.': 'Kiungo cha malipo kiko tayari.',
   'Select a group to manage billing.':
       'Chagua kikundi ili kusimamia malipo ya mfumo.',

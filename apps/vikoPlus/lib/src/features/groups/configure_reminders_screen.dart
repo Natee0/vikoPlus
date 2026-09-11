@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/billing/payment_realtime_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/group_setup_draft.dart';
@@ -51,6 +52,7 @@ class _ConfigureRemindersScreenState
   bool _loadingSettings = true;
   bool _settingsLoaded = false;
   int _paymentSecondsRemaining = _paymentWaitSeconds;
+  StreamSubscription<PaymentRealtimeEvent>? _paymentEventsSubscription;
   final Set<int> _offsets = {-3, 0};
 
   @override
@@ -62,6 +64,7 @@ class _ConfigureRemindersScreenState
   @override
   void dispose() {
     _paymentExpiryTimer?.cancel();
+    _paymentEventsSubscription?.cancel();
     _paymentPhoneController.dispose();
     super.dispose();
   }
@@ -188,6 +191,7 @@ class _ConfigureRemindersScreenState
       });
       if (checkout.walletPaymentStarted) {
         _startPaymentExpiryTimer(groupId, attemptToken);
+        _watchPaymentEvents(groupId, attemptToken);
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -233,6 +237,8 @@ class _ConfigureRemindersScreenState
           attemptToken,
         );
         if (confirmed) return;
+        await _paymentEventsSubscription?.cancel();
+        _paymentEventsSubscription = null;
         setState(() {
           _walletPromptStarted = false;
           _isWaitingForPayment = false;
@@ -251,6 +257,23 @@ class _ConfigureRemindersScreenState
           timer.cancel();
         }
       }
+    });
+  }
+
+  void _watchPaymentEvents(String groupId, int attemptToken) {
+    _paymentEventsSubscription?.cancel();
+    _paymentEventsSubscription = ref
+        .read(paymentRealtimeClientProvider)
+        .watchGroup(groupId)
+        .listen((event) {
+      if (!mounted ||
+          attemptToken != _paymentAttemptToken ||
+          event.groupId != groupId ||
+          event.productType != 'reminder-package' ||
+          !event.isConfirmed) {
+        return;
+      }
+      unawaited(_confirmReminderPaymentIfReady(groupId, attemptToken));
     });
   }
 
@@ -273,6 +296,12 @@ class _ConfigureRemindersScreenState
         return false;
       }
       final future = Future<ReminderPackagesResult>.value(result);
+      final messenger = ScaffoldMessenger.of(context);
+      final confirmedMessage = context.vt('Payment confirmed.');
+      _paymentExpiryTimer?.cancel();
+      await _paymentEventsSubscription?.cancel();
+      _paymentEventsSubscription = null;
+      if (!mounted || attemptToken != _paymentAttemptToken) return false;
       setState(() {
         _setPackagesFuture(groupId, future);
         _walletPromptStarted = false;
@@ -281,9 +310,7 @@ class _ConfigureRemindersScreenState
         _checkoutUrl = '';
         _errorMessage = '';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.vt('Payment confirmed.'))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(confirmedMessage)));
       return true;
     } on Object {
       return false;

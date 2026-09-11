@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/billing/billing_repository.dart';
+import '../../core/billing/payment_realtime_client.dart';
 import '../../core/config/app_config.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
@@ -40,10 +41,12 @@ class _SubscriptionPlanScreenState
   String _errorMessage = '';
   bool _isStartingCheckout = false;
   Timer? _paymentExpiryTimer;
+  StreamSubscription<PaymentRealtimeEvent>? _paymentEventsSubscription;
 
   @override
   void dispose() {
     _paymentExpiryTimer?.cancel();
+    _paymentEventsSubscription?.cancel();
     _phoneController.dispose();
     super.dispose();
   }
@@ -130,6 +133,7 @@ class _SubscriptionPlanScreenState
       });
       if (checkout.walletPaymentStarted) {
         _startPaymentExpiryTimer(groupId, attemptToken);
+        _watchPaymentEvents(groupId, attemptToken);
       }
       if (!checkout.walletPaymentStarted && isFreeTrial) {
         final latest = await ref.read(billingRepositoryProvider).subscription(groupId);
@@ -190,6 +194,23 @@ class _SubscriptionPlanScreenState
     });
   }
 
+  void _watchPaymentEvents(String groupId, int attemptToken) {
+    _paymentEventsSubscription?.cancel();
+    _paymentEventsSubscription = ref
+        .read(paymentRealtimeClientProvider)
+        .watchGroup(groupId)
+        .listen((event) {
+      if (!mounted ||
+          attemptToken != _paymentAttemptToken ||
+          event.groupId != groupId ||
+          event.productType != 'group-access' ||
+          !event.isConfirmed) {
+        return;
+      }
+      unawaited(_confirmPaymentIfReady(groupId, attemptToken));
+    });
+  }
+
   Future<bool> _confirmPaymentIfReady(
     String groupId,
     int attemptToken,
@@ -210,7 +231,12 @@ class _SubscriptionPlanScreenState
             stateValue: latest.state,
             endsAt: latest.currentPeriodEndsAt,
           );
+      final messenger = ScaffoldMessenger.of(context);
+      final confirmedMessage = context.vt('Payment confirmed.');
       _paymentExpiryTimer?.cancel();
+      await _paymentEventsSubscription?.cancel();
+      _paymentEventsSubscription = null;
+      if (!mounted || attemptToken != _paymentAttemptToken) return false;
       setState(() {
         _walletPromptStarted = false;
         _isWaitingForPayment = false;
@@ -218,9 +244,7 @@ class _SubscriptionPlanScreenState
         _checkoutUrl = '';
         _errorMessage = '';
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.vt('Payment confirmed.'))),
-      );
+      messenger.showSnackBar(SnackBar(content: Text(confirmedMessage)));
       return true;
     } on Object {
       return false;
@@ -233,12 +257,8 @@ class _SubscriptionPlanScreenState
     if (!mounted || attemptToken != _paymentAttemptToken) return;
     final confirmed = await _confirmPaymentIfReady(groupId, attemptToken);
     if (confirmed) return;
-
-    try {
-      await ref.read(billingRepositoryProvider).cancelSubscription(groupId);
-    } on Object {
-      // The prompt has already expired on the phone; keep the UI recoverable.
-    }
+    await _paymentEventsSubscription?.cancel();
+    _paymentEventsSubscription = null;
 
     if (!mounted || attemptToken != _paymentAttemptToken) return;
     setState(() {
@@ -247,7 +267,7 @@ class _SubscriptionPlanScreenState
       _paymentSecondsRemaining = _paymentWaitSeconds;
       _checkoutUrl = '';
       _errorMessage = context.vt(
-        'Payment prompt expired. Please try again.',
+        'Payment confirmation timed out. If you entered your PIN, refresh before trying again.',
       );
     });
   }

@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "./billing-provider.token";
+import { PaymentEventsGateway } from "./payment-events.gateway";
 import { SubscriptionBillingProvider } from "./subscription-billing-provider";
 
 @Injectable()
@@ -17,6 +18,7 @@ export class BillingWebhookService {
     private readonly prisma: PrismaService,
     @Inject(SUBSCRIPTION_BILLING_PROVIDER)
     private readonly billingProvider: SubscriptionBillingProvider,
+    private readonly paymentEvents: PaymentEventsGateway,
   ) {}
 
   async receive(
@@ -130,6 +132,14 @@ export class BillingWebhookService {
       },
     });
 
+    this.paymentEvents.emitPaymentUpdated({
+      groupId: subscription.groupId,
+      productType: "group-access",
+      status: nextState,
+      orderId: orderId ?? undefined,
+      planCode: subscription.plan.code,
+    });
+
     if (nextState !== SubscriptionState.ACTIVE) return;
     const transactionRef =
       this.firstString(payload, ["transid", "reference", "orderId"]) ??
@@ -219,6 +229,17 @@ export class BillingWebhookService {
           : {}),
       },
     });
+
+    const remainingCredits = await this.reminderCreditsRemaining(
+      purchase.groupId,
+    );
+    this.paymentEvents.emitPaymentUpdated({
+      groupId: purchase.groupId,
+      productType: "reminder-package",
+      status: nextStatus,
+      orderId,
+      remainingCredits,
+    });
   }
 
   private reminderPurchaseStatusFromProviderStatus(
@@ -268,6 +289,23 @@ export class BillingWebhookService {
   private numberValue(value: unknown): number | undefined {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
+  }
+
+  private async reminderCreditsRemaining(groupId: string): Promise<number> {
+    const totals = await this.prisma.reminderPackagePurchase.aggregate({
+      where: {
+        groupId,
+        status: ReminderPackagePurchaseStatus.PAID,
+      },
+      _sum: {
+        quantity: true,
+        usedQuantity: true,
+      },
+    });
+    return Math.max(
+      (totals._sum.quantity ?? 0) - (totals._sum.usedQuantity ?? 0),
+      0,
+    );
   }
 }
 

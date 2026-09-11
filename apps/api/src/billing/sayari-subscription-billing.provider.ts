@@ -124,10 +124,12 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       },
     );
     const status = this.firstString(order, ["status", "paymentStatus"]);
+    const completed = this.isCompletedStatus(status);
     return mockProviderSubscription(
       providerSubscriptionId,
-      this.isCompletedStatus(status) ? "active" : "cancelled",
-      true,
+      completed ? "active" : "cancelled",
+      completed,
+      completed ? undefined : new Date(0),
     );
   }
 
@@ -255,7 +257,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     const status = this.firstString(order, ["status", "paymentStatus"]);
     return mockProviderSubscription(
       orderId,
-      this.isCompletedStatus(status) ? "active" : "trialing",
+      this.providerStatusToSubscriptionStatus(status),
       false,
     );
   }
@@ -301,6 +303,17 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     );
   }
 
+  private providerStatusToSubscriptionStatus(
+    status?: string,
+  ): ProviderSubscription["status"] {
+    const normalized = String(status ?? "").toUpperCase();
+    if (this.isCompletedStatus(normalized)) return "active";
+    if (["CANCELLED", "CANCELED"].includes(normalized)) return "cancelled";
+    if (normalized === "EXPIRED") return "expired";
+    if (normalized === "FAILED") return "past_due";
+    return "past_due";
+  }
+
   private safeCompare(actual: string, expected: string): boolean {
     const actualHash = createHash("sha256").update(actual).digest();
     const expectedHash = createHash("sha256").update(expected).digest();
@@ -312,6 +325,7 @@ function mockProviderSubscription(
   providerSubscriptionId: string,
   status: ProviderSubscription["status"],
   cancelAtPeriodEnd: boolean,
+  currentPeriodEndsAt = addDays(new Date(), 365),
 ): ProviderSubscription {
   const now = new Date();
   return {
@@ -319,7 +333,7 @@ function mockProviderSubscription(
     providerCustomerId: "sayari_customer",
     status,
     currentPeriodStartsAt: now,
-    currentPeriodEndsAt: addDays(now, 365),
+    currentPeriodEndsAt,
     cancelAtPeriodEnd,
   };
 }

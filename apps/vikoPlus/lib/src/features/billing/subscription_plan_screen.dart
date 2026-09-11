@@ -34,6 +34,7 @@ class _SubscriptionPlanScreenState
   bool _walletPromptStarted = false;
   bool _isWaitingForPayment = false;
   int _paymentAttemptToken = 0;
+  int _paymentSecondsRemaining = 62;
   String _errorMessage = '';
   bool _isStartingCheckout = false;
   Timer? _paymentExpiryTimer;
@@ -103,6 +104,7 @@ class _SubscriptionPlanScreenState
         _checkoutUrl = '';
         _walletPromptStarted = false;
         _isWaitingForPayment = false;
+        _paymentSecondsRemaining = 62;
         _errorMessage = '';
         _isStartingCheckout = true;
       });
@@ -147,8 +149,22 @@ class _SubscriptionPlanScreenState
 
   void _startPaymentExpiryTimer(String groupId, int attemptToken) {
     _paymentExpiryTimer?.cancel();
-    _paymentExpiryTimer = Timer(const Duration(seconds: 62), () {
-      _expirePaymentAttempt(groupId, attemptToken);
+    final expiresAt = DateTime.now().add(const Duration(seconds: 62));
+    setState(() => _paymentSecondsRemaining = 62);
+    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || attemptToken != _paymentAttemptToken) {
+        timer.cancel();
+        return;
+      }
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
+      final nextRemaining = remaining.clamp(0, 62).toInt();
+      if (_paymentSecondsRemaining != nextRemaining) {
+        setState(() => _paymentSecondsRemaining = nextRemaining);
+      }
+      if (nextRemaining <= 0) {
+        timer.cancel();
+        _expirePaymentAttempt(groupId, attemptToken);
+      }
     });
   }
 
@@ -158,14 +174,18 @@ class _SubscriptionPlanScreenState
     try {
       final latest = await billing.subscription(groupId);
       if (!mounted || attemptToken != _paymentAttemptToken) return;
-      if (latest.hasPaidFeatureAccess || latest.state == 'ACTIVE') {
+      if (latest.hasPaidFeatureAccess) {
         ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
               hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
               planCode: latest.planCode,
               stateValue: latest.state,
               endsAt: latest.currentPeriodEndsAt,
             );
-        setState(() => _isWaitingForPayment = false);
+        _paymentExpiryTimer?.cancel();
+        setState(() {
+          _isWaitingForPayment = false;
+          _paymentSecondsRemaining = 0;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(context.vt('Payment confirmed.'))),
         );
@@ -185,6 +205,7 @@ class _SubscriptionPlanScreenState
     setState(() {
       _walletPromptStarted = false;
       _isWaitingForPayment = false;
+      _paymentSecondsRemaining = 62;
       _checkoutUrl = '';
       _errorMessage = context.vt(
         'Payment prompt expired. Please try again.',
@@ -286,6 +307,7 @@ class _SubscriptionPlanScreenState
                       _PaymentPromptCard(
                         url: _checkoutUrl,
                         walletPromptStarted: _walletPromptStarted,
+                        secondsRemaining: _paymentSecondsRemaining,
                         onCopy: () async {
                           if (_checkoutUrl.isEmpty) return;
                           await Clipboard.setData(
@@ -562,15 +584,18 @@ class _PaymentPromptCard extends StatelessWidget {
   const _PaymentPromptCard({
     required this.url,
     required this.walletPromptStarted,
+    required this.secondsRemaining,
     required this.onCopy,
   });
 
   final String url;
   final bool walletPromptStarted;
+  final int secondsRemaining;
   final VoidCallback onCopy;
 
   @override
   Widget build(BuildContext context) {
+    final isUssdPrompt = walletPromptStarted && url.isEmpty;
     return Container(
       padding: AppInsets.compactCard,
       decoration: BoxDecoration(
@@ -579,8 +604,27 @@ class _PaymentPromptCard extends StatelessWidget {
         border: Border.all(color: AppColors.secondary.withValues(alpha: 0.35)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.check_circle_outline, color: AppColors.secondary),
+          Container(
+            width: 42,
+            height: 42,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.secondary.withValues(alpha: 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: isUssdPrompt
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2.4),
+                  )
+                : const Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.secondary,
+                  ),
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
@@ -599,17 +643,42 @@ class _PaymentPromptCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  url.isEmpty
+                  isUssdPrompt
                       ? context.vt(
-                          'Confirm the USSD prompt on your phone to complete payment.',
+                          'Open the USSD prompt, enter your mobile money PIN, and keep this screen open while we confirm payment.',
                         )
+                      : url.isEmpty
+                      ? context.vt('Waiting for payment confirmation.')
                       : url,
-                  maxLines: 2,
+                  maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: AppColors.onSurfaceVariant,
                       ),
                 ),
+                if (isUssdPrompt) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
+                      border: Border.all(color: AppColors.outlineVariant),
+                    ),
+                    child: Text(
+                      context
+                          .vt('{seconds}s remaining to confirm')
+                          .replaceAll('{seconds}', '$secondsRemaining'),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

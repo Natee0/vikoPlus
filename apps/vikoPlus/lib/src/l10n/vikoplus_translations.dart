@@ -756,6 +756,12 @@ const _swahili = <String, String>{
       'Ombi la malipo limetumwa kwenye simu yako.',
   'Confirm the USSD prompt on your phone to complete payment.':
       'Thibitisha ombi la USSD kwenye simu yako ili kukamilisha malipo.',
+  'Open the USSD prompt, enter your mobile money PIN, and keep this screen open while we confirm payment.':
+      'Fungua ombi la USSD, weka PIN ya malipo ya simu, kisha acha ukurasa huu wazi tukithibitisha malipo.',
+  'Waiting for payment confirmation.':
+      'Inasubiri uthibitisho wa malipo.',
+  '{seconds}s remaining to confirm':
+      'Sekunde {seconds} zimebaki kuthibitisha',
   'Waiting for confirmation': 'Inasubiri uthibitisho',
   'Payment confirmed.': 'Malipo yamethibitishwa.',
   'Payment prompt expired. Please try again.':

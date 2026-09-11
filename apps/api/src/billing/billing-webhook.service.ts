@@ -96,11 +96,26 @@ export class BillingWebhookService {
     if (!subscription) return;
 
     const now = new Date();
+    const activePeriodStartsAt = now;
+    const activePeriodEndsAt = addBillingPeriod(
+      activePeriodStartsAt,
+      subscription.plan.interval,
+      subscription.plan.intervalCount,
+    );
     await this.prisma.subscription.update({
       where: { id: subscription.id },
       data: {
         providerSubscriptionId: orderId ?? subscription.providerSubscriptionId,
         state: nextState,
+        ...(nextState === SubscriptionState.ACTIVE
+          ? {
+              currentPeriodStartsAt: activePeriodStartsAt,
+              currentPeriodEndsAt: activePeriodEndsAt,
+              cancelledAt: null,
+              expiredAt: null,
+              suspendedAt: null,
+            }
+          : {}),
         ...(nextState === SubscriptionState.CANCELLED
           ? { cancelledAt: now }
           : {}),
@@ -184,4 +199,18 @@ export class BillingWebhookService {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
   }
+}
+
+function addBillingPeriod(
+  date: Date,
+  interval: "MONTH" | "YEAR",
+  intervalCount: number,
+): Date {
+  const next = new Date(date);
+  if (interval === "YEAR") {
+    next.setFullYear(next.getFullYear() + intervalCount);
+  } else {
+    next.setMonth(next.getMonth() + intervalCount);
+  }
+  return next;
 }

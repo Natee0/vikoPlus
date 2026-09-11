@@ -33,18 +33,19 @@ export class SubscriptionsService {
     groupId: string,
   ): Promise<SubscriptionDto> {
     await this.requireBillingAuthority(user, groupId);
-    const subscription = await this.prisma.subscription.findFirst({
+    const subscriptionRecord = await this.prisma.subscription.findFirst({
       where: { groupId },
       include: { plan: true },
       orderBy: { createdAt: "desc" },
     });
 
-    if (!subscription) {
+    if (!subscriptionRecord) {
       throw new NotFoundException({
         code: ApiErrorCode.SubscriptionRequired,
         message: "A Vikoplus subscription is required for this group.",
       });
     }
+    const subscription = await this.syncProviderSubscription(subscriptionRecord);
 
     return {
       id: subscription.id,
@@ -211,13 +212,26 @@ export class SubscriptionsService {
         planId: plan.id,
         billingCustomerId: billingCustomer.id,
         provider: billingProvider,
-        state: SubscriptionState.TRIAL,
-        trialEndsAt:
-          plan.trialDays > 0 ? addDays(new Date(), plan.trialDays) : null,
+        state: SubscriptionState.PAST_DUE,
+        trialEndsAt: null,
+        currentPeriodStartsAt: null,
+        currentPeriodEndsAt: null,
+        cancelAtPeriodEnd: false,
+        cancelledAt: null,
+        expiredAt: null,
+        suspendedAt: null,
       },
       update: {
         planId: plan.id,
         billingCustomerId: billingCustomer.id,
+        state: SubscriptionState.PAST_DUE,
+        trialEndsAt: null,
+        currentPeriodStartsAt: null,
+        currentPeriodEndsAt: null,
+        cancelAtPeriodEnd: false,
+        cancelledAt: null,
+        expiredAt: null,
+        suspendedAt: null,
       },
     });
 
@@ -239,17 +253,13 @@ export class SubscriptionsService {
       buyerPhone,
     });
 
-    const periodStartsAt = new Date();
     await this.prisma.subscription.update({
       where: { id: subscription.id },
       data: {
         providerSubscriptionId: checkout.providerSessionId,
-        currentPeriodStartsAt: periodStartsAt,
-        currentPeriodEndsAt: addBillingPeriod(
-          periodStartsAt,
-          plan.interval,
-          plan.intervalCount,
-        ),
+        state: SubscriptionState.PAST_DUE,
+        currentPeriodStartsAt: null,
+        currentPeriodEndsAt: null,
       },
     });
 
@@ -394,6 +404,63 @@ export class SubscriptionsService {
       email: identities.find((identity) => identity.type === "EMAIL")?.value,
       phone: identities.find((identity) => identity.type === "PHONE")?.value,
     };
+  }
+
+  private async syncProviderSubscription<
+    T extends {
+      id: string;
+      providerSubscriptionId: string | null;
+      state: SubscriptionState;
+      plan: unknown;
+    },
+  >(subscription: T): Promise<T> {
+    if (
+      !subscription.providerSubscriptionId ||
+      subscription.state === SubscriptionState.ACTIVE
+    ) {
+      return subscription;
+    }
+
+    try {
+      const providerSubscription = await this.billingProvider.getSubscription(
+        subscription.providerSubscriptionId,
+      );
+      const nextState = mapProviderStatus(providerSubscription.status);
+      const plan = subscription.plan as {
+        interval: "MONTH" | "YEAR";
+        intervalCount: number;
+      };
+      const activePeriodStartsAt = new Date();
+      const activePeriodEndsAt = addBillingPeriod(
+        activePeriodStartsAt,
+        plan.interval,
+        plan.intervalCount,
+      );
+      const updated = await this.prisma.subscription.update({
+        where: { id: subscription.id },
+        data: {
+          state: nextState,
+          cancelAtPeriodEnd: providerSubscription.cancelAtPeriodEnd,
+          currentPeriodStartsAt:
+            nextState === SubscriptionState.ACTIVE
+              ? activePeriodStartsAt
+              : null,
+          currentPeriodEndsAt:
+            nextState === SubscriptionState.ACTIVE
+              ? activePeriodEndsAt
+              : null,
+          cancelledAt:
+            nextState === SubscriptionState.CANCELLED ? new Date() : null,
+          expiredAt: nextState === SubscriptionState.EXPIRED ? new Date() : null,
+          suspendedAt:
+            nextState === SubscriptionState.SUSPENDED ? new Date() : null,
+        },
+        include: { plan: true },
+      });
+      return updated as unknown as T;
+    } catch {
+      return subscription;
+    }
   }
 }
 

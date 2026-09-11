@@ -1,5 +1,6 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -35,17 +36,29 @@ class _ConfigureRemindersScreenState
   String? _selectedPackageCode;
   String? _loadedPackagesGroupId;
   Future<ReminderPackagesResult>? _packagesFuture;
+  final _paymentPhoneController = TextEditingController();
+  Timer? _paymentExpiryTimer;
   bool _isSubmitting = false;
   bool _isStartingCheckout = false;
+  bool _walletPromptStarted = false;
+  bool _isWaitingForPayment = false;
   bool _enabled = false;
   bool _loadingSettings = true;
   bool _settingsLoaded = false;
+  int _paymentSecondsRemaining = 62;
   final Set<int> _offsets = {-3, 0};
 
   @override
   void initState() {
     super.initState();
     Future.microtask(_loadSettings);
+  }
+
+  @override
+  void dispose() {
+    _paymentExpiryTimer?.cancel();
+    _paymentPhoneController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -123,12 +136,23 @@ class _ConfigureRemindersScreenState
       );
       return;
     }
+    final phone = _paymentPhoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(
+        () => _errorMessage = context.vt(
+          'Enter a phone number to receive the Sayari Pay USSD prompt.',
+        ),
+      );
+      return;
+    }
 
     try {
       setState(() {
         _errorMessage = '';
         _checkoutUrl = '';
         _isStartingCheckout = true;
+        _walletPromptStarted = false;
+        _isWaitingForPayment = false;
       });
       final checkout = await ref
           .read(groupsRepositoryProvider)
@@ -139,16 +163,27 @@ class _ConfigureRemindersScreenState
               quantity: package.quantity,
               successUrl: _billingReturnUri('/billing/success').toString(),
               cancelUrl: _billingReturnUri('/billing/cancelled').toString(),
+              buyerPhone: phone,
             ),
           );
-      await Clipboard.setData(ClipboardData(text: checkout.checkoutUrl));
       if (!mounted) {
         return;
       }
-      setState(() => _checkoutUrl = checkout.checkoutUrl);
+      setState(() {
+        _checkoutUrl = checkout.walletPaymentStarted ? '' : checkout.checkoutUrl;
+        _walletPromptStarted = checkout.walletPaymentStarted;
+        _isWaitingForPayment = checkout.walletPaymentStarted;
+      });
+      if (checkout.walletPaymentStarted) {
+        _startPaymentExpiryTimer();
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.vt('Checkout link copied to clipboard.')),
+          content: Text(
+            checkout.walletPaymentStarted
+                ? context.vt('Reminder payment prompt sent to your phone.')
+                : context.vt('Checkout link is ready.'),
+          ),
         ),
       );
     } on Object catch (error) {
@@ -161,6 +196,35 @@ class _ConfigureRemindersScreenState
         setState(() => _isStartingCheckout = false);
       }
     }
+  }
+
+  void _startPaymentExpiryTimer() {
+    _paymentExpiryTimer?.cancel();
+    final expiresAt = DateTime.now().add(const Duration(seconds: 62));
+    setState(() => _paymentSecondsRemaining = 62);
+    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
+      final nextRemaining = remaining.clamp(0, 62).toInt();
+      if (_paymentSecondsRemaining != nextRemaining) {
+        setState(() => _paymentSecondsRemaining = nextRemaining);
+      }
+      if (nextRemaining <= 0) {
+        timer.cancel();
+        setState(() {
+          _walletPromptStarted = false;
+          _isWaitingForPayment = false;
+          _paymentSecondsRemaining = 62;
+          _checkoutUrl = '';
+          _errorMessage = context.vt(
+            'Payment prompt expired. If you confirmed payment, pull to refresh before buying again.',
+          );
+        });
+      }
+    });
   }
 
   ReminderPackageSummary? _selectedPackage(
@@ -305,6 +369,7 @@ class _ConfigureRemindersScreenState
             packagesFuture: _packagesFor(groupId),
             selectedPackageCode: _selectedPackageCode,
             isStartingCheckout: _isStartingCheckout,
+            isWaitingForPayment: _isWaitingForPayment,
             formatters: formatters,
             selectedPackage: _selectedPackage,
             onPackageSelected: (code) {
@@ -312,19 +377,23 @@ class _ConfigureRemindersScreenState
             },
             onStartCheckout: _startPackageCheckout,
           ),
-          if (_checkoutUrl.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.sm),
+          AuthField(
+            label: context.vt('Payment phone number'),
+            hint: '0785 123 456',
+            icon: Icons.phone_android_outlined,
+            controller: _paymentPhoneController,
+            keyboardType: TextInputType.phone,
+            helperText: context.vt(
+              'Sayari Pay will send a USSD prompt to this number.',
+            ),
+          ),
+          if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
             const SizedBox(height: AppSpacing.sm),
-            _CheckoutLinkCard(
+            _ReminderPaymentPromptCard(
+              walletPromptStarted: _walletPromptStarted,
               url: _checkoutUrl,
-              onCopy: () async {
-                await Clipboard.setData(ClipboardData(text: _checkoutUrl));
-                if (!context.mounted) {
-                  return;
-                }
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(context.vt('Checkout link copied.'))),
-                );
-              },
+              secondsRemaining: _paymentSecondsRemaining,
             ),
           ],
           const SizedBox(height: AppSpacing.md),
@@ -435,6 +504,7 @@ class _ReminderPackagePicker extends StatelessWidget {
     required this.packagesFuture,
     required this.selectedPackageCode,
     required this.isStartingCheckout,
+    required this.isWaitingForPayment,
     required this.formatters,
     required this.selectedPackage,
     required this.onPackageSelected,
@@ -445,6 +515,7 @@ class _ReminderPackagePicker extends StatelessWidget {
   final Future<ReminderPackagesResult>? packagesFuture;
   final String? selectedPackageCode;
   final bool isStartingCheckout;
+  final bool isWaitingForPayment;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
   selectedPackage;
@@ -523,10 +594,11 @@ class _ReminderPackagePicker extends StatelessWidget {
             ),
             const SizedBox(height: AppSpacing.sm),
             OutlinedButton.icon(
-              onPressed: selected == null || isStartingCheckout
+              onPressed:
+                  selected == null || isStartingCheckout || isWaitingForPayment
                   ? null
                   : () => onStartCheckout(selected),
-              icon: isStartingCheckout
+              icon: isStartingCheckout || isWaitingForPayment
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -535,8 +607,10 @@ class _ReminderPackagePicker extends StatelessWidget {
                   : const Icon(Icons.lock_outline, size: 18),
               label: Text(
                 isStartingCheckout
-                    ? context.vt('Creating checkout')
-                    : context.vt('Create checkout link'),
+                    ? context.vt('Sending payment prompt')
+                    : isWaitingForPayment
+                    ? context.vt('Waiting for confirmation')
+                    : context.vt('Buy reminder package'),
               ),
             ),
           ],
@@ -578,11 +652,16 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _CheckoutLinkCard extends StatelessWidget {
-  const _CheckoutLinkCard({required this.url, required this.onCopy});
+class _ReminderPaymentPromptCard extends StatelessWidget {
+  const _ReminderPaymentPromptCard({
+    required this.walletPromptStarted,
+    required this.url,
+    required this.secondsRemaining,
+  });
 
+  final bool walletPromptStarted;
   final String url;
-  final VoidCallback onCopy;
+  final int secondsRemaining;
 
   @override
   Widget build(BuildContext context) {
@@ -595,14 +674,23 @@ class _CheckoutLinkCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.check_circle_outline, color: AppColors.secondary),
+          Icon(
+            walletPromptStarted
+                ? Icons.phone_android_outlined
+                : Icons.check_circle_outline,
+            color: AppColors.secondary,
+          ),
           const SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  context.vt('Checkout link ready'),
+                  context.vt(
+                    walletPromptStarted
+                        ? 'Payment prompt sent'
+                        : 'Checkout link ready',
+                  ),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: AppColors.onSurface,
                     fontWeight: FontWeight.w700,
@@ -610,19 +698,29 @@ class _CheckoutLinkCard extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpacing.xxs),
                 Text(
-                  url,
-                  maxLines: 1,
+                  walletPromptStarted
+                      ? context.vt(
+                          'Enter your mobile money PIN on the phone prompt. Reminder credits unlock after Sayari confirms payment.',
+                        )
+                      : url,
+                  maxLines: walletPromptStarted ? 3 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.onSurfaceVariant),
                 ),
+                if (walletPromptStarted) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    '${context.vt('Waiting for confirmation')} '
+                    '(${secondsRemaining}s)',
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.secondary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
-          ),
-          IconButton(
-            tooltip: context.vt('Copy checkout link'),
-            onPressed: onCopy,
-            icon: const Icon(Icons.copy_outlined),
           ),
         ],
       ),

@@ -1080,15 +1080,17 @@ class ReminderPackageCheckoutResult {
     required this.checkoutUrl,
     required this.amountMinor,
     required this.currency,
+    required this.walletPaymentStarted,
     this.expiresAt,
   });
 
   factory ReminderPackageCheckoutResult.fromJson(Map<String, dynamic> json) {
     return ReminderPackageCheckoutResult(
       purchaseId: _requiredString(json, 'purchaseId'),
-      checkoutUrl: _requiredString(json, 'checkoutUrl'),
+      checkoutUrl: json['checkoutUrl'] as String? ?? '',
       amountMinor: json['amountMinor'] as int? ?? 0,
       currency: json['currency'] as String? ?? 'TZS',
+      walletPaymentStarted: json['walletPaymentStarted'] as bool? ?? false,
       expiresAt: _parseDate(json['expiresAt']),
     );
   }
@@ -1097,6 +1099,7 @@ class ReminderPackageCheckoutResult {
   final String checkoutUrl;
   final int amountMinor;
   final String currency;
+  final bool walletPaymentStarted;
   final DateTime? expiresAt;
 }
 

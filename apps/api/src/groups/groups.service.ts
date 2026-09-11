@@ -2047,13 +2047,19 @@ export class GroupsService {
     if (!reminderPackage?.isActive) {
       throw new NotFoundException("Reminder package was not found.");
     }
+    const buyerPhone = input.buyerPhone ?? identity.phone;
+    if (!buyerPhone?.trim()) {
+      throw new BadRequestException(
+        "Enter a phone number to receive the Sayari Pay USSD prompt.",
+      );
+    }
     const quantity = reminderPackage.quantity;
     const amountMinor = reminderPackage.amountMinor * quantity;
     const customer = await this.billingProvider.createCustomer({
       groupId,
       name: group.name,
       email: input.buyerEmail ?? identity.email,
-      phone: input.buyerPhone ?? identity.phone,
+      phone: buyerPhone,
     });
     const checkout = await this.billingProvider.createCheckoutSession({
       groupId,
@@ -2075,7 +2081,7 @@ export class GroupsService {
       cancelUrl: input.cancelUrl,
       buyerEmail: input.buyerEmail ?? identity.email,
       buyerName: input.buyerName ?? group.name,
-      buyerPhone: input.buyerPhone ?? identity.phone,
+      buyerPhone,
     });
     const purchase = await this.prisma.reminderPackagePurchase.create({
       data: {
@@ -2115,6 +2121,7 @@ export class GroupsService {
       amountMinor,
       currency: reminderPackage.currency,
       quantity,
+      walletPaymentStarted: checkout.walletPaymentStarted ?? false,
     };
   }
 

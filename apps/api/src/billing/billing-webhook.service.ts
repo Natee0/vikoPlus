@@ -4,6 +4,7 @@ import {
   BillingProvider,
   BillingTransactionStatus,
   Prisma,
+  ReminderPackagePurchaseStatus,
   SubscriptionState,
 } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -50,6 +51,7 @@ export class BillingWebhookService {
     }
 
     try {
+      await this.processReminderPackagePaymentEvent(verified.payload);
       await this.processSubscriptionPaymentEvent(verified.payload);
       await this.prisma.billingEvent.update({
         where: { id: event.id },
@@ -169,8 +171,6 @@ export class BillingWebhookService {
   ): SubscriptionState | null {
     switch (String(status ?? "").toUpperCase()) {
       case "COMPLETED":
-      case "PAID":
-      case "SUCCESS":
         return SubscriptionState.ACTIVE;
       case "FAILED":
         return SubscriptionState.PAST_DUE;
@@ -178,6 +178,55 @@ export class BillingWebhookService {
         return SubscriptionState.CANCELLED;
       case "EXPIRED":
         return SubscriptionState.EXPIRED;
+      default:
+        return null;
+    }
+  }
+
+  private async processReminderPackagePaymentEvent(
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const orderId = this.firstString(payload, ["orderId", "providerRef"]);
+    if (!orderId) return;
+
+    const providerStatus = this.firstString(payload, [
+      "paymentStatus",
+      "status",
+      "result",
+    ]);
+    const nextStatus =
+      this.reminderPurchaseStatusFromProviderStatus(providerStatus);
+    if (!nextStatus) return;
+
+    const purchase = await this.prisma.reminderPackagePurchase.findFirst({
+      where: { providerCheckoutId: orderId },
+    });
+    if (!purchase) return;
+
+    await this.prisma.reminderPackagePurchase.update({
+      where: { id: purchase.id },
+      data: {
+        status: nextStatus,
+        ...(nextStatus === ReminderPackagePurchaseStatus.PAID
+          ? { paidAt: new Date() }
+          : {}),
+      },
+    });
+  }
+
+  private reminderPurchaseStatusFromProviderStatus(
+    status?: string,
+  ): ReminderPackagePurchaseStatus | null {
+    switch (String(status ?? "").toUpperCase()) {
+      case "COMPLETED":
+        return ReminderPackagePurchaseStatus.PAID;
+      case "FAILED":
+        return ReminderPackagePurchaseStatus.FAILED;
+      case "CANCELLED":
+      case "CANCELED":
+        return ReminderPackagePurchaseStatus.CANCELLED;
+      case "EXPIRED":
+        return ReminderPackagePurchaseStatus.FAILED;
       default:
         return null;
     }

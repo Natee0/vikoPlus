@@ -736,6 +736,8 @@ const _swahili = <String, String>{
   'Could not load reminder packages.': 'Vifurushi vya vikumbusho havijapakiwa.',
   'Reminder package prices are not available yet.':
       'Bei za vifurushi vya vikumbusho bado hazipo.',
+  'message': 'ujumbe',
+  'messages': 'jumbe',
   'per message': 'kwa ujumbe',
   'Message credits': 'Idadi ya ujumbe',
   '100 messages': 'Ujumbe 100',
@@ -744,6 +746,13 @@ const _swahili = <String, String>{
   '5,000 messages': 'Ujumbe 5,000',
   'Creating checkout': 'Inatengeneza kiungo cha malipo',
   'Create checkout link': 'Tengeneza kiungo cha malipo',
+  'Buy reminder package': 'Nunua kifurushi cha vikumbusho',
+  'Reminder payment prompt sent to your phone.':
+      'Ombi la malipo ya vikumbusho limetumwa kwenye simu yako.',
+  'Enter your mobile money PIN on the phone prompt. Reminder credits unlock after Sayari confirms payment.':
+      'Weka PIN ya malipo ya simu kwenye ombi lililotumwa. Salio la vikumbusho litafunguka baada ya Sayari kuthibitisha malipo.',
+  'Payment prompt expired. If you confirmed payment, pull to refresh before buying again.':
+      'Ombi la malipo limeisha muda. Kama ulithibitisha malipo, vuta chini kuonyesha upya kabla ya kununua tena.',
   'Checkout link ready': 'Kiungo cha malipo kiko tayari',
   'Copy checkout link': 'Nakili kiungo cha malipo',
   'Group Access': 'Ufikiaji wa kikundi',

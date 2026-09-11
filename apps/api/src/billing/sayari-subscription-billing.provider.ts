@@ -123,7 +123,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
         idempotencyKey: `vikoplus-access-cancel-${providerSubscriptionId}`,
       },
     );
-    const status = this.firstString(order, ["status", "paymentStatus"]);
+    const status = this.firstString(order, ["paymentStatus", "status"]);
     const completed = this.isCompletedStatus(status);
     return mockProviderSubscription(
       providerSubscriptionId,
@@ -254,7 +254,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
     orderId: string,
     order: Record<string, unknown>,
   ): ProviderSubscription {
-    const status = this.firstString(order, ["status", "paymentStatus"]);
+    const status = this.firstString(order, ["paymentStatus", "status"]);
     return mockProviderSubscription(
       orderId,
       this.providerStatusToSubscriptionStatus(status),
@@ -298,9 +298,7 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
   }
 
   private isCompletedStatus(status?: string): boolean {
-    return ["COMPLETED", "PAID", "SUCCESS"].includes(
-      String(status ?? "").toUpperCase(),
-    );
+    return String(status ?? "").toUpperCase() === "COMPLETED";
   }
 
   private providerStatusToSubscriptionStatus(

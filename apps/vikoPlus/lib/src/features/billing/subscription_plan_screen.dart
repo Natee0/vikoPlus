@@ -31,11 +31,12 @@ class _SubscriptionPlanScreenState
   final _phoneController = TextEditingController();
   String? _selectedPlanCode;
   String? _loadedGroupId;
-  Future<AccessPlansResult>? _plansFuture;
+  Future<_AccessBillingData>? _accessFuture;
   String _checkoutUrl = '';
   bool _walletPromptStarted = false;
   bool _isWaitingForPayment = false;
   bool _isPollingPaymentStatus = false;
+  bool _showPlanChange = false;
   int _paymentAttemptToken = 0;
   int _paymentSecondsRemaining = _paymentWaitSeconds;
   String _errorMessage = '';
@@ -56,27 +57,43 @@ class _SubscriptionPlanScreenState
     return apiBaseUri.replace(path: path, query: '');
   }
 
-  Future<AccessPlansResult>? _plansFor(String? groupId) {
+  Future<_AccessBillingData>? _accessDataFor(String? groupId) {
     if (groupId == null || groupId.isEmpty) return null;
-    if (_loadedGroupId != groupId || _plansFuture == null) {
-      _setPlansFuture(groupId);
+    if (_loadedGroupId != groupId || _accessFuture == null) {
+      _setAccessFuture(groupId);
     }
-    return _plansFuture;
+    return _accessFuture;
   }
 
-  void _setPlansFuture(String groupId, [Future<AccessPlansResult>? future]) {
+  void _setAccessFuture(String groupId, [Future<_AccessBillingData>? future]) {
     _loadedGroupId = groupId;
-    _plansFuture =
-        future ?? ref.read(billingRepositoryProvider).accessPlans(groupId);
+    _showPlanChange = false;
+    _accessFuture = future ?? _loadAccessData(groupId);
+  }
+
+  Future<_AccessBillingData> _loadAccessData(String groupId) async {
+    final repository = ref.read(billingRepositoryProvider);
+    final plansFuture = repository.accessPlans(groupId);
+    final subscriptionFuture = _subscriptionOrNull(groupId);
+    return _AccessBillingData(
+      plans: await plansFuture,
+      subscription: await subscriptionFuture,
+    );
+  }
+
+  Future<GroupSubscriptionSummary?> _subscriptionOrNull(String groupId) async {
+    try {
+      return await ref.read(billingRepositoryProvider).subscription(groupId);
+    } on Object {
+      return null;
+    }
   }
 
   Future<void> _refresh() async {
     final activeGroup = ref.read(activeGroupProvider);
     if (activeGroup == null) return;
-    final future = ref
-        .read(billingRepositoryProvider)
-        .accessPlans(activeGroup.id);
-    setState(() => _setPlansFuture(activeGroup.id, future));
+    final future = _loadAccessData(activeGroup.id);
+    setState(() => _setAccessFuture(activeGroup.id, future));
     await future;
   }
 
@@ -286,8 +303,8 @@ class _SubscriptionPlanScreenState
       onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
-          : FutureBuilder<AccessPlansResult>(
-              future: _plansFor(activeGroup.id),
+          : FutureBuilder<_AccessBillingData>(
+              future: _accessDataFor(activeGroup.id),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
@@ -304,10 +321,24 @@ class _SubscriptionPlanScreenState
                   );
                 }
 
-                final plans = snapshot.data!.plans;
+                final data = snapshot.data!;
+                final plans = data.plans.plans;
                 final selected = _selectedPlan(plans);
                 final selectedIsFreeTrial =
                     selected != null && selected.priceMinor <= 0;
+                final currentSubscription = data.subscription;
+                final hasActiveStarter =
+                    currentSubscription != null &&
+                    currentSubscription.hasPaidFeatureAccess &&
+                    currentSubscription.planCode.toLowerCase().contains(
+                          'starter',
+                        );
+                final shouldShowPlanChoices =
+                    !hasActiveStarter ||
+                    _showPlanChange ||
+                    _walletPromptStarted ||
+                    _checkoutUrl.isNotEmpty ||
+                    _isWaitingForPayment;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -329,96 +360,147 @@ class _SubscriptionPlanScreenState
                           ),
                     ),
                     const SizedBox(height: AppSpacing.md),
-                    if (plans.isEmpty)
-                      const _NoPlansCard()
-                    else ...[
-                      for (final plan in plans) ...[
-                        _AccessPlanCard(
-                          plan: plan,
-                          price: formatters.money(
-                            plan.priceMinor,
-                            currency: plan.currency,
-                          ),
-                          selected:
-                              plan.code == (_selectedPlanCode ?? selected?.code),
-                          onTap: () {
-                            setState(() => _selectedPlanCode = plan.code);
-                          },
+                    if (hasActiveStarter) ...[
+                      _CurrentStarterCard(
+                        endsAtLabel:
+                            currentSubscription.currentPeriodEndsAt == null
+                                ? context.vt('Active')
+                                : formatters.date(
+                                    currentSubscription.currentPeriodEndsAt!,
+                                  ),
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      if (!shouldShowPlanChoices) ...[
+                        FilledButton.icon(
+                          onPressed: () => context.go('/groups'),
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          label: Text(context.vt('Continue with Starter')),
                         ),
                         const SizedBox(height: AppSpacing.sm),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _showPlanChange = true);
+                          },
+                          icon: const Icon(Icons.swap_horiz, size: 18),
+                          label: Text(context.vt('Change plan')),
+                        ),
                       ],
                     ],
-                    if (!selectedIsFreeTrial)
-                      AuthField(
-                        label: context.vt('Payment phone number'),
-                        hint: context.vt('Example: 0744000000'),
-                        icon: Icons.phone_iphone_outlined,
-                        controller: _phoneController,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.done,
-                        helperText: context.vt(
-                          'Sayari Pay will send a USSD prompt to this number.',
+                    if (shouldShowPlanChoices) ...[
+                      if (hasActiveStarter)
+                        Text(
+                          context.vt(
+                            'Choose a paid plan only if you want to upgrade now.',
+                          ),
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.onSurfaceVariant,
+                                  ),
                         ),
-                        onSubmitted: (_) {
-                          if (selected != null && !_isWaitingForPayment) {
-                            _startCheckout(activeGroup.id, selected);
-                          }
-                        },
-                      )
-                    else
-                      _FreeTrialNotice(
-                        message: context.vt(
-                          'Starter is free for your first group. No phone payment is needed.',
+                      const SizedBox(height: AppSpacing.sm),
+                      if (plans.isEmpty)
+                        const _NoPlansCard()
+                      else ...[
+                        for (final plan in plans) ...[
+                          _AccessPlanCard(
+                            plan: plan,
+                            price: formatters.money(
+                              plan.priceMinor,
+                              currency: plan.currency,
+                            ),
+                            selected: plan.code ==
+                                (_selectedPlanCode ?? selected?.code),
+                            onTap: () {
+                              setState(() => _selectedPlanCode = plan.code);
+                            },
+                          ),
+                          const SizedBox(height: AppSpacing.sm),
+                        ],
+                      ],
+                      if (!selectedIsFreeTrial)
+                        AuthField(
+                          label: context.vt('Payment phone number'),
+                          hint: context.vt('Example: 0744000000'),
+                          icon: Icons.phone_iphone_outlined,
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.done,
+                          helperText: context.vt(
+                            'Sayari Pay will send a USSD prompt to this number.',
+                          ),
+                          onSubmitted: (_) {
+                            if (selected != null && !_isWaitingForPayment) {
+                              _startCheckout(activeGroup.id, selected);
+                            }
+                          },
+                        )
+                      else
+                        _FreeTrialNotice(
+                          message: context.vt(
+                            'Starter is free for your first group. No phone payment is needed.',
+                          ),
+                        ),
+                      if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
+                        const SizedBox(height: AppSpacing.sm),
+                        _PaymentPromptCard(
+                          url: _checkoutUrl,
+                          walletPromptStarted: _walletPromptStarted,
+                          secondsRemaining: _paymentSecondsRemaining,
+                        ),
+                      ],
+                      const SizedBox(height: AppSpacing.md),
+                      AuthErrorMessage(message: _errorMessage),
+                      if (_errorMessage.isNotEmpty)
+                        const SizedBox(height: AppSpacing.sm),
+                      FilledButton.icon(
+                        onPressed: selected == null || _isStartingCheckout
+                            ? null
+                            : _isWaitingForPayment
+                                ? null
+                                : () => _startCheckout(activeGroup.id, selected),
+                        icon: _isStartingCheckout
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.lock_outline, size: 18),
+                        label: Text(
+                          _isStartingCheckout
+                              ? selectedIsFreeTrial
+                                  ? context.vt('Activating free trial')
+                                  : context.vt('Sending payment prompt')
+                              : _isWaitingForPayment
+                                  ? context.vt('Waiting for confirmation')
+                                  : selectedIsFreeTrial
+                                      ? context.vt('Start free trial')
+                                      : context.vt('Send payment prompt'),
                         ),
                       ),
-                    if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
                       const SizedBox(height: AppSpacing.sm),
-                      _PaymentPromptCard(
-                        url: _checkoutUrl,
-                        walletPromptStarted: _walletPromptStarted,
-                        secondsRemaining: _paymentSecondsRemaining,
+                      OutlinedButton(
+                        onPressed: () => context.go('/groups'),
+                        child: Text(context.vt('Open My Groups')),
                       ),
                     ],
-                    const SizedBox(height: AppSpacing.md),
-                    AuthErrorMessage(message: _errorMessage),
-                    if (_errorMessage.isNotEmpty)
-                      const SizedBox(height: AppSpacing.sm),
-                    FilledButton.icon(
-                      onPressed: selected == null || _isStartingCheckout
-                          ? null
-                          : _isWaitingForPayment
-                              ? null
-                              : () => _startCheckout(activeGroup.id, selected),
-                      icon: _isStartingCheckout
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.lock_outline, size: 18),
-                      label: Text(
-                        _isStartingCheckout
-                            ? selectedIsFreeTrial
-                                ? context.vt('Activating free trial')
-                                : context.vt('Sending payment prompt')
-                            : _isWaitingForPayment
-                                ? context.vt('Waiting for confirmation')
-                                : selectedIsFreeTrial
-                                    ? context.vt('Start free trial')
-                                    : context.vt('Send payment prompt'),
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    OutlinedButton(
-                      onPressed: () => context.go('/groups'),
-                      child: Text(context.vt('Open My Groups')),
-                    ),
                   ],
                 );
               },
             ),
     );
   }
+}
+
+class _AccessBillingData {
+  const _AccessBillingData({
+    required this.plans,
+    required this.subscription,
+  });
+
+  final AccessPlansResult plans;
+  final GroupSubscriptionSummary? subscription;
 }
 
 class _MissingGroupState extends StatelessWidget {
@@ -440,6 +522,85 @@ class _MissingGroupState extends StatelessWidget {
           child: Text(context.vt('Choose Group')),
         ),
       ],
+    );
+  }
+}
+
+class _CurrentStarterCard extends StatelessWidget {
+  const _CurrentStarterCard({
+    required this.endsAtLabel,
+  });
+
+  final String endsAtLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: AppInsets.card,
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.verified_outlined,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  context.vt('Current plan'),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.xxs),
+                Text(
+                  context.vt('Viko Starter'),
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  context.vt(
+                    'You are currently using the free Starter trial for this group.',
+                  ),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                _IncludedFeature(
+                  label: context
+                      .vt('Trial ends on {date}')
+                      .replaceAll('{date}', endsAtLabel),
+                ),
+                _IncludedFeature(
+                  label: context.vt('No phone payment is needed.'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

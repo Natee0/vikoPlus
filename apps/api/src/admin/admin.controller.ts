@@ -13,6 +13,7 @@ import { Throttle } from "@nestjs/throttler";
 import { CurrentUser } from "../common/auth/auth-user.decorator";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PlatformAdminGuard } from "../common/auth/platform-admin.guard";
+import { SkipGroupMembershipCheck } from "../common/auth/skip-group-membership.decorator";
 import { AdminService } from "./admin.service";
 import {
   CreateAdminGroupDto,
@@ -26,6 +27,7 @@ import {
 @ApiBearerAuth()
 @ApiTags("admin")
 @UseGuards(PlatformAdminGuard)
+@SkipGroupMembershipCheck()
 @Controller({ path: "admin", version: "1" })
 export class AdminController {
   constructor(private readonly admin: AdminService) {}

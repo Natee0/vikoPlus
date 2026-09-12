@@ -26,6 +26,7 @@ import {
   PaymentAllocationStatus,
   ReminderPackagePurchaseStatus,
   ReceiptStatus,
+  SubscriptionPlanStatus,
   SubscriptionState,
   UserIdentityType,
 } from "@prisma/client";
@@ -377,6 +378,36 @@ export class GroupsService {
         },
         include: { members: true },
       });
+      const starterPlan = await this.findStarterPlan(tx);
+      if (starterPlan) {
+        const startsAt = new Date();
+        const trialEndsAt = this.addDays(
+          startsAt,
+          Math.max(1, starterPlan.trialDays),
+        );
+        await tx.billingCustomer.create({
+          data: {
+            groupId: created.id,
+            userId: user.id,
+            provider: this.billingProvider.provider,
+            providerCustomerId: `starter_${created.id}`,
+            email,
+            phone,
+            subscriptions: {
+              create: {
+                id: `${created.id}:${starterPlan.id}`,
+                groupId: created.id,
+                planId: starterPlan.id,
+                provider: this.billingProvider.provider,
+                state: SubscriptionState.TRIAL,
+                currentPeriodStartsAt: startsAt,
+                currentPeriodEndsAt: trialEndsAt,
+                trialEndsAt,
+              },
+            },
+          },
+        });
+      }
       return created;
     });
     await this.prisma.auditLog.create({
@@ -400,6 +431,23 @@ export class GroupsService {
       currentUserRole: GroupRole.GROUP_ADMIN,
       nextStep: "FINANCIAL_YEAR",
     };
+  }
+
+  private async findStarterPlan(
+    db: Prisma.TransactionClient | PrismaService,
+  ) {
+    return db.subscriptionPlan.findFirst({
+      where: {
+        status: SubscriptionPlanStatus.ACTIVE,
+        priceMinor: 0,
+        trialDays: { gt: 0 },
+        OR: [
+          { code: { contains: "starter", mode: "insensitive" } },
+          { name: { contains: "starter", mode: "insensitive" } },
+        ],
+      },
+      orderBy: [{ trialDays: "desc" }, { createdAt: "asc" }],
+    });
   }
 
   async previewJoinCode(invitationCode: string) {

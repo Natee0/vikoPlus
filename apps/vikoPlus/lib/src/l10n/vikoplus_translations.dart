@@ -782,6 +782,16 @@ const _swahili = <String, String>{
   'Change access plan': 'Badilisha mpango wa ufikiaji',
   'Open admin dashboard': 'Fungua dashibodi ya msimamizi',
   'Trial': 'Majaribio',
+  'Current plan': 'Mpango wa sasa',
+  'Viko Starter': 'Viko Starter',
+  'You are currently using the free Starter trial for this group.':
+      'Kwa sasa unatumia majaribio ya bure ya Starter kwa kikundi hiki.',
+  'Trial ends on {date}': 'Majaribio yanaisha tarehe {date}',
+  'No phone payment is needed.': 'Hakuna malipo ya simu yanayohitajika.',
+  'Continue with Starter': 'Endelea na Starter',
+  'Change plan': 'Badilisha mpango',
+  'Choose a paid plan only if you want to upgrade now.':
+      'Chagua mpango wa kulipia tu kama unataka kuboresha sasa.',
   'Past due': 'Muda wa malipo umepita',
   'Cancelled': 'Imeghairiwa',
   'Expired': 'Imeisha muda',

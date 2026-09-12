@@ -9,6 +9,7 @@ import { Reflector } from "@nestjs/core";
 
 import { AuthenticatedUser } from "./authenticated-user";
 import { IS_PUBLIC_ROUTE } from "./public.decorator";
+import { SKIP_GROUP_MEMBERSHIP_CHECK } from "./skip-group-membership.decorator";
 import { TokenService } from "./token.service";
 import { PrismaService } from "../../prisma/prisma.service";
 
@@ -41,7 +42,11 @@ export class JwtAuthGuard implements CanActivate {
       tokenId: payload.jti,
       type: "access",
     };
-    if (request.params?.groupId) {
+    const skipGroupMembershipCheck = this.reflector.getAllAndOverride<boolean>(
+      SKIP_GROUP_MEMBERSHIP_CHECK,
+      [context.getHandler(), context.getClass()],
+    );
+    if (request.params?.groupId && !skipGroupMembershipCheck) {
       const membership = await this.prisma.groupMember.findFirst({
         where: {
           userId: payload.sub,

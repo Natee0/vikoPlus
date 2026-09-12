@@ -468,8 +468,6 @@ class _ConfigureRemindersScreenState
                 : (value) => setState(() => _enabled = value),
           ),
           const SizedBox(height: AppSpacing.md),
-          _SectionLabel(context.vt('Reminder Package')),
-          const SizedBox(height: AppSpacing.sm),
           _ReminderPackagePicker(
             groupId: groupId,
             packagesFuture: _packagesFor(groupId),
@@ -477,6 +475,7 @@ class _ConfigureRemindersScreenState
             isStartingCheckout: _isStartingCheckout,
             isWaitingForPayment: _isWaitingForPayment,
             isPaymentConfirmed: _reminderPaymentConfirmed,
+            paymentPhoneController: _paymentPhoneController,
             formatters: formatters,
             selectedPackage: _selectedPackage,
             onPackageSelected: (code) {
@@ -485,17 +484,6 @@ class _ConfigureRemindersScreenState
             onStartCheckout: _startPackageCheckout,
           ),
           if (!_reminderPaymentConfirmed) ...[
-            const SizedBox(height: AppSpacing.sm),
-            AuthField(
-              label: context.vt('Payment phone number'),
-              hint: '0785 123 456',
-              icon: Icons.phone_android_outlined,
-              controller: _paymentPhoneController,
-              keyboardType: TextInputType.phone,
-              helperText: context.vt(
-                'Sayari Pay will send a USSD prompt to this number.',
-              ),
-            ),
             if (_walletPromptStarted || _checkoutUrl.isNotEmpty) ...[
               const SizedBox(height: AppSpacing.sm),
               _ReminderPaymentPromptCard(
@@ -512,9 +500,14 @@ class _ConfigureRemindersScreenState
           _SectionLabel(context.vt('Schedule')),
           const SizedBox(height: AppSpacing.sm),
           for (final entry in const {
+            -14: '14 days before due date',
+            -7: '7 days before due date',
             -3: '3 days before due date',
+            -1: '1 day before due date',
             0: 'On due date',
+            1: '1 day overdue',
             3: '3 days overdue',
+            7: '7 days overdue',
           }.entries) ...[
             _ScheduleTile(
               label: context.vt(entry.value),
@@ -619,6 +612,7 @@ class _ReminderPackagePicker extends StatelessWidget {
     required this.isStartingCheckout,
     required this.isWaitingForPayment,
     required this.isPaymentConfirmed,
+    required this.paymentPhoneController,
     required this.formatters,
     required this.selectedPackage,
     required this.onPackageSelected,
@@ -631,6 +625,7 @@ class _ReminderPackagePicker extends StatelessWidget {
   final bool isStartingCheckout;
   final bool isWaitingForPayment;
   final bool isPaymentConfirmed;
+  final TextEditingController paymentPhoneController;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
   selectedPackage;
@@ -691,6 +686,8 @@ class _ReminderPackagePicker extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ReminderCreditCard(credits: result.credits),
+            const SizedBox(height: AppSpacing.md),
+            _SectionLabel(context.vt('Reminder Package')),
             const SizedBox(height: AppSpacing.sm),
             for (final package in packages) ...[
               _ReminderPackageTile(
@@ -709,6 +706,17 @@ class _ReminderPackagePicker extends StatelessWidget {
                 total: formatters.money(
                   totalMinor,
                   currency: selected?.currency ?? 'TZS',
+                ),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              AuthField(
+                label: context.vt('Payment phone number'),
+                hint: '0785 123 456',
+                icon: Icons.phone_android_outlined,
+                controller: paymentPhoneController,
+                keyboardType: TextInputType.phone,
+                helperText: context.vt(
+                  'Sayari Pay will send a USSD prompt to this number.',
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

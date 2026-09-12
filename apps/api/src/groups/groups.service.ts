@@ -2035,6 +2035,109 @@ export class GroupsService {
         }
       }),
     );
+    await this.recoverCompletedReminderPackageOrders(groupId);
+  }
+
+  private async recoverCompletedReminderPackageOrders(
+    groupId: string,
+  ): Promise<void> {
+    const from = new Date();
+    from.setDate(from.getDate() - 90);
+    let providerOrders: Awaited<
+      ReturnType<SubscriptionBillingProvider["listOrders"]>
+    >;
+    try {
+      providerOrders = await this.billingProvider.listOrders(from, new Date());
+    } catch {
+      return;
+    }
+
+    const completedOrders = providerOrders.filter((order) => {
+      if (String(order.status).toUpperCase() !== "COMPLETED") return false;
+      const [orderGroupId, packageCode] = order.externalRef.split(":");
+      return orderGroupId === groupId && Boolean(packageCode);
+    });
+    if (completedOrders.length === 0) return;
+
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      select: { billingOwnerUserId: true },
+    });
+    const fallbackUserId =
+      group?.billingOwnerUserId ??
+      (
+        await this.prisma.groupMember.findFirst({
+          where: {
+            groupId,
+            userId: { not: null },
+            role: { in: [GroupRole.GROUP_ADMIN, GroupRole.TREASURER] },
+            status: GroupMemberStatus.ACTIVE,
+          },
+          select: { userId: true },
+          orderBy: { createdAt: "asc" },
+        })
+      )?.userId;
+    if (!fallbackUserId) return;
+
+    await Promise.all(
+      completedOrders.map(async (order) => {
+        const [, packageCode] = order.externalRef.split(":");
+        const reminderPackage = await this.prisma.platformPrice.findUnique({
+          where: { code: packageCode },
+          select: {
+            id: true,
+            amountMinor: true,
+            quantity: true,
+            currency: true,
+          },
+        });
+        if (!reminderPackage) return;
+
+        const existing = await this.prisma.reminderPackagePurchase.findFirst({
+          where: {
+            OR: [
+              { providerCheckoutId: order.orderId },
+              {
+                groupId,
+                platformPriceId: reminderPackage.id,
+                status: ReminderPackagePurchaseStatus.PENDING,
+                amountMinor: order.amountMinor,
+              },
+            ],
+          },
+          orderBy: { createdAt: "desc" },
+        });
+
+        if (existing) {
+          await this.prisma.reminderPackagePurchase.update({
+            where: { id: existing.id },
+            data: {
+              providerCheckoutId: order.orderId,
+              status: ReminderPackagePurchaseStatus.PAID,
+              paidAt: existing.paidAt ?? new Date(),
+            },
+          });
+          return;
+        }
+
+        await this.prisma.reminderPackagePurchase.create({
+          data: {
+            groupId,
+            platformPriceId: reminderPackage.id,
+            createdByUserId: fallbackUserId,
+            provider: this.billingProvider.provider,
+            providerCheckoutId: order.orderId,
+            quantity: reminderPackage.quantity,
+            amountMinor:
+              order.amountMinor ||
+              reminderPackage.amountMinor * reminderPackage.quantity,
+            currency: order.currency || reminderPackage.currency,
+            status: ReminderPackagePurchaseStatus.PAID,
+            paidAt: new Date(),
+          },
+        });
+      }),
+    );
   }
 
   private reminderPurchaseStatusFromProviderStatus(

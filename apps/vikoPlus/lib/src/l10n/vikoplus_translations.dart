@@ -730,9 +730,14 @@ const _swahili = <String, String>{
   'Enable Automatic Reminders': 'Washa vikumbusho vya moja kwa moja',
   'Send automated payment alerts to members. Admin pays messaging costs separately from member contributions.': 
   'Tuma taarifa za malipo kwa wanachama moja kwa moja. Msimamizi hulipia gharama za ujumbe tofauti na michango ya wanachama.',
+  '14 days before due date': 'Siku 14 kabla ya tarehe ya malipo',
+  '7 days before due date': 'Siku 7 kabla ya tarehe ya malipo',
   '3 days before due date': 'Siku 3 kabla ya tarehe ya malipo',
+  '1 day before due date': 'Siku 1 kabla ya tarehe ya malipo',
   'On due date': 'Siku ya malipo',
+  '1 day overdue': 'Siku 1 baada ya kuchelewa',
   '3 days overdue': 'Siku 3 baada ya kuchelewa',
+  '7 days overdue': 'Siku 7 baada ya kuchelewa',
   'Create a group before choosing reminder packages.':
       'Unda kikundi kabla ya kuchagua vifurushi vya vikumbusho.',
   'Could not load reminder packages.': 'Vifurushi vya vikumbusho havijapakiwa.',

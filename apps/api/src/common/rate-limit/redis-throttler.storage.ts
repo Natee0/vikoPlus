@@ -1,16 +1,11 @@
-import { Injectable, OnModuleDestroy } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
+import { Injectable } from "@nestjs/common";
 import { ThrottlerStorage } from "@nestjs/throttler";
 import { ThrottlerStorageRecord } from "@nestjs/throttler/dist/throttler-storage-record.interface";
-import { createClient, RedisClientType } from "redis";
+import { RedisService } from "../../redis/redis.service";
 
 @Injectable()
-export class RedisThrottlerStorage
-  implements ThrottlerStorage, OnModuleDestroy
-{
-  private client?: RedisClientType;
-
-  constructor(private readonly config: ConfigService) {}
+export class RedisThrottlerStorage implements ThrottlerStorage {
+  constructor(private readonly redisService: RedisService) {}
 
   async increment(
     key: string,
@@ -19,7 +14,7 @@ export class RedisThrottlerStorage
     blockDuration: number,
     throttlerName: string,
   ): Promise<ThrottlerStorageRecord> {
-    const client = await this.redis();
+    const client = await this.redisService.getClient();
     const namespacedKey = `vikoplus:rate-limit:${throttlerName}:${key}`;
     const blockKey = `${namespacedKey}:blocked`;
     const blockedTtl = await client.pTTL(blockKey);
@@ -49,20 +44,5 @@ export class RedisThrottlerStorage
       isBlocked,
       timeToBlockExpire: isBlocked ? Math.ceil(blockDuration / 1000) : 0,
     };
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    if (this.client?.isOpen) {
-      await this.client.quit();
-    }
-  }
-
-  private async redis(): Promise<RedisClientType> {
-    if (this.client?.isOpen) return this.client;
-    this.client = createClient({
-      url: this.config.getOrThrow<string>("REDIS_URL"),
-    });
-    await this.client.connect();
-    return this.client;
   }
 }

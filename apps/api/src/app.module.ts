@@ -12,6 +12,7 @@ import { HealthModule } from "./health/health.module";
 import { PlatformModule } from "./platform/platform.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { RateLimitModule } from "./common/rate-limit/rate-limit.module";
+import { RedisModule } from "./redis/redis.module";
 import { ReportsModule } from "./reports/reports.module";
 import { SubscriptionPlansModule } from "./subscription-plans/subscription-plans.module";
 import { SubscriptionsModule } from "./subscriptions/subscriptions.module";
@@ -30,6 +31,7 @@ import { UploadsModule } from "./uploads/uploads.module";
       validationSchema: envValidationSchema,
     }),
     CommonAuthModule,
+    RedisModule,
     RateLimitModule,
     PrismaModule,
     HealthModule,

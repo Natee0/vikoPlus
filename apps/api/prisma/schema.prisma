@@ -176,6 +176,12 @@ enum GroupExpenseStatus {
   REJECTED
 }
 
+enum GroupDeletionRequestStatus {
+  PENDING_INTERNAL_APPROVAL
+  APPROVED_FOR_SUPER_ADMIN
+  CANCELLED
+}
+
 enum AuditAction {
   ACCOUNT_VERIFIED
   PASSWORD_RESET_REQUESTED
@@ -222,6 +228,9 @@ enum AuditAction {
   GROUP_EXPENSE_SUBMITTED
   GROUP_EXPENSE_APPROVED
   GROUP_EXPENSE_REJECTED
+  GROUP_DELETION_REQUESTED
+  GROUP_DELETION_APPROVED
+  GROUP_DELETION_CANCELLED
 }
 
 model User {
@@ -253,6 +262,8 @@ model User {
   createdGroupExpenses GroupExpense[] @relation("GroupExpensesCreatedBy")
   reviewedGroupExpenses GroupExpense[] @relation("GroupExpensesReviewedBy")
   reminderPackagePurchases ReminderPackagePurchase[] @relation("ReminderPackagePurchasesCreatedBy")
+  requestedGroupDeletions GroupDeletionRequest[] @relation("GroupDeletionRequestsRequestedBy")
+  approvedGroupDeletions GroupDeletionRequest[] @relation("GroupDeletionRequestsApprovedBy")
 }
 
 model UserIdentity {
@@ -345,6 +356,30 @@ model Group {
   loans               GroupLoan[]
   loanRepayments      LoanRepayment[]
   expenses            GroupExpense[]
+  deletionRequests    GroupDeletionRequest[]
+}
+
+model GroupDeletionRequest {
+  id                String                     @id @default(cuid())
+  groupId           String
+  requestedByUserId String
+  approvedByUserId  String?
+  status            GroupDeletionRequestStatus @default(PENDING_INTERNAL_APPROVAL)
+  reason            String?
+  approvalNotes     String?
+  requestedAt       DateTime                   @default(now())
+  approvedAt        DateTime?
+  cancelledAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  group             Group                      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  requestedBy       User                       @relation("GroupDeletionRequestsRequestedBy", fields: [requestedByUserId], references: [id])
+  approvedBy        User?                      @relation("GroupDeletionRequestsApprovedBy", fields: [approvedByUserId], references: [id])
+
+  @@index([groupId])
+  @@index([requestedByUserId])
+  @@index([approvedByUserId])
+  @@index([status])
 }
 
 model GroupMember {
@@ -374,6 +409,10 @@ model GroupMember {
   @@unique([groupId, memberNumber])
   @@index([groupId])
   @@index([userId])
+  @@index([userId, status, updatedAt])
+  @@index([groupId, userId, status])
+  @@index([groupId, status, role])
+  @@index([groupId, status, fullName])
 }
 
 model LoanApplication {
@@ -406,6 +445,8 @@ model LoanApplication {
   @@index([groupId])
   @@index([groupMemberId])
   @@index([status])
+  @@index([groupId, status, createdAt])
+  @@index([groupMemberId, status, createdAt])
 }
 
 model LoanGuarantor {
@@ -447,6 +488,8 @@ model GroupLoan {
   @@index([groupId])
   @@index([groupMemberId])
   @@index([status])
+  @@index([groupId, status, dueAt])
+  @@index([groupMemberId, status, dueAt])
 }
 
 model LoanRepayment {
@@ -474,6 +517,9 @@ model LoanRepayment {
   @@index([loanId])
   @@index([groupId])
   @@index([groupMemberId])
+  @@index([loanId, status])
+  @@index([groupId, status, createdAt])
+  @@index([groupMemberId, status, createdAt])
 }
 
 model GroupExpense {
@@ -501,6 +547,8 @@ model GroupExpense {
   @@index([groupId])
   @@index([status])
   @@index([createdByUserId])
+  @@index([groupId, status, createdAt])
+  @@index([createdByUserId, status, createdAt])
 }
 
 model GroupInvitation {
@@ -601,6 +649,10 @@ model MemberContributionObligation {
   @@unique([groupMemberId, planId, periodId])
   @@index([groupMemberId])
   @@index([periodId])
+  @@index([groupMemberId, status, dueAt])
+  @@index([planId, status, dueAt])
+  @@index([periodId, status])
+  @@index([dueAt, status])
 }
 
 model GroupContributionPayment {
@@ -633,6 +685,11 @@ model GroupContributionPayment {
   @@unique([groupId, idempotencyKey])
   @@index([groupId])
   @@index([groupMemberId])
+  @@index([groupId, status, createdAt])
+  @@index([groupMemberId, status, createdAt])
+  @@index([createdByUserId])
+  @@index([reviewedByUserId])
+  @@index([status, createdAt])
 }
 
 model PaymentAllocation {
@@ -651,6 +708,9 @@ model PaymentAllocation {
 
   @@index([paymentId])
   @@index([periodId])
+  @@index([planId, status])
+  @@index([obligationId, status])
+  @@index([status, createdAt])
 }
 
 model Receipt {
@@ -664,6 +724,9 @@ model Receipt {
   verificationHash String
   group          Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
   payment        GroupContributionPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, issuedAt])
+  @@index([status, issuedAt])
 }
 
 model SubscriptionPlan {
@@ -726,6 +789,9 @@ model ReminderPackagePurchase {
   @@index([platformPriceId])
   @@index([createdByUserId])
   @@index([providerCheckoutId])
+  @@index([groupId, status, paidAt])
+  @@index([status, createdAt])
+  @@index([provider, status, createdAt])
 }
 
 model Subscription {
@@ -753,6 +819,9 @@ model Subscription {
 
   @@index([groupId])
   @@index([providerSubscriptionId])
+  @@index([groupId, state, updatedAt])
+  @@index([groupId, createdAt])
+  @@index([state, updatedAt])
 }
 
 model BillingCustomer {
@@ -836,6 +905,8 @@ model BillingEvent {
   createdAt       DateTime           @default(now())
 
   @@unique([provider, providerEventId])
+  @@index([status, createdAt])
+  @@index([provider, status, createdAt])
 }
 
 model GroupPaymentRule {
@@ -864,6 +935,8 @@ model ReminderDelivery {
   state String @default("RESERVED")
   createdAt DateTime @default(now())
   @@index([groupId])
+  @@index([groupId, state, createdAt])
+  @@index([state, createdAt])
 }
 
 model ReminderTemplate {
@@ -892,6 +965,9 @@ model ReminderCampaign {
   sentAt      DateTime?
   createdAt   DateTime  @default(now())
   group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([groupId, createdAt])
+  @@index([createdByUserId, createdAt])
 }
 
 model NotificationPreference {
@@ -915,6 +991,9 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
 }
 
 model PushDeviceToken {
@@ -952,4 +1031,7 @@ model AuditLog {
   @@index([groupId])
   @@index([actorUserId])
   @@index([entityType, entityId])
+  @@index([groupId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([action, createdAt])
 }

@@ -85,6 +85,12 @@ type AdminGroupsResponse = {
     balanceMinor: number;
     currency: string;
     status: 'Active' | 'Pending' | 'Flagged';
+    deletionRequest?: {
+      id: string;
+      status: string;
+      requestedAt?: string;
+      approvedAt?: string | null;
+    } | null;
   }>;
 };
 
@@ -391,6 +397,10 @@ export class SuperAdminApi {
       balance: this.money(group.balanceMinor, group.currency),
       currency: group.currency,
       status: group.status,
+      deletionRequestStatus: group.deletionRequest?.status,
+      deletionRequestLabel: this.deletionRequestLabel(
+        group.deletionRequest?.status,
+      ),
     }));
   }
 
@@ -583,5 +593,16 @@ export class SuperAdminApi {
       return 'flagged';
     }
     return 'pending';
+  }
+
+  private deletionRequestLabel(status?: string): string | undefined {
+    switch (status) {
+      case 'PENDING_INTERNAL_APPROVAL':
+        return 'Deletion pending internal approval';
+      case 'APPROVED_FOR_SUPER_ADMIN':
+        return 'Deletion approved for review';
+      default:
+        return undefined;
+    }
   }
 }

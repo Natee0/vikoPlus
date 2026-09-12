@@ -2,14 +2,17 @@ import { Module } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { ThrottlerModule } from "@nestjs/throttler";
 
+import { RedisModule } from "../../redis/redis.module";
+import { RedisService } from "../../redis/redis.service";
 import { RedisThrottlerStorage } from "./redis-throttler.storage";
 
 @Module({
   imports: [
+    RedisModule,
     ThrottlerModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        storage: new RedisThrottlerStorage(config),
+      inject: [ConfigService, RedisService],
+      useFactory: (config: ConfigService, redis: RedisService) => ({
+        storage: new RedisThrottlerStorage(redis),
         throttlers: [
           {
             name: "default",

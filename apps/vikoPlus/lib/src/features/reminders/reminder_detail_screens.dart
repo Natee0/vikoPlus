@@ -28,6 +28,8 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
   String _errorMessage = '';
   String _successMessage = '';
   bool _isSending = false;
+  String? _memberFutureKey;
+  Future<GroupMemberSummary>? _memberFuture;
 
   @override
   void initState() {
@@ -98,17 +100,42 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
     }
   }
 
+  Future<GroupMemberSummary>? _selectedMemberFuture(String? groupId) {
+    final memberId = widget.memberId;
+    if (groupId == null ||
+        groupId.isEmpty ||
+        memberId == null ||
+        memberId.isEmpty) {
+      return null;
+    }
+    final key = '$groupId:$memberId';
+    if (_memberFutureKey != key || _memberFuture == null) {
+      _memberFutureKey = key;
+      _memberFuture = ref.read(groupsRepositoryProvider).member(
+            groupId,
+            memberId,
+          );
+    }
+    return _memberFuture;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeGroup = ref.watch(activeGroupProvider);
+    final selectedMemberFuture = _selectedMemberFuture(activeGroup?.id);
+
     return VikoplusScreen(
-      title: 'Send Reminder',
+      title: context.vt('Send Reminder'),
       backRoute: '/reminders',
       preferBackRoute: true,
       showBottomNavigation: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _AudienceCard(isSingleMember: widget.memberId != null),
+          _AudienceCard(
+            isSingleMember: widget.memberId != null,
+            selectedMemberFuture: selectedMemberFuture,
+          ),
           const SizedBox(height: AppSpacing.md),
           Text(
             context.vt('Channel'),
@@ -233,54 +260,95 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
 }
 
 class _AudienceCard extends StatelessWidget {
-  const _AudienceCard({required this.isSingleMember});
+  const _AudienceCard({
+    required this.isSingleMember,
+    required this.selectedMemberFuture,
+  });
 
   final bool isSingleMember;
+  final Future<GroupMemberSummary>? selectedMemberFuture;
+
+  String _titleFor(
+    BuildContext context,
+    AsyncSnapshot<GroupMemberSummary> snapshot,
+  ) {
+    final member = snapshot.data;
+    if (!isSingleMember) {
+      return context.vt('Members with Outstanding Dues');
+    }
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return context.vt('Loading member');
+    }
+    final name = member?.fullName.trim();
+    if (name != null && name.isNotEmpty) {
+      return name;
+    }
+    return context.vt('Selected Member');
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: AppInsets.compactCard,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.errorContainer,
-              borderRadius: BorderRadius.circular(AppRadii.md),
-            ),
-            child: const Icon(Icons.group_outlined, color: AppColors.error),
+    return FutureBuilder<GroupMemberSummary>(
+      future: selectedMemberFuture,
+      builder: (context, snapshot) {
+        return Container(
+          padding: AppInsets.compactCard,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceContainer,
+            borderRadius: BorderRadius.circular(AppRadii.lg),
           ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  context.vt('To'),
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.onSurfaceVariant),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: AppColors.errorContainer,
+                  borderRadius: BorderRadius.circular(AppRadii.md),
                 ),
-                Text(
+                child: Icon(
                   isSingleMember
-                      ? context.vt('Selected Member')
-                      : context.vt('Members with Outstanding Dues'),
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.onSurface,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                  ),
+                      ? Icons.person_outline
+                      : Icons.group_outlined,
+                  color: AppColors.error,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      context.vt('To'),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: AppColors.onSurfaceVariant),
+                    ),
+                    Text(
+                      _titleFor(context, snapshot),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: AppColors.onSurface,
+                        fontWeight: FontWeight.w800,
+                        height: 1.2,
+                      ),
+                    ),
+                    if (isSingleMember &&
+                        snapshot.data?.memberNumber?.trim().isNotEmpty ==
+                            true) ...[
+                      const SizedBox(height: AppSpacing.xxs),
+                      Text(
+                        snapshot.data!.memberNumber!.trim(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.onSurfaceVariant,
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

@@ -15,6 +15,7 @@ import {
   ContributionObligationStatus,
   ContributionPlanType,
   GroupExpenseStatus,
+  GroupDeletionRequestStatus,
   GroupContributionPaymentStatus,
   GroupLoanStatus,
   GroupMemberStatus,
@@ -55,6 +56,8 @@ import {
   CreateLoanApplicationDto,
   CreateReminderPackageCheckoutDto,
   FinancialYearDto,
+  GroupDeletionApprovalDto,
+  GroupDeletionRequestDto,
   HistoricalContributionPaymentDto,
   ImportHistoricalContributionPaymentsDto,
   InviteMembersDto,
@@ -3463,13 +3466,155 @@ export class GroupsService {
 
   async settings(user: AuthenticatedUser, groupId: string) {
     await this.requireMembership(user, groupId);
-    const [group, preferences] = await Promise.all([
+    const [group, preferences, deletionRequest] = await Promise.all([
       this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
       this.prisma.notificationPreference.findMany({
         where: { userId: user.id },
       }),
+      this.activeGroupDeletionRequest(groupId),
     ]);
-    return { group, notificationPreferences: preferences };
+    return {
+      group,
+      notificationPreferences: preferences,
+      deletionRequest: deletionRequest
+        ? this.groupDeletionRequestSummary(deletionRequest)
+        : null,
+    };
+  }
+
+  async groupDeletionRequest(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId);
+    const deletionRequest = await this.activeGroupDeletionRequest(groupId);
+    return {
+      request: deletionRequest
+        ? this.groupDeletionRequestSummary(deletionRequest)
+        : null,
+    };
+  }
+
+  async requestGroupDeletion(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: GroupDeletionRequestDto,
+  ) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    const [existing, eligibleReviewerCount] = await Promise.all([
+      this.activeGroupDeletionRequest(groupId),
+      this.prisma.groupMember.count({
+        where: {
+          groupId,
+          status: GroupMemberStatus.ACTIVE,
+          role: { in: [GroupRole.TREASURER, GroupRole.SECRETARY] },
+        },
+      }),
+    ]);
+    if (existing) {
+      throw new ConflictException("A group deletion request is already open.");
+    }
+    if (eligibleReviewerCount === 0) {
+      throw new BadRequestException(
+        "Assign an active treasurer or secretary before requesting group deletion.",
+      );
+    }
+    const deletionRequest = await this.prisma.groupDeletionRequest.create({
+      data: {
+        groupId,
+        requestedByUserId: user.id,
+        reason: input.reason?.trim() || null,
+      },
+      include: this.groupDeletionRequestInclude(),
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.GROUP_DELETION_REQUESTED,
+        entityType: "GroupDeletionRequest",
+        entityId: deletionRequest.id,
+        newValue: {
+          status: deletionRequest.status,
+          reason: deletionRequest.reason,
+        },
+      },
+    });
+    return { request: this.groupDeletionRequestSummary(deletionRequest) };
+  }
+
+  async approveGroupDeletion(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: GroupDeletionApprovalDto,
+  ) {
+    await this.requireMembership(user, groupId, [
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ]);
+    const deletionRequest = await this.activeGroupDeletionRequest(groupId);
+    if (!deletionRequest) {
+      throw new NotFoundException("No open group deletion request was found.");
+    }
+    if (
+      deletionRequest.status !==
+      GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL
+    ) {
+      throw new ConflictException("This group deletion request is not pending.");
+    }
+    if (deletionRequest.requestedByUserId === user.id) {
+      throw new ForbiddenException(
+        "The requester cannot approve the same group deletion request.",
+      );
+    }
+    const approved = await this.prisma.groupDeletionRequest.update({
+      where: { id: deletionRequest.id },
+      data: {
+        status: GroupDeletionRequestStatus.APPROVED_FOR_SUPER_ADMIN,
+        approvedByUserId: user.id,
+        approvedAt: new Date(),
+        approvalNotes: input.notes?.trim() || null,
+      },
+      include: this.groupDeletionRequestInclude(),
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.GROUP_DELETION_APPROVED,
+        entityType: "GroupDeletionRequest",
+        entityId: approved.id,
+        newValue: {
+          status: approved.status,
+          approvalNotes: approved.approvalNotes,
+        },
+      },
+    });
+    return { request: this.groupDeletionRequestSummary(approved) };
+  }
+
+  async cancelGroupDeletion(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    const deletionRequest = await this.activeGroupDeletionRequest(groupId);
+    if (!deletionRequest) {
+      throw new NotFoundException("No open group deletion request was found.");
+    }
+    const cancelled = await this.prisma.groupDeletionRequest.update({
+      where: { id: deletionRequest.id },
+      data: {
+        status: GroupDeletionRequestStatus.CANCELLED,
+        cancelledAt: new Date(),
+      },
+      include: this.groupDeletionRequestInclude(),
+    });
+    await this.prisma.auditLog.create({
+      data: {
+        actorUserId: user.id,
+        groupId,
+        action: AuditAction.GROUP_DELETION_CANCELLED,
+        entityType: "GroupDeletionRequest",
+        entityId: cancelled.id,
+        newValue: { status: cancelled.status },
+      },
+    });
+    return { request: this.groupDeletionRequestSummary(cancelled) };
   }
 
   async auditLog(user: AuthenticatedUser, groupId: string) {
@@ -3501,6 +3646,55 @@ export class GroupsService {
       where: { id: notification.id },
       data: { readAt: new Date() },
     });
+  }
+
+  private groupDeletionRequestInclude() {
+    return {
+      requestedBy: {
+        select: { id: true, displayName: true },
+      },
+      approvedBy: {
+        select: { id: true, displayName: true },
+      },
+    } satisfies Prisma.GroupDeletionRequestInclude;
+  }
+
+  private activeGroupDeletionRequest(groupId: string) {
+    return this.prisma.groupDeletionRequest.findFirst({
+      where: {
+        groupId,
+        status: {
+          in: [
+            GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL,
+            GroupDeletionRequestStatus.APPROVED_FOR_SUPER_ADMIN,
+          ],
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      include: this.groupDeletionRequestInclude(),
+    });
+  }
+
+  private groupDeletionRequestSummary(
+    request: Prisma.GroupDeletionRequestGetPayload<{
+      include: ReturnType<GroupsService["groupDeletionRequestInclude"]>;
+    }>,
+  ) {
+    return {
+      id: request.id,
+      groupId: request.groupId,
+      status: request.status,
+      reason: request.reason,
+      approvalNotes: request.approvalNotes,
+      requestedByUserId: request.requestedByUserId,
+      requestedByName:
+        request.requestedBy.displayName ?? "Group administrator",
+      approvedByUserId: request.approvedByUserId,
+      approvedByName: request.approvedBy?.displayName ?? null,
+      requestedAt: request.requestedAt,
+      approvedAt: request.approvedAt,
+      cancelledAt: request.cancelledAt,
+    };
   }
 
   private async createUserNotification(

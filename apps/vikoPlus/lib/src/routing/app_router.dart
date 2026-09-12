@@ -699,7 +699,7 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/settings/group-profile',
       builder: (context, state) => const PortalRouteGuard(
-        area: PortalArea.admin,
+        area: PortalArea.staff,
         child: GroupProfileScreen(),
       ),
     ),

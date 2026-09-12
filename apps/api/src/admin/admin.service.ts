@@ -9,6 +9,7 @@ import {
   AuditAction,
   BillingTransactionStatus,
   GroupContributionPaymentStatus,
+  GroupDeletionRequestStatus,
   GroupMemberStatus,
   Prisma,
   ReminderPackagePurchaseStatus,
@@ -184,6 +185,24 @@ export class AdminService {
           take: 1,
           include: { plan: true },
         },
+        deletionRequests: {
+          where: {
+            status: {
+              in: [
+                GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL,
+                GroupDeletionRequestStatus.APPROVED_FOR_SUPER_ADMIN,
+              ],
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            requestedAt: true,
+            approvedAt: true,
+          },
+        },
         payments: {
           where: { status: GroupContributionPaymentStatus.APPROVED },
           select: { amountMinor: true },
@@ -218,6 +237,14 @@ export class AdminService {
         subscriptionState: group.subscriptions[0]?.state ?? "NONE",
         planName: group.subscriptions[0]?.plan.name ?? "No plan",
         status: group.subscriptions[0]?.state === "ACTIVE" ? "Active" : "Pending",
+        deletionRequest: group.deletionRequests[0]
+          ? {
+              id: group.deletionRequests[0].id,
+              status: group.deletionRequests[0].status,
+              requestedAt: group.deletionRequests[0].requestedAt,
+              approvedAt: group.deletionRequests[0].approvedAt,
+            }
+          : null,
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
       })),

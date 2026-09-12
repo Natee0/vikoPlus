@@ -48,6 +48,13 @@ class MoreMenuScreen extends ConsumerWidget {
           subtitle: context.vt('Record group spending for approval'),
           route: '/expenses',
         ),
+      if (role == 'TREASURER' || role == 'SECRETARY')
+        _MoreEntry(
+          icon: Icons.groups_2_outlined,
+          title: context.vt('Group Profile'),
+          subtitle: context.vt('Review group identity and deletion requests'),
+          route: '/settings/group-profile',
+        ),
       if (isStaffPortalRole(role))
         _MoreEntry(
           icon: Icons.notifications_active_outlined,

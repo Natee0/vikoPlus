@@ -181,6 +181,10 @@ const _swahili = <String, String>{
   'Not sent': 'Haijatumwa',
   'Send reminder': 'Tuma kikumbusho',
   'Send Reminder': 'Tuma kikumbusho',
+  'To': 'Kwa',
+  'Selected Member': 'Mwanachama aliyechaguliwa',
+  'Loading member': 'Inapakia mwanachama',
+  'Members with Outstanding Dues': 'Wanachama wenye madeni ya michango',
   'Channel': 'Njia ya kutuma',
   'Message': 'Ujumbe',
   'Use Template': 'Tumia kiolezo',
@@ -854,6 +858,9 @@ const _swahili = <String, String>{
   'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.':
   'Habari {member_name}, hiki ni kikumbusho kuwa malipo yako ya {amount} ya kikundi yanakaribia.',
   'Group profile': 'Wasifu wa kikundi',
+  'Group Profile': 'Wasifu wa kikundi',
+  'Review group identity and deletion requests':
+      'Kagua utambulisho wa kikundi na maombi ya kufuta',
   'Update the group icon and visible identity':
       'Sasisha alama na utambulisho wa kikundi',
   'No active group': 'Hakuna kikundi kilichochaguliwa',
@@ -865,6 +872,60 @@ const _swahili = <String, String>{
   'Replace Group Icon': 'Badili alama ya kikundi',
   'Only group admins can update the group icon.':
       'Wasimamizi wa kikundi pekee wanaweza kusasisha alama ya kikundi.',
+  'Group details': 'Taarifa za kikundi',
+  'No description provided.': 'Hakuna maelezo yaliyowekwa.',
+  'Type': 'Aina',
+  'Currency': 'Sarafu',
+  'Default language': 'Lugha chaguo-msingi',
+  'Established': 'Kilianzishwa',
+  'Historical data starts': 'Kumbukumbu za zamani zinaanzia',
+  'Created': 'Kiliundwa',
+  'Updated': 'Kimesasishwa',
+  'Your role': 'Jukumu lako',
+  'Not set': 'Haijawekwa',
+  'Request group deletion': 'Omba kufuta kikundi',
+  'Reason': 'Sababu',
+  'Explain why this group should be deleted':
+      'Eleza kwa nini kikundi hiki kifutwe',
+  'Submit request': 'Wasilisha ombi',
+  'Group deletion request submitted.':
+      'Ombi la kufuta kikundi limewasilishwa.',
+  'Approve group deletion request':
+      'Idhinisha ombi la kufuta kikundi',
+  'Approval notes': 'Maelezo ya idhini',
+  'Optional note for super admin':
+      'Ujumbe wa hiari kwa msimamizi mkuu',
+  'Approve request': 'Idhinisha ombi',
+  'Group deletion request approved.':
+      'Ombi la kufuta kikundi limeidhinishwa.',
+  'Cancel deletion request': 'Ghairi ombi la kufuta',
+  'This will stop the open group deletion request.':
+      'Hii itasitisha ombi lililopo la kufuta kikundi.',
+  'Cancel request': 'Ghairi ombi',
+  'Group deletion request cancelled.':
+      'Ombi la kufuta kikundi limeghairiwa.',
+  'Group deletion request': 'Ombi la kufuta kikundi',
+  'A group admin can request deletion, then a treasurer or secretary must approve before super admin review.':
+      'Msimamizi wa kikundi anaweza kuomba kufuta, kisha mweka hazina au katibu lazima aidhinishe kabla ya ukaguzi wa msimamizi mkuu.',
+  'No deletion request is open.': 'Hakuna ombi la kufuta lililo wazi.',
+  'Request deletion': 'Omba kufuta',
+  'Requested by {name}': 'Limeombwa na {name}',
+  'Approved by {name}': 'Limeidhinishwa na {name}',
+  'Group admin': 'Msimamizi wa kikundi',
+  'Ready for super admin review':
+      'Tayari kwa ukaguzi wa msimamizi mkuu',
+  'Waiting for treasurer or secretary approval':
+      'Inasubiri idhini ya mweka hazina au katibu',
+  'A group deletion request is already open.':
+      'Tayari kuna ombi la kufuta kikundi lililo wazi.',
+  'Assign an active treasurer or secretary before requesting group deletion.':
+      'Teua mweka hazina au katibu aliye hai kabla ya kuomba kufuta kikundi.',
+  'No open group deletion request was found.':
+      'Hakuna ombi la kufuta kikundi lililo wazi.',
+  'This group deletion request is not pending.':
+      'Ombi hili la kufuta kikundi halisubiri idhini.',
+  'The requester cannot approve the same group deletion request.':
+      'Aliyeomba hawezi kuidhinisha ombi hilo hilo la kufuta kikundi.',
   'Complete all required fields.': 'Jaza sehemu zote muhimu.',
   'Password must be at least 8 characters.':
       'Nenosiri lazima liwe na angalau herufi 8.',

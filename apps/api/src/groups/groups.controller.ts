@@ -24,6 +24,8 @@ import {
   CreateLoanApplicationDto,
   CreateReminderPackageCheckoutDto,
   FinancialYearDto,
+  GroupDeletionApprovalDto,
+  GroupDeletionRequestDto,
   HistoricalContributionPaymentDto,
   ImportHistoricalContributionPaymentsDto,
   InviteMembersDto,
@@ -567,6 +569,43 @@ export class GroupsController {
     @Param("groupId") groupId: string,
   ) {
     return this.groups.settings(user, groupId);
+  }
+
+  @Get("groups/:groupId/deletion-request")
+  deletionRequest(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.groupDeletionRequest(user, groupId);
+  }
+
+  @Post("groups/:groupId/deletion-request")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
+  requestGroupDeletion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: GroupDeletionRequestDto,
+  ) {
+    return this.groups.requestGroupDeletion(user, groupId, body);
+  }
+
+  @Post("groups/:groupId/deletion-request/approve")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
+  approveGroupDeletion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: GroupDeletionApprovalDto,
+  ) {
+    return this.groups.approveGroupDeletion(user, groupId, body);
+  }
+
+  @Post("groups/:groupId/deletion-request/cancel")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
+  cancelGroupDeletion(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.cancelGroupDeletion(user, groupId);
   }
 
   @Get("groups/:groupId/audit-log")

@@ -14,6 +14,8 @@ export type GroupRow = {
   balance: string;
   currency?: string;
   status: 'Active' | 'Pending' | 'Flagged';
+  deletionRequestStatus?: string;
+  deletionRequestLabel?: string;
 };
 
 export type UserRow = {

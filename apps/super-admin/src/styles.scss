@@ -524,6 +524,11 @@ td small {
   color: var(--muted);
 }
 
+td small.danger-note {
+  color: var(--danger);
+  font-weight: 800;
+}
+
 .status,
 .tag {
   display: inline-flex;

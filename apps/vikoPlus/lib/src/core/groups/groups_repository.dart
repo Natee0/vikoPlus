@@ -206,6 +206,60 @@ class GroupsRepository {
     return _responseBody(response.data);
   }
 
+  Future<GroupSettingsResult> settings(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/settings',
+    );
+    return GroupSettingsResult.fromJson(_responseBody(response.data));
+  }
+
+  Future<GroupDeletionRequestSummary?> groupDeletionRequest(
+    String groupId,
+  ) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/deletion-request',
+    );
+    final request = _responseBody(response.data)['request'];
+    return request is Map
+        ? GroupDeletionRequestSummary.fromJson(
+            Map<String, dynamic>.from(request),
+          )
+        : null;
+  }
+
+  Future<GroupDeletionRequestSummary> requestGroupDeletion(
+    String groupId, {
+    String? reason,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/deletion-request',
+      data: {
+        if (_nonEmpty(reason) != null) 'reason': _nonEmpty(reason),
+      },
+    );
+    return GroupDeletionRequestSummary.fromEnvelope(_responseBody(response.data));
+  }
+
+  Future<GroupDeletionRequestSummary> approveGroupDeletion(
+    String groupId, {
+    String? notes,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/deletion-request/approve',
+      data: {
+        if (_nonEmpty(notes) != null) 'notes': _nonEmpty(notes),
+      },
+    );
+    return GroupDeletionRequestSummary.fromEnvelope(_responseBody(response.data));
+  }
+
+  Future<GroupDeletionRequestSummary> cancelGroupDeletion(String groupId) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/groups/$groupId/deletion-request/cancel',
+    );
+    return GroupDeletionRequestSummary.fromEnvelope(_responseBody(response.data));
+  }
+
   Future<ReminderPackagesResult> reminderPackages(String groupId) async {
     final response = await _dio.get<Map<String, dynamic>>(
       '/groups/$groupId/reminder-packages',
@@ -751,6 +805,131 @@ class JoinGroupSummary {
   final String id;
   final String name;
   final int membersCount;
+}
+
+class GroupDeletionRequestSummary {
+  const GroupDeletionRequestSummary({
+    required this.id,
+    required this.groupId,
+    required this.status,
+    this.reason,
+    this.approvalNotes,
+    this.requestedByName,
+    this.approvedByName,
+    this.requestedAt,
+    this.approvedAt,
+  });
+
+  factory GroupDeletionRequestSummary.fromEnvelope(Map<String, dynamic> json) {
+    final request = json['request'];
+    if (request is! Map) {
+      throw const FormatException(
+        'Group deletion response did not include a request.',
+      );
+    }
+    return GroupDeletionRequestSummary.fromJson(
+      Map<String, dynamic>.from(request),
+    );
+  }
+
+  factory GroupDeletionRequestSummary.fromJson(Map<String, dynamic> json) {
+    return GroupDeletionRequestSummary(
+      id: _requiredString(json, 'id'),
+      groupId: _requiredString(json, 'groupId'),
+      status: json['status'] as String? ?? 'PENDING_INTERNAL_APPROVAL',
+      reason: json['reason'] as String?,
+      approvalNotes: json['approvalNotes'] as String?,
+      requestedByName: json['requestedByName'] as String?,
+      approvedByName: json['approvedByName'] as String?,
+      requestedAt: _parseDate(json['requestedAt']),
+      approvedAt: _parseDate(json['approvedAt']),
+    );
+  }
+
+  bool get isPendingInternalApproval =>
+      status == 'PENDING_INTERNAL_APPROVAL';
+  bool get isApprovedForSuperAdmin =>
+      status == 'APPROVED_FOR_SUPER_ADMIN';
+
+  final String id;
+  final String groupId;
+  final String status;
+  final String? reason;
+  final String? approvalNotes;
+  final String? requestedByName;
+  final String? approvedByName;
+  final DateTime? requestedAt;
+  final DateTime? approvedAt;
+}
+
+class GroupSettingsResult {
+  const GroupSettingsResult({
+    required this.group,
+    this.deletionRequest,
+  });
+
+  factory GroupSettingsResult.fromJson(Map<String, dynamic> json) {
+    final group = json['group'];
+    if (group is! Map) {
+      throw const FormatException('Group settings response did not include a group.');
+    }
+    final deletionRequest = json['deletionRequest'];
+    return GroupSettingsResult(
+      group: GroupProfileDetails.fromJson(Map<String, dynamic>.from(group)),
+      deletionRequest: deletionRequest is Map
+          ? GroupDeletionRequestSummary.fromJson(
+              Map<String, dynamic>.from(deletionRequest),
+            )
+          : null,
+    );
+  }
+
+  final GroupProfileDetails group;
+  final GroupDeletionRequestSummary? deletionRequest;
+}
+
+class GroupProfileDetails {
+  const GroupProfileDetails({
+    required this.id,
+    required this.name,
+    required this.currency,
+    this.type,
+    this.description,
+    this.location,
+    this.defaultLocale,
+    this.establishedAt,
+    this.historicalDataStartsAt,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  factory GroupProfileDetails.fromJson(Map<String, dynamic> json) {
+    return GroupProfileDetails(
+      id: _requiredString(json, 'id'),
+      name: _requiredString(json, 'name'),
+      type: _nonEmpty(json['type'] as String?),
+      description: _nonEmpty(json['description'] as String?),
+      location: _nonEmpty(json['location'] as String?),
+      defaultLocale: _nonEmpty(json['defaultLocale'] as String?),
+      currency: (json['currency'] as String? ?? 'TZS').trim().toUpperCase(),
+      establishedAt: _parseDate(json['establishedAt']),
+      historicalDataStartsAt: _parseDate(json['historicalDataStartsAt']),
+      createdAt: _parseDate(json['createdAt']),
+      updatedAt: _parseDate(json['updatedAt']),
+    );
+  }
+
+  final String id;
+  final String name;
+  final String currency;
+  final String? type;
+  final String? description;
+  final String? location;
+  final String? defaultLocale;
+  final DateTime? establishedAt;
+  final DateTime? historicalDataStartsAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
 }
 
 class JoinGroupResult {

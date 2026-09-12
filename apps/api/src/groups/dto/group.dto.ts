@@ -559,3 +559,17 @@ export class ReviewGroupExpenseDto {
   @MaxLength(500)
   notes?: string;
 }
+
+export class GroupDeletionRequestDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}
+
+export class GroupDeletionApprovalDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
+}

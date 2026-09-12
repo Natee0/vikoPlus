@@ -19,6 +19,9 @@
         <td>
           <strong>{{ group.name }}</strong>
           <small>{{ group.contact }}</small>
+          @if (group.deletionRequestLabel) {
+            <small class="danger-note">{{ group.deletionRequestLabel }}</small>
+          }
         </td>
         <td>{{ group.type }}</td>
         <td>{{ group.country }}</td>

@@ -29,6 +29,93 @@
 <article class="table-card">
   <header>
     <div>
+      <h2>Queue operations</h2>
+      <p>Monitor background jobs and recover failed reminder or messaging work.</p>
+    </div>
+    <div class="row-actions">
+      <button type="button" (click)="refreshQueues()" [disabled]="isQueueLoading">
+        {{ isQueueLoading ? 'Refreshing...' : 'Refresh queues' }}
+      </button>
+      <button
+        type="button"
+        class="danger"
+        (click)="cleanFailedJobs()"
+        [disabled]="!selectedQueueName || queueActionKey === 'clean' || failedJobCount === 0"
+      >
+        {{ queueActionKey === 'clean' ? 'Cleaning...' : 'Clean old failed' }}
+      </button>
+    </div>
+  </header>
+
+  @if (queueMessage) {
+    <article class="inline-notice">{{ queueMessage }}</article>
+  }
+
+  <div class="queue-grid">
+    @for (queue of queues; track queue.name) {
+      <button
+        type="button"
+        class="queue-card"
+        [class.selected]="selectedQueueName === queue.name"
+        (click)="selectQueue(queue.name)"
+      >
+        <span>{{ queue.name }}</span>
+        <strong>{{ queue.counts.failed }} failed</strong>
+        <small>
+          {{ queue.counts.waiting }} waiting · {{ queue.counts.active }} active ·
+          {{ queue.counts.completed }} completed
+        </small>
+        <em class="status {{ queueStatusClass(queue) }}">{{ queueStatusLabel(queue) }}</em>
+      </button>
+    } @empty {
+      <article class="notice-card">No queues are registered yet.</article>
+    }
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Failed job</th>
+        <th>Attempts</th>
+        <th>Reason</th>
+        <th>Finished</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (job of failedJobs; track job.id) {
+        <tr>
+          <td>
+            <strong>{{ job.name }}</strong>
+            <small class="mono">{{ job.id }}</small>
+          </td>
+          <td>{{ job.attemptsMade }} / {{ job.maxAttempts }}</td>
+          <td><small>{{ job.failedReason || 'No failure reason recorded' }}</small></td>
+          <td>{{ formatQueueDate(job.finishedAt) }}</td>
+          <td>
+            <button
+              type="button"
+              (click)="retryJob(job)"
+              [disabled]="queueActionKey === 'retry:' + job.id"
+            >
+              {{ queueActionKey === 'retry:' + job.id ? 'Retrying...' : 'Retry' }}
+            </button>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="5">
+            {{ selectedQueueName ? 'No failed jobs in this queue.' : 'Select a queue to inspect failed jobs.' }}
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</article>
+
+<article class="table-card">
+  <header>
+    <div>
       <h2>Recent groups</h2>
       <p>Latest groups registered on the platform.</p>
     </div>

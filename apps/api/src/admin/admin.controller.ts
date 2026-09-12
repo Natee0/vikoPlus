@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
@@ -15,6 +16,7 @@ import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { PlatformAdminGuard } from "../common/auth/platform-admin.guard";
 import { SkipGroupMembershipCheck } from "../common/auth/skip-group-membership.decorator";
 import { AdminService } from "./admin.service";
+import { AdminQueueService } from "./admin-queue.service";
 import {
   CreateAdminGroupDto,
   CreateAccessPlanDto,
@@ -30,7 +32,10 @@ import {
 @SkipGroupMembershipCheck()
 @Controller({ path: "admin", version: "1" })
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly queues: AdminQueueService,
+  ) {}
 
   @Get("metrics")
   metrics() {
@@ -127,4 +132,51 @@ export class AdminController {
   ) {
     return this.admin.updateReminderPackage(user, code, body);
   }
+
+  @Get("queues")
+  queuesOverview() {
+    return this.queues.list();
+  }
+
+  @Get("queues/:queueName/failed")
+  queueFailedJobs(
+    @Param("queueName") queueName: string,
+    @Query("start") start?: string,
+    @Query("end") end?: string,
+  ) {
+    return this.queues.failed(
+      queueName,
+      parseOptionalNumber(start, 0),
+      parseOptionalNumber(end, 49),
+    );
+  }
+
+  @Post("queues/:queueName/failed/:jobId/retry")
+  @Throttle({ default: { limit: 30, ttl: 60000, blockDuration: 300000 } })
+  retryFailedJob(
+    @Param("queueName") queueName: string,
+    @Param("jobId") jobId: string,
+  ) {
+    return this.queues.retryFailed(queueName, jobId);
+  }
+
+  @Delete("queues/:queueName/failed")
+  @Throttle({ default: { limit: 10, ttl: 60000, blockDuration: 300000 } })
+  cleanFailedJobs(
+    @Param("queueName") queueName: string,
+    @Query("graceSeconds") graceSeconds?: string,
+    @Query("limit") limit?: string,
+  ) {
+    return this.queues.cleanFailed(
+      queueName,
+      parseOptionalNumber(graceSeconds, 604800),
+      parseOptionalNumber(limit, 1000),
+    );
+  }
+}
+
+function parseOptionalNumber(value: string | undefined, fallback: number) {
+  if (value == null || value.trim() === "") return fallback;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
 }

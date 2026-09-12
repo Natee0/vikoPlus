@@ -22,6 +22,19 @@ export const envValidationSchema = Joi.object({
     .integer()
     .positive()
     .default(60000),
+  QUEUE_MAX_ATTEMPTS: Joi.number().integer().min(1).default(3),
+  QUEUE_BACKOFF_MS: Joi.number().integer().positive().default(30000),
+  QUEUE_REMOVE_COMPLETE_SECONDS: Joi.number()
+    .integer()
+    .positive()
+    .default(86400),
+  QUEUE_REMOVE_COMPLETE_COUNT: Joi.number().integer().positive().default(1000),
+  QUEUE_REMOVE_FAILED_SECONDS: Joi.number()
+    .integer()
+    .positive()
+    .default(604800),
+  QUEUE_REMOVE_FAILED_COUNT: Joi.number().integer().positive().default(5000),
+  QUEUE_WAITING_DEGRADED_THRESHOLD: Joi.number().integer().min(1).default(100),
   BILLING_PROVIDER: Joi.string().valid("mock", "sayari").default("sayari"),
   MOCK_BILLING_WEBHOOK_SECRET: Joi.string()
     .min(24)

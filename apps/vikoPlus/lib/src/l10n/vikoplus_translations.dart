@@ -181,6 +181,8 @@ const _swahili = <String, String>{
   'Not sent': 'Haijatumwa',
   'Send reminder': 'Tuma kikumbusho',
   'Send Reminder': 'Tuma kikumbusho',
+  'SMS reminder queued for {count} members.':
+      'Kikumbusho cha SMS kimewekwa kwenye foleni kwa wanachama {count}.',
   'To': 'Kwa',
   'Selected Member': 'Mwanachama aliyechaguliwa',
   'Loading member': 'Inapakia mwanachama',

@@ -1127,6 +1127,7 @@ class SendReminderResult {
     required this.channel,
     required this.recipientCount,
     required this.appNotificationsCreated,
+    required this.smsQueued,
     required this.smsSent,
     required this.smsFailed,
     required this.whatsappPending,
@@ -1139,6 +1140,7 @@ class SendReminderResult {
       channel: json['channel'] as String? ?? 'SMS',
       recipientCount: json['recipientCount'] as int? ?? 0,
       appNotificationsCreated: json['appNotificationsCreated'] as int? ?? 0,
+      smsQueued: (json['smsQueued'] as int?) ?? (json['smsSent'] as int?) ?? 0,
       smsSent: json['smsSent'] as int? ?? 0,
       smsFailed: json['smsFailed'] as int? ?? 0,
       whatsappPending: json['whatsappPending'] as int? ?? 0,
@@ -1150,6 +1152,7 @@ class SendReminderResult {
   final String channel;
   final int recipientCount;
   final int appNotificationsCreated;
+  final int smsQueued;
   final int smsSent;
   final int smsFailed;
   final int whatsappPending;

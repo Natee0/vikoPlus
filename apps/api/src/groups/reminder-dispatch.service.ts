@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { BriqMessagingService } from "../messaging/briq-messaging.service";
 import { smsSegments } from "./sms-segments";
+import { ReminderQueueService } from "./reminder-queue.service";
 
 @Injectable()
 export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
@@ -19,6 +20,7 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly briq: BriqMessagingService,
+    private readonly reminderQueue: ReminderQueueService,
   ) {}
 
   onModuleInit() {
@@ -137,16 +139,14 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
                 obligation.dueAt.toISOString().slice(0, 10),
               );
             try {
-              await this.send(
-                rule.groupId,
-                `scheduled:${obligation.id}:${date}`,
-                obligation.member.phone,
+              await this.reminderQueue.enqueueSms({
+                groupId: rule.groupId,
+                key: `scheduled:${obligation.id}:${date}`,
+                phone: obligation.member.phone,
                 content,
-              );
+              });
             } catch {
-              this.logger.warn(
-                "Scheduled reminder was not sent; check credits and delivery records.",
-              );
+              this.logger.warn("Scheduled reminder could not be queued.");
             }
           }
         }

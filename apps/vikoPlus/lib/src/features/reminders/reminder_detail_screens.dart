@@ -86,8 +86,8 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
       if (!mounted) return;
       setState(
         () => _successMessage = context.vtf(
-          'SMS delivered to {count} members.',
-          {'count': result.smsSent},
+          'SMS reminder queued for {count} members.',
+          {'count': result.smsQueued},
         ),
       );
     } on Object catch (error) {

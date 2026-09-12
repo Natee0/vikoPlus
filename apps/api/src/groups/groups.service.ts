@@ -41,11 +41,11 @@ import { hasPaidFeatureAccess } from "../common/subscriptions/subscription-acces
 import { PrismaService } from "../prisma/prisma.service";
 import { SUBSCRIPTION_BILLING_PROVIDER } from "../billing/billing-provider.token";
 import { SubscriptionBillingProvider } from "../billing/subscription-billing-provider";
-import { BriqMessagingService } from "../messaging/briq-messaging.service";
-import { FirebasePushService } from "../messaging/firebase-push.service";
-import { SmtpEmailService } from "../messaging/smtp-email.service";
+import { MessagingQueueService } from "../messaging/messaging-queue.service";
 import { groupInvitationEmailTemplate } from "./group-invitation-email.template";
 import { ReminderDispatchService } from "./reminder-dispatch.service";
+import { ReminderQueueService } from "./reminder-queue.service";
+import { smsSegments } from "./sms-segments";
 import {
   AddMemberDto,
   AssignRoleDto,
@@ -120,10 +120,9 @@ export class GroupsService {
     private readonly prisma: PrismaService,
     @Inject(SUBSCRIPTION_BILLING_PROVIDER)
     private readonly billingProvider: SubscriptionBillingProvider,
-    private readonly briq: BriqMessagingService,
-    private readonly pushNotifications: FirebasePushService,
-    private readonly email: SmtpEmailService,
+    private readonly messagingQueue: MessagingQueueService,
     private readonly reminderDispatch: ReminderDispatchService,
+    private readonly reminderQueue: ReminderQueueService,
     private readonly config: ConfigService = new ConfigService(),
   ) {}
 
@@ -2371,34 +2370,26 @@ export class GroupsService {
         "No phone numbers were found for the selected SMS reminder recipients.",
       );
     }
-    const dispatchId = randomBytes(16).toString("hex");
-    // Sequential reservations avoid contention on the group's shared credit packages.
-    const smsResults: PromiseSettledResult<boolean>[] = [];
-    for (const phone of new Set(smsRecipients)) {
-      try {
-        const sent = await this.reminderDispatch.send(
-          groupId,
-          `manual:${dispatchId}:${this.hash(phone)}`,
-          phone,
-          `Vikoplus: ${input.message}`,
-        );
-        smsResults.push({ status: "fulfilled", value: sent });
-      } catch (error) {
-        smsResults.push({ status: "rejected", reason: error });
-      }
-    }
-    const smsSent = smsResults.filter(
-      (result) => result.status === "fulfilled" && result.value,
-    ).length;
-    const smsFailed = smsResults.length - smsSent;
-    if (shouldSendSms && smsSent === 0) {
-      const creditFailure = smsResults.find(
-        (result) =>
-          result.status === "rejected" &&
-          result.reason instanceof BadRequestException,
+    const uniqueSmsRecipients = [...new Set(smsRecipients)];
+    const smsContent = `Vikoplus: ${input.message}`;
+    if (shouldSendSms) {
+      await this.assertReminderCreditsAvailable(
+        groupId,
+        uniqueSmsRecipients.length * smsSegments(smsContent),
       );
-      if (creditFailure?.status === "rejected") throw creditFailure.reason;
-      throw new BadGatewayException("Briq SMS reminder delivery failed.");
+    }
+    const dispatchId = randomBytes(16).toString("hex");
+    let smsQueued = 0;
+    if (shouldSendSms) {
+      for (const phone of uniqueSmsRecipients) {
+        await this.reminderQueue.enqueueSms({
+          groupId,
+          key: `manual:${dispatchId}:${this.hash(phone)}`,
+          phone,
+          content: smsContent,
+        });
+        smsQueued += 1;
+      }
     }
 
     const campaign = await this.prisma.reminderCampaign.create({
@@ -2443,8 +2434,9 @@ export class GroupsService {
           recipientCount: members.length,
           appNotificationsCreated: notificationRecipients.length,
           smsRecipients: smsRecipients.length,
-          smsSent,
-          smsFailed,
+          smsQueued,
+          smsSent: 0,
+          smsFailed: 0,
           whatsappPending: 0,
         },
       },
@@ -2455,8 +2447,9 @@ export class GroupsService {
       channel: campaign.channel,
       recipientCount: members.length,
       appNotificationsCreated: notificationRecipients.length,
-      smsSent,
-      smsFailed,
+      smsQueued,
+      smsSent: 0,
+      smsFailed: 0,
       whatsappPending: 0,
       sentAt: campaign.sentAt,
     };
@@ -2465,6 +2458,30 @@ export class GroupsService {
   async loansOverview(user: AuthenticatedUser, groupId: string) {
     const membership = await this.requireMembership(user, groupId);
     return this.loanOverviewForMember(membership, groupId);
+  }
+
+  private async assertReminderCreditsAvailable(
+    groupId: string,
+    requiredCredits: number,
+  ): Promise<void> {
+    if (requiredCredits <= 0) return;
+    const packages = await this.prisma.reminderPackagePurchase.findMany({
+      where: {
+        groupId,
+        status: ReminderPackagePurchaseStatus.PAID,
+        platformPrice: { channel: { in: ["SMS", "BOTH"] } },
+      },
+      select: { quantity: true, usedQuantity: true },
+    });
+    const remaining = packages.reduce(
+      (total, item) => total + Math.max(item.quantity - item.usedQuantity, 0),
+      0,
+    );
+    if (remaining < requiredCredits) {
+      throw new BadRequestException(
+        "Insufficient paid SMS credits. Purchase a reminder package first.",
+      );
+    }
   }
 
   private async loanOverviewForMember(
@@ -3729,19 +3746,7 @@ export class GroupsService {
         locale: recipient.preferredLocale,
       },
     });
-    const pushResult = await this.pushNotifications.sendToTokens(
-      recipient.pushDeviceTokens.map((item) => item.token),
-      {
-        title,
-        body,
-        data: { notificationId: notification.id },
-      },
-    );
-    if (pushResult.invalidTokens.length > 0) {
-      await tx.pushDeviceToken.deleteMany({
-        where: { token: { in: pushResult.invalidTokens } },
-      });
-    }
+    await this.messagingQueue.enqueuePush({ notificationId: notification.id });
   }
 
   private async requireMembership(
@@ -4763,15 +4768,15 @@ export class GroupsService {
 
     if (input.phone) {
       try {
-        const result = await this.briq.sendSms({
+        await this.messagingQueue.enqueueSms({
           to: input.phone,
           content: text,
-        });
+        }, `invitation:sms:${input.invitationCode}`);
         deliveries.push({
           channel: "sms",
           destination: input.phone,
-          provider: result.provider,
-          delivered: result.delivered,
+          provider: "queue",
+          delivered: false,
         });
       } catch (error) {
         failures.push(this.deliveryFailure("sms", error));
@@ -4784,17 +4789,17 @@ export class GroupsService {
           ...input,
           recipientEmail: input.email,
         });
-        const result = await this.email.sendEmail({
+        await this.messagingQueue.enqueueEmail({
           to: input.email,
           subject: message.subject,
           text: message.text,
           html: message.html,
-        });
+        }, `invitation:email:${input.invitationCode}`);
         deliveries.push({
           channel: "email",
           destination: input.email,
-          provider: result.provider,
-          delivered: result.delivered,
+          provider: "queue",
+          delivered: false,
         });
       } catch (error) {
         failures.push(this.deliveryFailure("email", error));

@@ -166,6 +166,38 @@ export type CreateReminderPackageInput = {
 
 export type UpdateReminderPackageInput = Partial<Omit<CreateReminderPackageInput, 'code'>>;
 
+export type QueueFailureRow = {
+  id: string;
+  name: string;
+  attemptsMade: number;
+  maxAttempts: number;
+  failedReason: string | null;
+  createdAt: string | null;
+  processedAt: string | null;
+  finishedAt: string | null;
+};
+
+export type QueueSummary = {
+  name: string;
+  paused: boolean;
+  counts: {
+    waiting: number;
+    active: number;
+    delayed: number;
+    completed: number;
+    failed: number;
+  };
+  recentFailures: QueueFailureRow[];
+};
+
+export type QueueFailedJobsResponse = {
+  queue: string;
+  start: number;
+  end: number;
+  failedCount: number;
+  jobs: QueueFailureRow[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class SuperAdminApi {
   private readonly http = inject(HttpClient);
@@ -492,6 +524,60 @@ export class SuperAdminApi {
     await this.authenticatedRequest(() =>
       this.http.patch(`${this.baseUrl}/admin/reminder-packages/${code}`, input, {
         headers: this.authHeaders(),
+      }).pipe(timeout(15000)),
+    );
+  }
+
+  async queues(): Promise<QueueSummary[]> {
+    const response = await this.authenticatedRequest(() =>
+      this.http.get<{ queues: QueueSummary[] }>(`${this.baseUrl}/admin/queues`, {
+        headers: this.authHeaders(),
+      }).pipe(timeout(15000)),
+    );
+    return response.queues;
+  }
+
+  async failedQueueJobs(
+    queueName: string,
+    start = 0,
+    end = 49,
+  ): Promise<QueueFailedJobsResponse> {
+    return this.authenticatedRequest(() =>
+      this.http.get<QueueFailedJobsResponse>(
+        `${this.baseUrl}/admin/queues/${queueName}/failed`,
+        {
+          headers: this.authHeaders(),
+          params: {
+            start,
+            end,
+          },
+        },
+      ).pipe(timeout(15000)),
+    );
+  }
+
+  async retryFailedQueueJob(queueName: string, jobId: string): Promise<void> {
+    await this.authenticatedRequest(() =>
+      this.http.post(
+        `${this.baseUrl}/admin/queues/${queueName}/failed/${jobId}/retry`,
+        {},
+        { headers: this.authHeaders() },
+      ).pipe(timeout(15000)),
+    );
+  }
+
+  async cleanFailedQueueJobs(
+    queueName: string,
+    graceSeconds = 604800,
+    limit = 1000,
+  ): Promise<void> {
+    await this.authenticatedRequest(() =>
+      this.http.delete(`${this.baseUrl}/admin/queues/${queueName}/failed`, {
+        headers: this.authHeaders(),
+        params: {
+          graceSeconds,
+          limit,
+        },
       }).pipe(timeout(15000)),
     );
   }

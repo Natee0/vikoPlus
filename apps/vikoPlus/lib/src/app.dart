@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../l10n/app_localizations.dart';
+import 'core/auth/auth_session.dart';
 import 'core/locale/locale_controller.dart';
 import 'features/notifications/phone_notification_host.dart';
 import 'routing/app_router.dart';
@@ -14,6 +15,11 @@ class VikoplusApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final locale = ref.watch(localeControllerProvider).value;
+    ref.listen<AuthSession>(authSessionProvider, (previous, next) {
+      if (previous?.isAuthenticated == true && !next.isAuthenticated) {
+        appRouter.go('/sign-in');
+      }
+    });
 
     return MaterialApp.router(
       title: 'vikoPlus',

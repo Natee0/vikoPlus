@@ -24,6 +24,71 @@ final apiClientProvider = Provider<Dio>((ref) {
       },
     ),
   );
+  Future<String?>? refreshAccessToken;
+
+  Future<void> clearSession() async {
+    ref.read(authSessionProvider.notifier).clear();
+    await ref.read(authSecureStorageProvider).clearSession();
+  }
+
+  DioException sessionExpiredError(DioException error) {
+    return DioException(
+      requestOptions: error.requestOptions,
+      response: Response<dynamic>(
+        requestOptions: error.requestOptions,
+        statusCode: error.response?.statusCode ?? 401,
+        statusMessage: error.response?.statusMessage,
+        headers: error.response?.headers,
+        redirects: error.response?.redirects ?? const [],
+        data: {'message': 'Session expired. Please sign in again.'},
+      ),
+      type: error.type,
+      error: 'Session expired. Please sign in again.',
+      stackTrace: error.stackTrace,
+    );
+  }
+
+  Future<String?> refreshSession() async {
+    final refreshToken = ref.read(authSessionProvider).refreshToken;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      await clearSession();
+      return null;
+    }
+
+    try {
+      final refreshDio = Dio(dio.options);
+      final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+        options: Options(extra: {'skipAuth': true}),
+      );
+      final tokenBody = _responseBody(refreshResponse.data);
+      final accessToken = tokenBody['accessToken'];
+      final newRefreshToken = tokenBody['refreshToken'];
+      final user = tokenBody['user'];
+      if (accessToken is! String ||
+          accessToken.isEmpty ||
+          newRefreshToken is! String ||
+          newRefreshToken.isEmpty ||
+          user is! Map<String, dynamic>) {
+        throw const FormatException('Session refresh response is invalid.');
+      }
+
+      ref.read(authSessionProvider.notifier).setAuthenticated(
+            accessToken: accessToken,
+            refreshToken: newRefreshToken,
+            user: AuthUser.fromJson(user),
+          );
+      await ref
+          .read(authSecureStorageProvider)
+          .saveSession(ref.read(authSessionProvider));
+      return accessToken;
+    } catch (_) {
+      await clearSession();
+      return null;
+    }
+  }
+
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
@@ -57,52 +122,22 @@ final apiClientProvider = Provider<Dio>((ref) {
           return;
         }
 
-        final refreshToken = ref.read(authSessionProvider).refreshToken;
-        if (refreshToken == null || refreshToken.isEmpty) {
-          ref.read(authSessionProvider.notifier).clear();
-          await ref.read(authSecureStorageProvider).clearSession();
-          handler.next(error);
+        refreshAccessToken ??= refreshSession();
+        final accessToken = await refreshAccessToken;
+        refreshAccessToken = null;
+        if (accessToken == null || accessToken.isEmpty) {
+          handler.next(sessionExpiredError(error));
           return;
         }
 
         try {
-          final refreshDio = Dio(dio.options);
-          final refreshResponse = await refreshDio.post<Map<String, dynamic>>(
-            '/auth/refresh',
-            data: {'refreshToken': refreshToken},
-            options: Options(extra: {'skipAuth': true}),
-          );
-          final tokenBody = _responseBody(refreshResponse.data);
-          final accessToken = tokenBody['accessToken'];
-          final newRefreshToken = tokenBody['refreshToken'];
-          final user = tokenBody['user'];
-          if (accessToken is! String ||
-              accessToken.isEmpty ||
-              newRefreshToken is! String ||
-              newRefreshToken.isEmpty ||
-              user is! Map<String, dynamic>) {
-            throw const FormatException('Session refresh response is invalid.');
-          }
-
-          ref
-              .read(authSessionProvider.notifier)
-              .setAuthenticated(
-                accessToken: accessToken,
-                refreshToken: newRefreshToken,
-                user: AuthUser.fromJson(user),
-              );
-          await ref
-              .read(authSecureStorageProvider)
-              .saveSession(ref.read(authSessionProvider));
-
           requestOptions.extra['authRetry'] = true;
           requestOptions.headers['Authorization'] = 'Bearer $accessToken';
           final retryResponse = await dio.fetch<dynamic>(requestOptions);
           handler.resolve(retryResponse);
         } catch (_) {
-          ref.read(authSessionProvider.notifier).clear();
-          await ref.read(authSecureStorageProvider).clearSession();
-          handler.next(error);
+          await clearSession();
+          handler.next(sessionExpiredError(error));
         }
       },
     ),

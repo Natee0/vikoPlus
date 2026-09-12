@@ -14,6 +14,7 @@ import {
   CheckoutSession,
   CreateBillingCustomerInput,
   CreateCheckoutSessionInput,
+  ProviderOrder,
   ProviderSubscription,
   SubscriptionBillingProvider,
   VerifiedBillingEvent,
@@ -111,6 +112,33 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       { method: "GET", idempotencyKey: randomUUID() },
     );
     return this.providerSubscriptionFromOrder(providerSubscriptionId, order);
+  }
+
+  async listOrders(from: Date, to: Date): Promise<ProviderOrder[]> {
+    const params = new URLSearchParams({
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+    });
+    const payload = await this.sayariRequest<Record<string, unknown>>(
+      `/api/v1/checkout/orders?${params.toString()}`,
+      { method: "GET", idempotencyKey: randomUUID() },
+    );
+    return this.extractOrders(payload).flatMap((order) => {
+      const orderId = this.firstString(order, ["orderId", "id"]);
+      const externalRef = this.firstString(order, ["externalRef"]);
+      if (!orderId || !externalRef) return [];
+      return [
+        {
+          orderId,
+          externalRef,
+          status:
+            this.firstString(order, ["paymentStatus", "status", "result"]) ??
+            "PENDING",
+          amountMinor: this.numberValue(order["amount"]) ?? 0,
+          currency: this.firstString(order, ["currency"]) ?? "TZS",
+        },
+      ];
+    });
   }
 
   async cancelSubscription(
@@ -288,6 +316,33 @@ export class SayariSubscriptionBillingProvider implements SubscriptionBillingPro
       if (typeof value === "number") return String(value);
     }
     return undefined;
+  }
+
+  private numberValue(value: unknown): number | undefined {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? Math.round(parsed) : undefined;
+  }
+
+  private extractOrders(payload: Record<string, unknown>): Record<string, unknown>[] {
+    const candidates = [
+      payload["orders"],
+      payload["items"],
+      payload["data"],
+      payload["results"],
+    ];
+    for (const candidate of candidates) {
+      if (Array.isArray(candidate)) {
+        return candidate.filter(
+          (item): item is Record<string, unknown> =>
+            typeof item === "object" && item !== null,
+        );
+      }
+      if (candidate && typeof candidate === "object") {
+        const nested = this.extractOrders(candidate as Record<string, unknown>);
+        if (nested.length > 0) return nested;
+      }
+    }
+    return [];
   }
 
   private normalizeMsisdn(value?: string): string | undefined {

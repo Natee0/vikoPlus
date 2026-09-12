@@ -47,6 +47,14 @@ export type ProviderSubscription = {
   cancelAtPeriodEnd: boolean;
 };
 
+export type ProviderOrder = {
+  orderId: string;
+  externalRef: string;
+  status: string;
+  amountMinor: number;
+  currency: string;
+};
+
 export type BillingPortalInput = {
   providerCustomerId: string;
   returnUrl: string;
@@ -72,6 +80,7 @@ export interface SubscriptionBillingProvider {
   getSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription>;
+  listOrders(from: Date, to: Date): Promise<ProviderOrder[]>;
   cancelSubscription(
     providerSubscriptionId: string,
   ): Promise<ProviderSubscription>;

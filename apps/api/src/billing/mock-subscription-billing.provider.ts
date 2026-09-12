@@ -9,6 +9,7 @@ import {
   CheckoutSession,
   CreateBillingCustomerInput,
   CreateCheckoutSessionInput,
+  ProviderOrder,
   ProviderSubscription,
   SubscriptionBillingProvider,
   VerifiedBillingEvent,
@@ -43,6 +44,10 @@ export class MockSubscriptionBillingProvider implements SubscriptionBillingProvi
     return Promise.resolve(
       mockSubscription(providerSubscriptionId, "active", false),
     );
+  }
+
+  listOrders(_from: Date, _to: Date): Promise<ProviderOrder[]> {
+    return Promise.resolve([]);
   }
 
   cancelSubscription(

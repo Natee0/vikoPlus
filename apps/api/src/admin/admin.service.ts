@@ -406,6 +406,8 @@ export class AdminService {
 
   async metrics() {
     await this.reconcilePendingProviderPayments();
+    const providerOrderWindowStartsAt = new Date();
+    providerOrderWindowStartsAt.setDate(providerOrderWindowStartsAt.getDate() - 90);
 
     const [
       totalUsers,
@@ -428,6 +430,7 @@ export class AdminService {
       accessRevenueTransactions,
       reminderPurchases,
       billingEvents,
+      providerOrders,
     ] = await Promise.all([
       this.prisma.user.count(),
       this.prisma.userIdentity.count({ where: { isVerified: true } }),
@@ -500,6 +503,7 @@ export class AdminService {
       this.prisma.billingEvent.findMany({
         select: { payload: true },
       }),
+      this.safeListProviderOrders(providerOrderWindowStartsAt, new Date()),
     ]);
 
     const activeSubscriptionsByPlanId = new Map(
@@ -536,6 +540,17 @@ export class AdminService {
         productCode,
         amountMinor: this.numberValue(payload["amount"]) ?? 0,
         currency: this.firstString(payload, ["currency"]) ?? "TZS",
+      });
+    }
+    for (const order of providerOrders) {
+      if (String(order.status).toUpperCase() !== "COMPLETED") continue;
+      const [, productCode] = order.externalRef.split(":");
+      if (!productCode) continue;
+      completedProviderOrders.set(order.orderId, {
+        externalRef: order.externalRef,
+        productCode,
+        amountMinor: order.amountMinor,
+        currency: order.currency,
       });
     }
     const accessRevenueByPlanId = new Map<
@@ -913,6 +928,14 @@ export class AdminService {
         }
       }),
     );
+  }
+
+  private async safeListProviderOrders(from: Date, to: Date) {
+    try {
+      return await this.billingProvider.listOrders(from, to);
+    } catch {
+      return [];
+    }
   }
 
   private async uniqueGroupSlug(name: string, currentGroupId?: string) {

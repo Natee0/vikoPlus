@@ -45,6 +45,10 @@ flutter run
 
 Vikoplus platform access supports automatic payment only. Manual cash, bank transfer, mobile-money evidence upload, and administrator approval flows are not platform subscription mechanisms. Group contribution payments are separate records inside each group and may use group-configured workflows.
 
+## Legal Content
+
+Reusable Terms of Service and Privacy Policy content lives in `docs/legal/`. The folder includes English and Swahili Markdown plus `legal-content.json` for mobile, admin, and landing-page route metadata.
+
 ## Group Rule Enforcement
 
 - Invited users must accept the invitation using its intended verified identity. Active membership and the role within the selected group control access.

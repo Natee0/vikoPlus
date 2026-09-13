@@ -1284,12 +1284,16 @@ const _swahili = <String, String>{
       'Mstari wa CSV una tarehe ya malipo isiyo sahihi.',
   'CSV row has an invalid contribution type.':
       'Mstari wa CSV una aina ya mchango isiyo sahihi.',
+  'Line': 'Mstari',
+  'Value': 'Thamani',
   'CSV preview': 'Muhtasari wa CSV',
   'records ready': 'kumbukumbu tayari',
   'Total amount': 'Jumla ya kiasi',
   'Records by type': 'Kumbukumbu kwa aina',
-  'Historical payment dates cannot be before the group historical start date.': 
-  'Tarehe za malipo ya zamani haziwezi kuwa kabla ya tarehe ya kuanza historia ya kikundi.',
+  'Historical payment dates cannot be future dates.':
+      'Tarehe za malipo ya zamani haziwezi kuwa tarehe za baadaye.',
+  'Historical payment dates cannot be before the group historical start date.':
+      'Tarehe za malipo ya zamani haziwezi kuwa kabla ya tarehe ya kuanza historia ya kikundi.',
   'RECURRING': 'Mchango wa kawaida',
   'JOINING_FEE': 'Ada ya kujiunga',
   'MEMBERSHIP_FEE': 'Ada ya uanachama',

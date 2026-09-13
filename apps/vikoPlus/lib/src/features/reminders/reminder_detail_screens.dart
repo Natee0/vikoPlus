@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
+import '../../routing/portal_route_guard.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
@@ -84,15 +85,19 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
             ),
           );
       if (!mounted) return;
-      setState(
-        () => _successMessage = context.vtf(
-          'SMS reminder queued for {count} members.',
-          {'count': result.smsQueued},
-        ),
+      final successMessage = context.vtf(
+        'SMS reminder queued for {count} members.',
+        {'count': result.smsQueued},
       );
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(successMessage)));
+      context.go(portalMembersRoute(activeGroup));
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
+      setState(
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
+      );
     } finally {
       if (mounted) {
         setState(() => _isSending = false);

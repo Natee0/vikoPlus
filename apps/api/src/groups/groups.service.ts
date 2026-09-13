@@ -1831,6 +1831,7 @@ export class GroupsService {
       }
     }
     const now = new Date();
+    const todayKey = this.businessDateKey(now);
     await Promise.all(
       payments.map((payment) =>
         this.ensureGroupMember(groupId, payment.memberId),
@@ -1838,14 +1839,20 @@ export class GroupsService {
     );
     payments.forEach((payment) => {
       const paidAt = new Date(payment.paidAt);
-      if (paidAt > now) {
+      if (Number.isNaN(paidAt.getTime())) {
+        throw new BadRequestException("CSV row has an invalid paid date.");
+      }
+      if (this.dateKey(paidAt) > todayKey) {
         throw new BadRequestException(
           "Historical payment dates cannot be future dates.",
         );
       }
       const earliestHistoricalDate =
         group.historicalDataStartsAt ?? group.establishedAt;
-      if (earliestHistoricalDate && paidAt < earliestHistoricalDate) {
+      if (
+        earliestHistoricalDate &&
+        this.dateKey(paidAt) < this.dateKey(earliestHistoricalDate)
+      ) {
         throw new BadRequestException(
           "Historical payment dates cannot be before the group historical start date.",
         );
@@ -5051,6 +5058,22 @@ export class GroupsService {
 
   private monthKey(date: Date): string {
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  private businessDateKey(date: Date): string {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Africa/Dar_es_Salaam",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const value = (type: string) =>
+      parts.find((part) => part.type === type)?.value ?? "";
+    return `${value("year")}-${value("month")}-${value("day")}`;
+  }
+
+  private dateKey(date: Date): string {
+    return date.toISOString().slice(0, 10);
   }
 
   private daysFromNow(days: number): Date {

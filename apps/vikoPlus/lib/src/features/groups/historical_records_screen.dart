@@ -40,7 +40,7 @@ class _HistoricalRecordsScreenState
   String _contributionType = 'RECURRING';
   String _method = 'Cash';
   String? _selectedMemberId;
-  DateTime _paidAt = DateUtils.dateOnly(DateTime.now());
+  DateTime _paidAt = _defaultHistoricalDate();
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -50,6 +50,12 @@ class _HistoricalRecordsScreenState
     'JOINING_FEE',
     'MEMBERSHIP_FEE',
   ];
+
+  static DateTime _defaultHistoricalDate() {
+    return DateUtils.dateOnly(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
+  }
 
   @override
   void initState() {
@@ -81,6 +87,13 @@ class _HistoricalRecordsScreenState
       'Dec',
     ];
     return '${_paidAt.day} ${months[_paidAt.month - 1]} ${_paidAt.year}';
+  }
+
+  String _dateOnlyString(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
   }
 
   Future<GroupMembersResult>? _loadMembers() {
@@ -177,6 +190,14 @@ class _HistoricalRecordsScreenState
       );
       return;
     }
+    if (_paidAt.isAfter(DateUtils.dateOnly(DateTime.now()))) {
+      setState(
+        () => _errorMessage = context.vt(
+          'Historical payment dates cannot be future dates.',
+        ),
+      );
+      return;
+    }
 
     try {
       setState(() {
@@ -234,7 +255,7 @@ class _HistoricalRecordsScreenState
         'RECURRING',
         '5000',
         'CASH',
-        DateUtils.dateOnly(DateTime.now()).toIso8601String().split('T').first,
+        _dateOnlyString(_defaultHistoricalDate()),
         'OLD-LEDGER-001',
       ],
     ];
@@ -363,9 +384,9 @@ class _HistoricalRecordsScreenState
     } on Object catch (error) {
       if (!mounted) return;
       final message = error is FormatException
-          ? error.message
+          ? _csvFormatErrorMessage(error)
           : context.vt(AuthFailure.from(error).message);
-      setState(() => _errorMessage = context.vt(message));
+      setState(() => _errorMessage = message);
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
@@ -400,6 +421,7 @@ class _HistoricalRecordsScreenState
       required: false,
     );
     final memberIdIndex = _headerIndex(headers, 'member_id', required: false);
+    final fullNameIndex = _headerIndex(headers, 'full_name', required: false);
     final phoneIndex = _headerIndex(headers, 'phone', required: false);
     final emailIndex = _headerIndex(headers, 'email', required: false);
     final typeIndex = _headerIndex(headers, 'contribution_type');
@@ -408,21 +430,22 @@ class _HistoricalRecordsScreenState
     final paidAtIndex = _headerIndex(headers, 'paid_at');
     final referenceIndex = _headerIndex(headers, 'reference', required: false);
     final byId = {for (final member in members) member.id: member};
-    final byMemberNumber = {
-      for (final member in members)
-        if ((member.memberNumber ?? '').trim().isNotEmpty)
-          member.memberNumber!.trim().toLowerCase(): member,
-    };
-    final byPhone = {
-      for (final member in members)
-        if ((member.phone ?? '').trim().isNotEmpty)
-          _normalizeCsvText(member.phone!).toLowerCase(): member,
-    };
+    final byMemberNumber = _memberLookupMap(
+      members,
+      (member) => member.memberNumber,
+      _memberNumberLookupKeys,
+    );
+    final byPhone = _memberLookupMap(
+      members,
+      (member) => member.phone,
+      _phoneLookupKeys,
+    );
     final byEmail = {
       for (final member in members)
         if ((member.email ?? '').trim().isNotEmpty)
-          member.email!.trim().toLowerCase(): member,
+          _memberLookupKey(member.email!): member,
     };
+    final byFullName = _uniqueMembersByName(members);
 
     final payments = <HistoricalPaymentInput>[];
     for (var i = 1; i < rows.length; i++) {
@@ -432,19 +455,32 @@ class _HistoricalRecordsScreenState
       }
       final memberId = _cell(row, memberIdIndex, required: false);
       final memberNumber = _cell(row, memberNumberIndex, required: false);
+      final fullName = _cell(row, fullNameIndex, required: false);
       final phone = _cell(row, phoneIndex, required: false);
       final email = _cell(row, emailIndex, required: false);
       final member =
           (memberId == null ? null : byId[memberId]) ??
           (memberNumber == null
               ? null
-              : byMemberNumber[memberNumber.toLowerCase()]) ??
+              : _lookupMember(
+                  byMemberNumber,
+                  _memberNumberLookupKeys(memberNumber),
+                )) ??
           (phone == null
               ? null
-              : byPhone[_normalizeCsvText(phone).toLowerCase()]) ??
-          (email == null ? null : byEmail[email.toLowerCase()]);
+              : _lookupMember(byPhone, _phoneLookupKeys(phone))) ??
+          (email == null ? null : byEmail[_memberLookupKey(email)]) ??
+          (fullName == null ? null : byFullName[_memberLookupKey(fullName)]);
       if (member == null) {
-        throw const FormatException('CSV row member was not found.');
+        throw FormatException(
+          'CSV row member was not found.|${i + 1}|${_csvMemberIdentity(
+            memberId: memberId,
+            memberNumber: memberNumber,
+            fullName: fullName,
+            phone: phone,
+            email: email,
+          )}',
+        );
       }
       final amountText = _cell(row, amountIndex)!.replaceAll(RegExp(r'[^0-9]'), '');
       final amount = int.tryParse(amountText);
@@ -454,16 +490,22 @@ class _HistoricalRecordsScreenState
       final contributionType = _normalizeContributionType(
         _cell(row, typeIndex)!,
       );
-      final paidAt = DateTime.tryParse(_cell(row, paidAtIndex)!);
+      final paidAt = _parseCsvDate(_cell(row, paidAtIndex)!);
       if (paidAt == null) {
         throw const FormatException('CSV row has an invalid paid date.');
+      }
+      final paidDate = DateUtils.dateOnly(paidAt);
+      if (paidDate.isAfter(DateUtils.dateOnly(DateTime.now()))) {
+        throw const FormatException(
+          'Historical payment dates cannot be future dates.',
+        );
       }
       payments.add(
         HistoricalPaymentInput(
           memberId: member.id,
           amountMinor: amount,
           method: _normalizePaymentMethod(_cell(row, methodIndex)!),
-          paidAt: DateUtils.dateOnly(paidAt),
+          paidAt: paidDate,
           reference: _cell(row, referenceIndex, required: false),
           contributionType: contributionType,
         ),
@@ -473,6 +515,36 @@ class _HistoricalRecordsScreenState
       throw const FormatException('CSV has no importable rows.');
     }
     return payments;
+  }
+
+  String _csvFormatErrorMessage(FormatException error) {
+    final message = error.message;
+    const memberNotFound = 'CSV row member was not found.';
+    if (!message.startsWith(memberNotFound)) {
+      return context.vt(message);
+    }
+    final parts = message.split('|');
+    if (parts.length < 3) {
+      return context.vt(memberNotFound);
+    }
+    return '${context.vt(memberNotFound)} ${context.vt('Line')}: ${parts[1]}. '
+        '${context.vt('Value')}: ${parts.sublist(2).join('|')}';
+  }
+
+  String _csvMemberIdentity({
+    required String? memberId,
+    required String? memberNumber,
+    required String? fullName,
+    required String? phone,
+    required String? email,
+  }) {
+    return [
+      if ((memberNumber ?? '').trim().isNotEmpty) 'member_number=$memberNumber',
+      if ((phone ?? '').trim().isNotEmpty) 'phone=$phone',
+      if ((email ?? '').trim().isNotEmpty) 'email=$email',
+      if ((fullName ?? '').trim().isNotEmpty) 'full_name=$fullName',
+      if ((memberId ?? '').trim().isNotEmpty) 'member_id=$memberId',
+    ].join(', ');
   }
 
   int _headerIndex(
@@ -512,6 +584,77 @@ class _HistoricalRecordsScreenState
     };
   }
 
+  Map<String, GroupMemberSummary> _memberLookupMap(
+    List<GroupMemberSummary> members,
+    String? Function(GroupMemberSummary member) valueFor,
+    Iterable<String> Function(String value) keysFor,
+  ) {
+    final lookup = <String, GroupMemberSummary>{};
+    for (final member in members) {
+      final value = valueFor(member);
+      if (value == null || value.trim().isEmpty) continue;
+      for (final key in keysFor(value)) {
+        if (key.isEmpty) continue;
+        lookup[key] = member;
+      }
+    }
+    return lookup;
+  }
+
+  GroupMemberSummary? _lookupMember(
+    Map<String, GroupMemberSummary> lookup,
+    Iterable<String> keys,
+  ) {
+    for (final key in keys) {
+      final member = lookup[key];
+      if (member != null) return member;
+    }
+    return null;
+  }
+
+  Map<String, GroupMemberSummary> _uniqueMembersByName(
+    List<GroupMemberSummary> members,
+  ) {
+    final byName = <String, GroupMemberSummary>{};
+    final duplicates = <String>{};
+    for (final member in members) {
+      final key = _memberLookupKey(member.fullName);
+      if (key.isEmpty) continue;
+      if (byName.containsKey(key)) {
+        duplicates.add(key);
+      } else {
+        byName[key] = member;
+      }
+    }
+    for (final key in duplicates) {
+      byName.remove(key);
+    }
+    return byName;
+  }
+
+  DateTime? _parseCsvDate(String value) {
+    final normalized = _normalizeCsvText(value);
+    final isoDate = DateTime.tryParse(normalized);
+    if (isoDate != null) return isoDate;
+
+    final slashDate = RegExp(
+      r'^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$',
+    ).firstMatch(normalized);
+    if (slashDate == null) return null;
+
+    final month = int.tryParse(slashDate.group(1)!);
+    final day = int.tryParse(slashDate.group(2)!);
+    final rawYear = int.tryParse(slashDate.group(3)!);
+    if (month == null || day == null || rawYear == null) return null;
+
+    final year = rawYear < 100 ? 2000 + rawYear : rawYear;
+    final date = DateTime(year, month, day);
+    if (date.year != year || date.month != month || date.day != day) {
+      return null;
+    }
+    return date;
+  }
+
   String _normalizeCsvText(String value) {
     final trimmed = value.trim();
     if (trimmed.startsWith('="') && trimmed.endsWith('"')) {
@@ -521,6 +664,50 @@ class _HistoricalRecordsScreenState
       return trimmed.substring(1);
     }
     return trimmed;
+  }
+
+  String _memberLookupKey(String value) {
+    return _normalizeCsvText(value).trim().toLowerCase();
+  }
+
+  Iterable<String> _memberNumberLookupKeys(String value) sync* {
+    final normalized = _memberLookupKey(value);
+    if (normalized.isEmpty) return;
+    yield normalized;
+
+    final compact = normalized.replaceAll(RegExp(r'[^a-z0-9]'), '');
+    if (compact.isNotEmpty) yield compact;
+
+    final digits = compact.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return;
+    yield digits;
+
+    final number = int.tryParse(digits);
+    if (number == null) return;
+    yield '$number';
+    yield 'mbr$number';
+    yield 'mbr-$number';
+    yield 'mbr${number.toString().padLeft(4, '0')}';
+    yield 'mbr-${number.toString().padLeft(4, '0')}';
+    yield 'mbr${number.toString().padLeft(6, '0')}';
+    yield 'mbr-${number.toString().padLeft(6, '0')}';
+  }
+
+  Iterable<String> _phoneLookupKeys(String value) sync* {
+    final digits = _normalizeCsvText(value).replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return;
+    yield digits;
+
+    if (digits.startsWith('255') && digits.length > 3) {
+      yield '0${digits.substring(3)}';
+      yield digits.substring(3);
+    } else if (digits.startsWith('0') && digits.length > 1) {
+      yield '255${digits.substring(1)}';
+      yield digits.substring(1);
+    } else if (digits.length == 9) {
+      yield '0$digits';
+      yield '255$digits';
+    }
   }
 
   List<List<String>> _parseCsvRows(String source) {

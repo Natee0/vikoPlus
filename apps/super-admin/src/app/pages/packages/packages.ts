@@ -218,12 +218,13 @@ export class PackagesPage {
     this.dialogOpen = false;
     this.dialogConfig = null;
     this.dialogTarget = null;
+    this.changeDetector.detectChanges();
   }
 
   async confirmDialog(values: Record<string, string | number | boolean>): Promise<void> {
     const target = this.dialogTarget;
     if (!target) return;
-    await this.runPackageAction(async () => {
+    const saved = await this.runPackageAction(async () => {
       if (target.kind === 'defaults') {
         await this.applyDefaultRules();
       } else if (target.kind === 'access-create') {
@@ -244,7 +245,9 @@ export class PackagesPage {
         });
       }
     });
-    this.closeDialog();
+    if (saved) {
+      this.closeDialog();
+    }
   }
 
   money(amountMinor: number, currency = 'TZS'): string {
@@ -261,16 +264,18 @@ export class PackagesPage {
     return count === 1 ? `Every ${interval}` : `Every ${count} ${interval}s`;
   }
 
-  private async runPackageAction(action: () => Promise<void>): Promise<void> {
-    if (this.isSaving) return;
+  private async runPackageAction(action: () => Promise<void>): Promise<boolean> {
+    if (this.isSaving) return false;
     this.isSaving = true;
     this.errorMessage = '';
     try {
       await action();
       await this.loadPackages();
+      return true;
     } catch (error) {
       this.errorMessage =
         error instanceof Error ? error.message : 'Could not save package changes.';
+      return false;
     } finally {
       this.isSaving = false;
       this.changeDetector.detectChanges();

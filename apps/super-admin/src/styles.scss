@@ -248,16 +248,20 @@ input:focus {
 .portal {
   display: grid;
   grid-template-columns: 252px minmax(0, 1fr);
+  height: 100vh;
   min-height: 100vh;
   background: var(--surface);
+  overflow: hidden;
 }
 
 .sidebar {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
   flex-direction: column;
   border-right: 1px solid var(--border);
   background: var(--surface-card);
+  overflow-y: auto;
   padding: 24px 18px;
 }
 
@@ -314,11 +318,18 @@ input:focus {
 }
 
 .content-shell {
+  display: grid;
+  height: 100vh;
+  grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
   background: var(--surface);
+  overflow: hidden;
 }
 
 .topbar {
+  position: sticky;
+  z-index: 20;
+  top: 0;
   display: flex;
   min-height: 76px;
   align-items: center;
@@ -327,6 +338,12 @@ input:focus {
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   padding: 0 28px;
+}
+
+.content-scroll {
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .topbar strong,
@@ -678,9 +695,27 @@ td small.danger-note {
   }
 
   .sidebar {
+    height: auto;
     min-height: auto;
+    overflow-y: visible;
     border-right: 0;
     border-bottom: 1px solid var(--border);
+  }
+
+  .portal {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .content-shell {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .content-scroll {
+    overflow: visible;
   }
 
   .sidebar nav {

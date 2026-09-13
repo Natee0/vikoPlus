@@ -87,14 +87,16 @@ export class GroupsPage {
     this.dialogOpen = false;
     this.dialogConfig = null;
     this.pendingDialog = null;
+    this.changeDetector.detectChanges();
   }
 
   async confirmDialog(values: Record<string, string | number | boolean>): Promise<void> {
     const pending = this.pendingDialog;
     if (!pending) return;
     if (pending.kind === 'delete') {
-      await this.runGroupAction(() => this.api.deleteGroup(pending.group.id!));
-      this.closeDialog();
+      if (await this.runGroupAction(() => this.api.deleteGroup(pending.group.id!))) {
+        this.closeDialog();
+      }
       return;
     }
     const input: UpsertGroupInput = {
@@ -104,24 +106,28 @@ export class GroupsPage {
       currency: String(values['currency'] ?? 'TZS').trim().toUpperCase() || 'TZS',
     };
     if (!input.name) return;
-    await this.runGroupAction(() =>
+    const saved = await this.runGroupAction(() =>
       pending.kind === 'create'
         ? this.api.createGroup(input)
         : this.api.updateGroup(pending.group.id!, input),
     );
-    this.closeDialog();
+    if (saved) {
+      this.closeDialog();
+    }
   }
 
-  private async runGroupAction(action: () => Promise<void>): Promise<void> {
-    if (this.isSaving) return;
+  private async runGroupAction(action: () => Promise<void>): Promise<boolean> {
+    if (this.isSaving) return false;
     this.isSaving = true;
     this.errorMessage = '';
     try {
       await action();
       await this.loadGroups();
+      return true;
     } catch (error) {
       this.errorMessage =
         error instanceof Error ? error.message : 'Could not save group changes.';
+      return false;
     } finally {
       this.isSaving = false;
       this.changeDetector.detectChanges();

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -32,6 +33,8 @@ import {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly pricing: PlatformPricingService,
@@ -185,28 +188,6 @@ export class AdminService {
           take: 1,
           include: { plan: true },
         },
-        deletionRequests: {
-          where: {
-            status: {
-              in: [
-                GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL,
-                GroupDeletionRequestStatus.APPROVED_FOR_SUPER_ADMIN,
-              ],
-            },
-          },
-          orderBy: { createdAt: "desc" },
-          take: 1,
-          select: {
-            id: true,
-            status: true,
-            requestedAt: true,
-            approvedAt: true,
-          },
-        },
-        payments: {
-          where: { status: GroupContributionPaymentStatus.APPROVED },
-          select: { amountMinor: true },
-        },
         members: {
           where: { role: "GROUP_ADMIN" },
           orderBy: { createdAt: "asc" },
@@ -215,40 +196,108 @@ export class AdminService {
         },
       },
     });
+    const groupIds = groups.map((group) => group.id);
+    const [balanceByGroupId, deletionRequestByGroupId] = await Promise.all([
+      this.approvedContributionBalances(groupIds),
+      this.openDeletionRequests(groupIds),
+    ]);
 
     return {
-      groups: groups.map((group) => ({
-        id: group.id,
-        name: group.name,
-        type: group.type ?? "Community group",
-        country: group.location ?? "Not set",
-        primaryContact:
-          group.members[0]?.fullName ??
-          group.members[0]?.email ??
-          group.members[0]?.phone ??
-          "Not assigned",
-        membersCount: group._count.members,
-        pendingInvitations: group._count.invitations,
-        balanceMinor: group.payments.reduce(
-          (total, payment) => total + payment.amountMinor,
-          0,
-        ),
-        currency: group.currency,
-        subscriptionState: group.subscriptions[0]?.state ?? "NONE",
-        planName: group.subscriptions[0]?.plan.name ?? "No plan",
-        status: group.subscriptions[0]?.state === "ACTIVE" ? "Active" : "Pending",
-        deletionRequest: group.deletionRequests[0]
-          ? {
-              id: group.deletionRequests[0].id,
-              status: group.deletionRequests[0].status,
-              requestedAt: group.deletionRequests[0].requestedAt,
-              approvedAt: group.deletionRequests[0].approvedAt,
-            }
-          : null,
-        createdAt: group.createdAt,
-        updatedAt: group.updatedAt,
-      })),
+      groups: groups.map((group) => {
+        const deletionRequest = deletionRequestByGroupId.get(group.id);
+        return {
+          id: group.id,
+          name: group.name,
+          type: group.type ?? "Community group",
+          country: group.location ?? "Not set",
+          primaryContact:
+            group.members[0]?.fullName ??
+            group.members[0]?.email ??
+            group.members[0]?.phone ??
+            "Not assigned",
+          membersCount: group._count.members,
+          pendingInvitations: group._count.invitations,
+          balanceMinor: balanceByGroupId.get(group.id) ?? 0,
+          currency: group.currency,
+          subscriptionState: group.subscriptions[0]?.state ?? "NONE",
+          planName: group.subscriptions[0]?.plan.name ?? "No plan",
+          status:
+            group.subscriptions[0]?.state === "ACTIVE" ? "Active" : "Pending",
+          deletionRequest: deletionRequest
+            ? {
+                id: deletionRequest.id,
+                status: deletionRequest.status,
+                requestedAt: deletionRequest.requestedAt,
+                approvedAt: deletionRequest.approvedAt,
+              }
+            : null,
+          createdAt: group.createdAt,
+          updatedAt: group.updatedAt,
+        };
+      }),
     };
+  }
+
+  private async approvedContributionBalances(groupIds: string[]) {
+    if (groupIds.length === 0) return new Map<string, number>();
+    const rows = await this.prisma.groupContributionPayment.groupBy({
+      by: ["groupId"],
+      where: {
+        groupId: { in: groupIds },
+        status: GroupContributionPaymentStatus.APPROVED,
+      },
+      _sum: { amountMinor: true },
+    });
+    return new Map(
+      rows.map((row) => [row.groupId, row._sum.amountMinor ?? 0]),
+    );
+  }
+
+  private async openDeletionRequests(groupIds: string[]) {
+    const requests = new Map<
+      string,
+      {
+        id: string;
+        groupId: string;
+        status: GroupDeletionRequestStatus;
+        requestedAt: Date;
+        approvedAt: Date | null;
+      }
+    >();
+    if (groupIds.length === 0) return requests;
+    try {
+      const rows = await this.prisma.groupDeletionRequest.findMany({
+        where: {
+          groupId: { in: groupIds },
+          status: {
+            in: [
+              GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL,
+              GroupDeletionRequestStatus.APPROVED_FOR_SUPER_ADMIN,
+            ],
+          },
+        },
+        orderBy: [{ groupId: "asc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          groupId: true,
+          status: true,
+          requestedAt: true,
+          approvedAt: true,
+        },
+      });
+      for (const row of rows) {
+        if (!requests.has(row.groupId)) {
+          requests.set(row.groupId, row);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Skipping group deletion request data on admin groups list: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    return requests;
   }
 
   async users() {

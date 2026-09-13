@@ -221,6 +221,14 @@ export class AdminService {
           currency: group.currency,
           subscriptionState: group.subscriptions[0]?.state ?? "NONE",
           planName: group.subscriptions[0]?.plan.name ?? "No plan",
+          planStartsAt:
+            group.subscriptions[0]?.currentPeriodStartsAt ??
+            group.subscriptions[0]?.createdAt ??
+            null,
+          planEndsAt:
+            group.subscriptions[0]?.currentPeriodEndsAt ??
+            group.subscriptions[0]?.trialEndsAt ??
+            null,
           status:
             group.subscriptions[0]?.state === "ACTIVE" ? "Active" : "Pending",
           deletionRequest: deletionRequest

@@ -13,6 +13,10 @@ export type GroupRow = {
   members: number;
   balance: string;
   currency?: string;
+  planName: string;
+  planState: string;
+  planStartsAt: string;
+  planEndsAt: string;
   status: 'Active' | 'Pending' | 'Flagged';
   deletionRequestStatus?: string;
   deletionRequestLabel?: string;

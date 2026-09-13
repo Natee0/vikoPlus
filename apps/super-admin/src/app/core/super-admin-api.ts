@@ -84,6 +84,10 @@ type AdminGroupsResponse = {
     membersCount: number;
     balanceMinor: number;
     currency: string;
+    subscriptionState?: string;
+    planName?: string;
+    planStartsAt?: string | null;
+    planEndsAt?: string | null;
     status: 'Active' | 'Pending' | 'Flagged';
     deletionRequest?: {
       id: string;
@@ -428,6 +432,10 @@ export class SuperAdminApi {
       members: group.membersCount,
       balance: this.money(group.balanceMinor, group.currency),
       currency: group.currency,
+      planName: group.planName ?? 'No plan',
+      planState: group.subscriptionState ?? 'NONE',
+      planStartsAt: this.optionalDate(group.planStartsAt),
+      planEndsAt: this.optionalDate(group.planEndsAt),
       status: group.status,
       deletionRequestStatus: group.deletionRequest?.status,
       deletionRequestLabel: this.deletionRequestLabel(
@@ -663,6 +671,10 @@ export class SuperAdminApi {
       day: '2-digit',
       year: 'numeric',
     }).format(new Date(value));
+  }
+
+  private optionalDate(value?: string | null): string {
+    return value ? this.date(value) : 'Not set';
   }
 
   private intervalLabel(interval: string, intervalCount: number): string {

@@ -6,6 +6,9 @@
       <th>Country</th>
       <th>Primary Contact</th>
       <th>Members</th>
+      <th>Plan</th>
+      <th>Plan Starts</th>
+      <th>Plan Ends</th>
       <th>Balance</th>
       <th>Status</th>
       @if (showActions) {
@@ -27,6 +30,12 @@
         <td>{{ group.country }}</td>
         <td>{{ group.contact }}</td>
         <td>{{ group.members }}</td>
+        <td>
+          <strong>{{ group.planName }}</strong>
+          <small>{{ group.planState }}</small>
+        </td>
+        <td>{{ group.planStartsAt }}</td>
+        <td>{{ group.planEndsAt }}</td>
         <td>{{ group.balance }}</td>
         <td>
           <span
@@ -49,7 +58,7 @@
       </tr>
     } @empty {
       <tr>
-        <td [attr.colspan]="showActions ? 8 : 7">No groups are available yet.</td>
+        <td [attr.colspan]="showActions ? 11 : 10">No groups are available yet.</td>
       </tr>
     }
   </tbody>

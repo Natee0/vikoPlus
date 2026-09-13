@@ -696,7 +696,7 @@ td small.danger-note {
 
   .sidebar {
     height: auto;
-    min-height: auto;
+    min-height: 0;
     overflow-y: visible;
     border-right: 0;
     border-bottom: 1px solid var(--border);

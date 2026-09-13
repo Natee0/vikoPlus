@@ -114,6 +114,18 @@ type GroupCashClient = Pick<
   "groupContributionPayment" | "groupExpense" | "groupLoan"
 >;
 
+type GroupCreationAccess = {
+  ownedGroupsCount: number;
+  maxGroups: number | null;
+  coveringSubscription: {
+    planId: string;
+    state: SubscriptionState;
+    currentPeriodStartsAt: Date | null;
+    currentPeriodEndsAt: Date | null;
+    trialEndsAt: Date | null;
+  } | null;
+};
+
 @Injectable()
 export class GroupsService {
   constructor(
@@ -338,6 +350,7 @@ export class GroupsService {
   async createGroup(user: AuthenticatedUser, input: CreateGroupDto) {
     const name = input.name.trim();
     const slug = await this.uniqueSlug(name);
+    const groupCreationAccess = await this.resolveGroupCreationAccess(user.id);
     const identities = await this.prisma.userIdentity.findMany({
       where: { userId: user.id, isVerified: true },
       select: { type: true, value: true },
@@ -380,35 +393,52 @@ export class GroupsService {
         },
         include: { members: true },
       });
-      const starterPlan = await this.findStarterPlan(tx);
-      if (starterPlan) {
-        const startsAt = new Date();
-        const trialEndsAt = this.addDays(
-          startsAt,
-          Math.max(1, starterPlan.trialDays),
-        );
-        await tx.billingCustomer.create({
+      if (groupCreationAccess.coveringSubscription) {
+        await tx.subscription.create({
           data: {
+            id: `${created.id}:${groupCreationAccess.coveringSubscription.planId}`,
             groupId: created.id,
-            userId: user.id,
+            planId: groupCreationAccess.coveringSubscription.planId,
             provider: this.billingProvider.provider,
-            providerCustomerId: `starter_${created.id}`,
-            email,
-            phone,
-            subscriptions: {
-              create: {
-                id: `${created.id}:${starterPlan.id}`,
-                groupId: created.id,
-                planId: starterPlan.id,
-                provider: this.billingProvider.provider,
-                state: SubscriptionState.TRIAL,
-                currentPeriodStartsAt: startsAt,
-                currentPeriodEndsAt: trialEndsAt,
-                trialEndsAt,
-              },
-            },
+            state: groupCreationAccess.coveringSubscription.state,
+            currentPeriodStartsAt:
+              groupCreationAccess.coveringSubscription.currentPeriodStartsAt,
+            currentPeriodEndsAt:
+              groupCreationAccess.coveringSubscription.currentPeriodEndsAt,
+            trialEndsAt: groupCreationAccess.coveringSubscription.trialEndsAt,
           },
         });
+      } else {
+        const starterPlan = await this.findStarterPlan(tx);
+        if (starterPlan) {
+          const startsAt = new Date();
+          const trialEndsAt = this.addDays(
+            startsAt,
+            Math.max(1, starterPlan.trialDays),
+          );
+          await tx.billingCustomer.create({
+            data: {
+              groupId: created.id,
+              userId: user.id,
+              provider: this.billingProvider.provider,
+              providerCustomerId: `starter_${created.id}`,
+              email,
+              phone,
+              subscriptions: {
+                create: {
+                  id: `${created.id}:${starterPlan.id}`,
+                  groupId: created.id,
+                  planId: starterPlan.id,
+                  provider: this.billingProvider.provider,
+                  state: SubscriptionState.TRIAL,
+                  currentPeriodStartsAt: startsAt,
+                  currentPeriodEndsAt: trialEndsAt,
+                  trialEndsAt,
+                },
+              },
+            },
+          });
+        }
       }
       return created;
     });
@@ -450,6 +480,92 @@ export class GroupsService {
       },
       orderBy: [{ trialDays: "desc" }, { createdAt: "asc" }],
     });
+  }
+
+  private async resolveGroupCreationAccess(
+    userId: string,
+  ): Promise<GroupCreationAccess> {
+    const [ownedGroupsCount, subscriptions] = await Promise.all([
+      this.prisma.group.count({ where: { billingOwnerUserId: userId } }),
+      this.prisma.subscription.findMany({
+        where: {
+          group: { billingOwnerUserId: userId },
+          state: {
+            in: [
+              SubscriptionState.TRIAL,
+              SubscriptionState.ACTIVE,
+              SubscriptionState.GRACE_PERIOD,
+              SubscriptionState.CANCELLED,
+            ],
+          },
+        },
+        include: { plan: true },
+        orderBy: { updatedAt: "desc" },
+      }),
+    ]);
+
+    let maxGroups: number | null = ownedGroupsCount === 0 ? 1 : 0;
+    let coveringSubscription: GroupCreationAccess["coveringSubscription"] =
+      null;
+
+    for (const subscription of subscriptions) {
+      if (
+        !hasPaidFeatureAccess({
+          state: subscription.state,
+          currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+        })
+      ) {
+        continue;
+      }
+
+      const planMaxGroups = this.maxGroupsFromEntitlements(
+        subscription.plan.featureEntitlements,
+      );
+      const effectiveMaxGroups = planMaxGroups ?? Number.POSITIVE_INFINITY;
+      const currentMaxGroups = maxGroups ?? Number.POSITIVE_INFINITY;
+      if (effectiveMaxGroups <= currentMaxGroups) continue;
+
+      maxGroups = planMaxGroups;
+      coveringSubscription =
+        subscription.plan.priceMinor > 0 || effectiveMaxGroups > 1
+          ? {
+              planId: subscription.planId,
+              state: subscription.state,
+              currentPeriodStartsAt: subscription.currentPeriodStartsAt,
+              currentPeriodEndsAt: subscription.currentPeriodEndsAt,
+              trialEndsAt: subscription.trialEndsAt,
+            }
+          : null;
+    }
+
+    if (maxGroups !== null && ownedGroupsCount >= maxGroups) {
+      const message =
+        maxGroups > 0
+          ? `Your current Vikoplus package allows up to ${maxGroups} ${
+              maxGroups === 1 ? "group" : "groups"
+            }. Upgrade to Vikoplus Kabambe to create more groups.`
+          : "Your current Vikoplus package does not allow creating another group. Upgrade to Vikoplus Kabambe to create more groups.";
+      throw new ForbiddenException({
+        code: ApiErrorCode.GroupLimitExceeded,
+        message,
+        maxGroups,
+        ownedGroupsCount,
+      });
+    }
+
+    return { ownedGroupsCount, maxGroups, coveringSubscription };
+  }
+
+  private maxGroupsFromEntitlements(value: Prisma.JsonValue): number | null {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return 1;
+    if (!Object.prototype.hasOwnProperty.call(value, "maxGroups")) return 1;
+    const raw = value["maxGroups"];
+    if (raw == null) return null;
+    if (typeof raw === "string" && raw.toLowerCase() === "unlimited") {
+      return null;
+    }
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 1;
   }
 
   async previewJoinCode(invitationCode: string) {

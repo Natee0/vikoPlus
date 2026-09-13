@@ -121,6 +121,12 @@ export type AccessPlan = {
   intervalCount: number;
   status: string;
   trialDays: number;
+  featureEntitlements?: {
+    maxGroups?: number | null;
+    reminders?: boolean;
+    reports?: boolean;
+    [key: string]: unknown;
+  } | null;
 };
 
 export type ReminderPackage = {

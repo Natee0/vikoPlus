@@ -3,7 +3,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
+    "rootDir": "./src",
     "outDir": "./out-tsc/app",
+    "forceConsistentCasingInFileNames": true,
     "types": []
   },
   "include": ["src/**/*.ts"],

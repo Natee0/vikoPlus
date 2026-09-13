@@ -52,6 +52,7 @@
       <tr>
         <th>Plan</th>
         <th>Price</th>
+        <th>Groups</th>
         <th>Billing</th>
         <th>Trial</th>
         <th>Status</th>
@@ -66,6 +67,7 @@
             <small>{{ plan.code }} · {{ plan.description }}</small>
           </td>
           <td>{{ money(plan.priceMinor, plan.currency) }}</td>
+          <td>{{ maxGroupsLabel(plan) }}</td>
           <td>{{ accessCadence(plan) }}</td>
           <td>{{ plan.trialDays }} days</td>
           <td><span class="status active">{{ plan.status }}</span></td>
@@ -85,7 +87,7 @@
         </tr>
       } @empty {
         <tr>
-          <td colspan="6">No subscription plans are available yet.</td>
+          <td colspan="7">No subscription plans are available yet.</td>
         </tr>
       }
     </tbody>

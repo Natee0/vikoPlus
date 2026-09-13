@@ -4,6 +4,7 @@ export enum ApiErrorCode {
   SubscriptionExpired = "SUBSCRIPTION_EXPIRED",
   PermissionDenied = "PERMISSION_DENIED",
   BillingProviderError = "BILLING_PROVIDER_ERROR",
+  GroupLimitExceeded = "GROUP_LIMIT_EXCEEDED",
   ResourceNotFound = "RESOURCE_NOT_FOUND",
   ValidationFailed = "VALIDATION_FAILED",
 }

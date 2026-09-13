@@ -798,6 +798,11 @@ const _swahili = <String, String>{
   'Change plan': 'Badilisha mpango',
   'Choose a paid plan only if you want to upgrade now.':
       'Chagua mpango wa kulipia tu kama unataka kuboresha sasa.',
+  'Your current Vikoplus package allows up to {count} groups. Upgrade to Vikoplus Kabambe to create more groups.':
+      'Kifurushi chako cha sasa cha Vikoplus kinaruhusu hadi vikundi {count}. Boresha kwenda Vikoplus Kabambe ili kuunda vikundi zaidi.',
+  'Your current Vikoplus package does not allow creating another group. Upgrade to Vikoplus Kabambe to create more groups.':
+      'Kifurushi chako cha sasa cha Vikoplus hakiruhusu kuunda kikundi kingine. Boresha kwenda Vikoplus Kabambe ili kuunda vikundi zaidi.',
+  'Upgrade package': 'Boresha kifurushi',
   'Past due': 'Muda wa malipo umepita',
   'Cancelled': 'Imeghairiwa',
   'Expired': 'Imeisha muda',

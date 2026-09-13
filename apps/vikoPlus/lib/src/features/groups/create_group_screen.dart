@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   bool _nameHasError = false;
   bool _isSubmitting = false;
   bool _isUploadingLogo = false;
+  bool _showUpgradeAction = false;
 
   @override
   void initState() {
@@ -146,12 +148,13 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty && !_nameHasError) {
+    if (_errorMessage.isEmpty && !_nameHasError && !_showUpgradeAction) {
       return;
     }
     setState(() {
       _errorMessage = '';
       _nameHasError = false;
+      _showUpgradeAction = false;
     });
   }
 
@@ -250,6 +253,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       setState(() {
         _errorMessage = '';
         _nameHasError = false;
+        _showUpgradeAction = false;
         _isSubmitting = true;
       });
       _persistProfile();
@@ -295,14 +299,80 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       if (!mounted) {
         return;
       }
-      setState(
-        () => _errorMessage = context.vt(AuthFailure.from(error).message),
-      );
+      final failure = AuthFailure.from(error);
+      final groupLimitExceeded = _isGroupLimitExceeded(error);
+      final maxGroups = _groupLimitMaxGroups(error);
+      setState(() {
+        _errorMessage = groupLimitExceeded
+            ? _groupLimitMessage(context, maxGroups)
+            : context.vt(failure.message);
+        _showUpgradeAction = groupLimitExceeded;
+      });
     } finally {
       if (mounted) {
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  bool _isGroupLimitExceeded(Object error) {
+    return _errorPayload(error)?['code'] == 'GROUP_LIMIT_EXCEEDED';
+  }
+
+  int? _groupLimitMaxGroups(Object error) {
+    final value = _errorPayload(error)?['maxGroups'];
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+
+  Map<String, dynamic>? _errorPayload(Object error) {
+    if (error is! DioException) return null;
+    final data = error.response?.data;
+    if (data is Map<String, dynamic>) {
+      final nested = data['data'];
+      if (nested is Map<String, dynamic>) return nested;
+      return data;
+    }
+    if (data is Map) {
+      final mapped = Map<String, dynamic>.from(data);
+      final nested = mapped['data'];
+      if (nested is Map) return Map<String, dynamic>.from(nested);
+      return mapped;
+    }
+    return null;
+  }
+
+  String _groupLimitMessage(BuildContext context, int? maxGroups) {
+    if (maxGroups == null || maxGroups <= 0) {
+      return context.vt(
+        'Your current Vikoplus package does not allow creating another group. Upgrade to Vikoplus Kabambe to create more groups.',
+      );
+    }
+    return context.vtf(
+      'Your current Vikoplus package allows up to {count} groups. Upgrade to Vikoplus Kabambe to create more groups.',
+      {'count': maxGroups},
+    );
+  }
+
+  Future<void> _openUpgradePlans() async {
+    final groups = await ref.read(groupsRepositoryProvider).myGroups();
+    GroupAccessSummary? adminGroup;
+    for (final group in groups.groups) {
+      if (group.role == 'GROUP_ADMIN') {
+        adminGroup = group;
+        break;
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    final groupId = adminGroup?.id;
+    if (groupId == null || groupId.isEmpty) {
+      context.go('/groups');
+      return;
+    }
+    context.go('/billing/plans?groupId=${Uri.encodeComponent(groupId)}');
   }
 
   @override
@@ -420,6 +490,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                         const _LockedCurrencyField(),
                         const SizedBox(height: AppSpacing.sm),
                         AuthErrorMessage(message: _errorMessage),
+                        if (_showUpgradeAction) ...[
+                          const SizedBox(height: AppSpacing.sm),
+                          OutlinedButton.icon(
+                            onPressed: _openUpgradePlans,
+                            icon: const Icon(Icons.workspace_premium_outlined),
+                            label: Text(context.vt('Upgrade package')),
+                          ),
+                        ],
                       ],
                     ),
                   ),

@@ -264,6 +264,12 @@ export class PackagesPage {
     return count === 1 ? `Every ${interval}` : `Every ${count} ${interval}s`;
   }
 
+  maxGroupsLabel(plan: AccessPlan): string {
+    const maxGroups = plan.featureEntitlements?.maxGroups;
+    if (maxGroups == null) return 'Unlimited groups';
+    return Number(maxGroups) === 1 ? '1 group' : `${maxGroups} groups`;
+  }
+
   private async runPackageAction(action: () => Promise<void>): Promise<boolean> {
     if (this.isSaving) return false;
     this.isSaving = true;
@@ -322,6 +328,12 @@ export class PackagesPage {
         { name: 'priceMinor', label: 'Price in TZS', type: 'number', value: plan?.priceMinor ?? 1000, required: true },
         { name: 'currency', label: 'Currency', value: plan?.currency ?? 'TZS', required: true },
         {
+          name: 'maxGroups',
+          label: 'Max groups (blank for unlimited)',
+          type: 'number',
+          value: plan?.featureEntitlements?.maxGroups ?? '',
+        },
+        {
           name: 'interval',
           label: 'Billing interval',
           type: 'select',
@@ -377,7 +389,19 @@ export class PackagesPage {
       intervalCount: Number(values['intervalCount'] ?? 1),
       trialDays: Number(values['trialDays'] ?? 0),
       status: 'ACTIVE',
+      featureEntitlements: {
+        maxGroups: this.maxGroupsInput(values['maxGroups']),
+        reminders: true,
+        reports: true,
+      },
     };
+  }
+
+  private maxGroupsInput(value: string | number | boolean | undefined): number | null {
+    const text = String(value ?? '').trim();
+    if (!text) return null;
+    const parsed = Number(text);
+    return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
   }
 
   private reminderPackageInput(

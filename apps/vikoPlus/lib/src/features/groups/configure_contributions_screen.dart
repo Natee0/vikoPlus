@@ -87,6 +87,9 @@ class _ConfigureContributionsScreenState
   ];
 
   String _ordinal(int value) {
+    if (Localizations.localeOf(context).languageCode == 'sw') {
+      return context.vtf('day {day}', {'day': value});
+    }
     if (value >= 11 && value <= 13) return '${value}th';
     return switch (value % 10) {
       1 => '${value}st',
@@ -326,15 +329,12 @@ class _ConfigureContributionsScreenState
               const SizedBox(height: AppSpacing.sm),
               _SelectField(
                 label: context.vt('Membership Fee Due Day'),
-                value: 'Day $_membershipDueDay',
-                values: List.generate(31, (index) => 'Day ${index + 1}'),
+                value: '$_membershipDueDay',
+                values: List.generate(31, (index) => '${index + 1}'),
+                labelFor: (value) => context.vtf('Day {day}', {'day': value}),
                 onChanged: (value) {
                   if (value == null) return;
-                  setState(() {
-                    _membershipDueDay = int.parse(
-                      value.replaceFirst('Day ', ''),
-                    );
-                  });
+                  setState(() => _membershipDueDay = int.parse(value));
                   _persistContributions();
                 },
               ),
@@ -393,13 +393,13 @@ class _ConfigureContributionsScreenState
               else
                 _SelectField(
                   label: context.vt('Due Day'),
-                  value: 'Day $_monthlyDay',
-                  values: List.generate(31, (index) => 'Day ${index + 1}'),
+                  value: '$_monthlyDay',
+                  values: List.generate(31, (index) => '${index + 1}'),
+                  labelFor: (value) =>
+                      context.vtf('Day {day}', {'day': value}),
                   onChanged: (value) {
                     if (value == null) return;
-                    setState(() {
-                      _monthlyDay = int.parse(value.replaceFirst('Day ', ''));
-                    });
+                    setState(() => _monthlyDay = int.parse(value));
                     _persistContributions();
                   },
                 ),
@@ -599,12 +599,14 @@ class _SelectField extends StatelessWidget {
     required this.value,
     required this.values,
     required this.onChanged,
+    this.labelFor,
   });
 
   final String label;
   final String value;
   final List<String> values;
   final ValueChanged<String?> onChanged;
+  final String Function(String value)? labelFor;
 
   @override
   Widget build(BuildContext context) {
@@ -614,8 +616,10 @@ class _SelectField extends StatelessWidget {
       decoration: InputDecoration(labelText: label),
       items: values
           .map(
-            (item) =>
-                DropdownMenuItem(value: item, child: Text(context.vt(item))),
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(labelFor?.call(item) ?? context.vt(item)),
+            ),
           )
           .toList(),
       onChanged: onChanged,

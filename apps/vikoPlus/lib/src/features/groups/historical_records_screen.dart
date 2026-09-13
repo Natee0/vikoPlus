@@ -143,6 +143,14 @@ class _HistoricalRecordsScreenState
     return _routeWithReturnTo(route);
   }
 
+  String _successRoute(String? groupId) {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
+    return _remindersRoute(groupId);
+  }
+
   Future<void> _refresh() async {
     final future = _loadMembers();
     setState(() {
@@ -218,7 +226,7 @@ class _HistoricalRecordsScreenState
             ),
           );
       if (!mounted) return;
-      context.go(_remindersRoute(groupId));
+      context.go(_successRoute(groupId));
     } on Object catch (error) {
       if (!mounted) return;
       setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
@@ -380,7 +388,7 @@ class _HistoricalRecordsScreenState
             payments,
           );
       if (!mounted) return;
-      context.go(_remindersRoute(groupId));
+      context.go(_successRoute(groupId));
     } on Object catch (error) {
       if (!mounted) return;
       final message = error is FormatException

@@ -305,6 +305,8 @@ const _swahili = <String, String>{
   'Contribution Cycle': 'Mzunguko wa mchango',
   'Due Schedule': 'Ratiba ya malipo',
   'Every day': 'Kila siku',
+  'Day {day}': 'Siku ya {day}',
+  'day {day}': 'siku ya {day}',
   '{day} of each cycle': '{day} ya kila mzunguko',
   'Due {day} of each cycle': 'Malipo: {day} ya kila mzunguko',
   'Due Day': 'Siku ya malipo',

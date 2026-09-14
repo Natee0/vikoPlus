@@ -31,6 +31,8 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
   bool _isSending = false;
   String? _memberFutureKey;
   Future<GroupMemberSummary>? _memberFuture;
+  String? _packagesFutureGroupId;
+  Future<ReminderPackagesResult>? _packagesFuture;
 
   @override
   void initState() {
@@ -139,10 +141,55 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
     return _memberFuture;
   }
 
+  Future<ReminderPackagesResult>? _reminderPackagesFuture(String? groupId) {
+    if (groupId == null || groupId.isEmpty) return null;
+    if (_packagesFutureGroupId != groupId || _packagesFuture == null) {
+      _packagesFutureGroupId = groupId;
+      _packagesFuture = ref.read(groupsRepositoryProvider).reminderPackages(
+            groupId,
+          );
+    }
+    return _packagesFuture;
+  }
+
+  bool _channelHasCredits(
+    ReminderPackagesResult? result,
+    String channel,
+  ) {
+    final credits = result?.credits;
+    if (credits == null) return false;
+    return channel == 'SMS'
+        ? credits.smsRemaining > 0
+        : credits.whatsappRemaining > 0;
+  }
+
+  String _channelAvailabilityLabel(
+    BuildContext context,
+    AsyncSnapshot<ReminderPackagesResult> snapshot,
+  ) {
+    if (snapshot.connectionState == ConnectionState.waiting) {
+      return context.vt('Checking reminder credits...');
+    }
+    if (snapshot.hasError) {
+      return context.vt('Could not load reminder credits.');
+    }
+    final result = snapshot.data;
+    final smsRemaining = result?.credits.smsRemaining ?? 0;
+    final whatsappRemaining = result?.credits.whatsappRemaining ?? 0;
+    if (smsRemaining <= 0 && whatsappRemaining <= 0) {
+      return context.vt('Buy a reminder package before sending reminders.');
+    }
+    return context.vtf(
+      'SMS credits: {sms}. WhatsApp credits: {whatsapp}.',
+      {'sms': smsRemaining, 'whatsapp': whatsappRemaining},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
     final selectedMemberFuture = _selectedMemberFuture(activeGroup?.id);
+    final packagesFuture = _reminderPackagesFuture(activeGroup?.id);
 
     return VikoplusScreen(
       title: context.vt('Send Reminder'),
@@ -165,26 +212,60 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.xs),
-          Row(
-            children: [
-              Expanded(
-                child: _ChannelButton(
-                  label: 'SMS',
-                  icon: Icons.sms_outlined,
-                  selected: _useSms,
-                  onPressed: () => setState(() => _useSms = true),
-                ),
-              ),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: _ChannelButton(
-                  label: 'WhatsApp',
-                  icon: Icons.chat_outlined,
-                  selected: !_useSms,
-                  onPressed: null,
-                ),
-              ),
-            ],
+          FutureBuilder<ReminderPackagesResult>(
+            future: packagesFuture,
+            builder: (context, snapshot) {
+              final result = snapshot.data;
+              final smsEnabled = _channelHasCredits(result, 'SMS');
+              final whatsappEnabled = _channelHasCredits(result, 'WHATSAPP');
+              if (_useSms && !smsEnabled && whatsappEnabled) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _useSms = false);
+                });
+              } else if (!_useSms && !whatsappEnabled && smsEnabled) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (mounted) setState(() => _useSms = true);
+                });
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ChannelButton(
+                          label: 'SMS',
+                          icon: Icons.sms_outlined,
+                          selected: _useSms,
+                          onPressed: smsEnabled
+                              ? () => setState(() => _useSms = true)
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: _ChannelButton(
+                          label: 'WhatsApp',
+                          icon: Icons.chat_outlined,
+                          selected: !_useSms,
+                          onPressed: whatsappEnabled
+                              ? () => setState(() => _useSms = false)
+                              : null,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _channelAvailabilityLabel(context, snapshot),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: AppSpacing.md),
           Row(
@@ -262,16 +343,26 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
               ),
             ),
           const SizedBox(height: AppSpacing.lg),
-          FilledButton.icon(
-            onPressed: _isSending ? null : _sendReminder,
-            icon: _isSending
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.send_outlined),
-            label: Text(context.vt(_isSending ? 'Sending' : 'Send Reminder')),
+          FutureBuilder<ReminderPackagesResult>(
+            future: packagesFuture,
+            builder: (context, snapshot) {
+              final selectedEnabled = _useSms
+                  ? _channelHasCredits(snapshot.data, 'SMS')
+                  : _channelHasCredits(snapshot.data, 'WHATSAPP');
+              return FilledButton.icon(
+                onPressed: _isSending || !selectedEnabled ? null : _sendReminder,
+                icon: _isSending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_outlined),
+                label: Text(
+                  context.vt(_isSending ? 'Sending' : 'Send Reminder'),
+                ),
+              );
+            },
           ),
         ],
       ),

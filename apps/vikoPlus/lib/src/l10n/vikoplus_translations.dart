@@ -1252,6 +1252,13 @@ const _swahili = <String, String>{
   'Choose a CSV file.': 'Chagua faili la CSV.',
   'No CSV file was selected.': 'Hakuna faili la CSV lililochaguliwa.',
   'Could not open the CSV picker.': 'Imeshindikana kufungua kichagua CSV.',
+  'Checking reminder credits...': 'Inakagua salio la vikumbusho...',
+  'Could not load reminder credits.':
+      'Imeshindikana kupakia salio la vikumbusho.',
+  'Buy a reminder package before sending reminders.':
+      'Nunua kifurushi cha vikumbusho kabla ya kutuma vikumbusho.',
+  'SMS credits: {sms}. WhatsApp credits: {whatsapp}.':
+      'Salio la SMS: {sms}. Salio la WhatsApp: {whatsapp}.',
   'WhatsApp reminder queued for {count} members.':
       'Kikumbusho cha WhatsApp kimewekwa foleni kwa wanachama {count}.',
   'SMS and WhatsApp reminders queued for {count} deliveries.':

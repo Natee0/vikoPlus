@@ -2145,29 +2145,37 @@ export class GroupsService {
   async reminderPackages(user: AuthenticatedUser, groupId: string) {
     await this.requireMembership(user, groupId);
     await this.syncPendingReminderPackagePurchases(groupId);
-    const creditTotals = await this.prisma.reminderPackagePurchase.aggregate({
+    const paidPurchases = await this.prisma.reminderPackagePurchase.findMany({
       where: {
         groupId,
         status: ReminderPackagePurchaseStatus.PAID,
       },
-      _sum: {
+      select: {
         quantity: true,
         usedQuantity: true,
+        platformPrice: { select: { channel: true } },
       },
-      _count: true,
     });
-    const purchased = creditTotals._sum.quantity ?? 0;
-    const used = creditTotals._sum.usedQuantity ?? 0;
+    const purchased = paidPurchases.reduce((sum, item) => sum + item.quantity, 0);
+    const used = paidPurchases.reduce((sum, item) => sum + item.usedQuantity, 0);
+    const remainingFor = (channels: Array<"SMS" | "WHATSAPP" | "BOTH">) =>
+      paidPurchases.reduce((sum, item) => {
+        const channel = item.platformPrice.channel;
+        if (!channel || !channels.includes(channel)) return sum;
+        return sum + Math.max(item.quantity - item.usedQuantity, 0);
+      }, 0);
     return {
       packages: await this.prisma.platformPrice.findMany({
         where: { isActive: true },
         orderBy: [{ channel: "asc" }, { amountMinor: "asc" }],
       }),
       credits: {
-        purchases: creditTotals._count,
+        purchases: paidPurchases.length,
         purchased,
         used,
         remaining: Math.max(purchased - used, 0),
+        smsRemaining: remainingFor(["SMS", "BOTH"]),
+        whatsappRemaining: remainingFor(["WHATSAPP", "BOTH"]),
       },
     };
   }

@@ -1201,14 +1201,19 @@ class ReminderCreditSummary {
     required this.purchased,
     required this.used,
     required this.remaining,
+    required this.smsRemaining,
+    required this.whatsappRemaining,
   });
 
   factory ReminderCreditSummary.fromJson(Map<String, dynamic> json) {
+    final remaining = json['remaining'] as int? ?? 0;
     return ReminderCreditSummary(
       purchases: json['purchases'] as int? ?? 0,
       purchased: json['purchased'] as int? ?? 0,
       used: json['used'] as int? ?? 0,
-      remaining: json['remaining'] as int? ?? 0,
+      remaining: remaining,
+      smsRemaining: json['smsRemaining'] as int? ?? remaining,
+      whatsappRemaining: json['whatsappRemaining'] as int? ?? remaining,
     );
   }
 
@@ -1216,6 +1221,8 @@ class ReminderCreditSummary {
   final int purchased;
   final int used;
   final int remaining;
+  final int smsRemaining;
+  final int whatsappRemaining;
 }
 
 class ReminderPackageSummary {

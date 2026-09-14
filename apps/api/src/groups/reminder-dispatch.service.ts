@@ -8,6 +8,7 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { BriqMessagingService } from "../messaging/briq-messaging.service";
+import { MetaWhatsAppService } from "../messaging/meta-whatsapp.service";
 import { smsSegments } from "./sms-segments";
 import { ReminderQueueService } from "./reminder-queue.service";
 
@@ -20,6 +21,7 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly briq: BriqMessagingService,
+    private readonly whatsapp: MetaWhatsAppService,
     private readonly reminderQueue: ReminderQueueService,
   ) {}
 
@@ -34,50 +36,18 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  async send(groupId: string, key: string, phone: string, content: string) {
+  async sendSms(groupId: string, key: string, phone: string, content: string) {
     // Reserve before dispatch: an uncertain provider response must not trigger a duplicate SMS.
     const segments = smsSegments(content);
-    try {
-      await this.prisma.$transaction(
-        async (tx) => {
-          await tx.reminderDelivery.create({ data: { key, groupId } });
-          const packages = await tx.reminderPackagePurchase.findMany({
-            where: {
-              groupId,
-              status: "PAID",
-              platformPrice: { channel: { in: ["SMS", "BOTH"] } },
-            },
-            orderBy: { paidAt: "asc" },
-          });
-          let remaining = segments;
-          for (const item of packages) {
-            const quantity = Math.min(
-              remaining,
-              item.quantity - item.usedQuantity,
-            );
-            if (quantity <= 0) continue;
-            await tx.reminderPackagePurchase.update({
-              where: { id: item.id },
-              data: { usedQuantity: { increment: quantity } },
-            });
-            remaining -= quantity;
-            if (remaining === 0) break;
-          }
-          if (remaining > 0)
-            throw new BadRequestException(
-              "Insufficient paid SMS credits. Purchase a reminder package first.",
-            );
-        },
-        { isolationLevel: "Serializable" },
-      );
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === "P2002"
-      )
-        return false;
-      throw error;
-    }
+    const reserved = await this.reserveCredits({
+      groupId,
+      key,
+      credits: segments,
+      channels: ["SMS", "BOTH"],
+      insufficientMessage:
+        "Insufficient paid SMS credits. Purchase a reminder package first.",
+    });
+    if (!reserved) return false;
     try {
       await this.briq.sendSms({ to: phone, content });
       await this.prisma.reminderDelivery.update({
@@ -92,6 +62,88 @@ export class ReminderDispatchService implements OnModuleInit, OnModuleDestroy {
       });
       throw error;
     }
+  }
+
+  async sendWhatsApp(
+    groupId: string,
+    key: string,
+    phone: string,
+    content: string,
+  ) {
+    const reserved = await this.reserveCredits({
+      groupId,
+      key,
+      credits: 1,
+      channels: ["WHATSAPP", "BOTH"],
+      insufficientMessage:
+        "Insufficient paid WhatsApp credits. Purchase a reminder package first.",
+    });
+    if (!reserved) return false;
+    try {
+      await this.whatsapp.sendText({ to: phone, content });
+      await this.prisma.reminderDelivery.update({
+        where: { key },
+        data: { state: "SENT" },
+      });
+      return true;
+    } catch (error) {
+      await this.prisma.reminderDelivery.update({
+        where: { key },
+        data: { state: "UNKNOWN" },
+      });
+      throw error;
+    }
+  }
+
+  private async reserveCredits(input: {
+    groupId: string;
+    key: string;
+    credits: number;
+    channels: Array<"SMS" | "WHATSAPP" | "BOTH">;
+    insufficientMessage: string;
+  }) {
+    try {
+      await this.prisma.$transaction(
+        async (tx) => {
+          await tx.reminderDelivery.create({
+            data: { key: input.key, groupId: input.groupId },
+          });
+          const packages = await tx.reminderPackagePurchase.findMany({
+            where: {
+              groupId: input.groupId,
+              status: "PAID",
+              platformPrice: { channel: { in: input.channels } },
+            },
+            orderBy: { paidAt: "asc" },
+          });
+          let remaining = input.credits;
+          for (const item of packages) {
+            const quantity = Math.min(
+              remaining,
+              item.quantity - item.usedQuantity,
+            );
+            if (quantity <= 0) continue;
+            await tx.reminderPackagePurchase.update({
+              where: { id: item.id },
+              data: { usedQuantity: { increment: quantity } },
+            });
+            remaining -= quantity;
+            if (remaining === 0) break;
+          }
+          if (remaining > 0)
+            throw new BadRequestException(input.insufficientMessage);
+        },
+        { isolationLevel: "Serializable" },
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      )
+        return false;
+      throw error;
+    }
+    return true;
   }
 
   async runScheduled() {

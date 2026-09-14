@@ -4,16 +4,19 @@ import { Job } from "bullmq";
 import { PrismaService } from "../prisma/prisma.service";
 import { BriqMessagingService } from "./briq-messaging.service";
 import { FirebasePushService } from "./firebase-push.service";
+import { MetaWhatsAppService } from "./meta-whatsapp.service";
 import {
   MESSAGING_QUEUE,
   SEND_EMAIL_JOB,
   SEND_PUSH_NOTIFICATION_JOB,
   SEND_SMS_JOB,
+  SEND_WHATSAPP_JOB,
 } from "./messaging-queue.constants";
 import {
   SendEmailJob,
   SendPushNotificationJob,
   SendSmsJob,
+  SendWhatsAppJob,
 } from "./messaging-queue.service";
 import { SmtpEmailService } from "./smtp-email.service";
 
@@ -23,6 +26,7 @@ export class MessagingQueueProcessor extends WorkerHost {
 
   constructor(
     private readonly briq: BriqMessagingService,
+    private readonly whatsapp: MetaWhatsAppService,
     private readonly email: SmtpEmailService,
     private readonly push: FirebasePushService,
     private readonly prisma: PrismaService,
@@ -31,11 +35,17 @@ export class MessagingQueueProcessor extends WorkerHost {
   }
 
   async process(
-    job: Job<SendSmsJob | SendEmailJob | SendPushNotificationJob>,
+    job: Job<SendSmsJob | SendWhatsAppJob | SendEmailJob | SendPushNotificationJob>,
   ): Promise<void> {
     if (job.name === SEND_SMS_JOB) {
       const data = job.data as SendSmsJob;
       await this.briq.sendSms(data);
+      return;
+    }
+
+    if (job.name === SEND_WHATSAPP_JOB) {
+      const data = job.data as SendWhatsAppJob;
+      await this.whatsapp.sendText(data);
       return;
     }
 
@@ -78,7 +88,9 @@ export class MessagingQueueProcessor extends WorkerHost {
 
   @OnWorkerEvent("failed")
   onFailed(
-    job: Job<SendSmsJob | SendEmailJob | SendPushNotificationJob> | undefined,
+    job:
+      | Job<SendSmsJob | SendWhatsAppJob | SendEmailJob | SendPushNotificationJob>
+      | undefined,
     error: Error,
   ): void {
     if (!job) {

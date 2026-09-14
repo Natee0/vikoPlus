@@ -85,10 +85,25 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
             ),
           );
       if (!mounted) return;
-      final successMessage = context.vtf(
-        'SMS reminder queued for {count} members.',
-        {'count': result.smsQueued},
-      );
+      final queuedCount = switch (result.channel) {
+        'WHATSAPP' => result.whatsappQueued,
+        'BOTH' => result.smsQueued + result.whatsappQueued,
+        _ => result.smsQueued,
+      };
+      final successMessage = switch (result.channel) {
+        'WHATSAPP' => context.vtf(
+          'WhatsApp reminder queued for {count} members.',
+          {'count': queuedCount},
+        ),
+        'BOTH' => context.vtf(
+          'SMS and WhatsApp reminders queued for {count} deliveries.',
+          {'count': queuedCount},
+        ),
+        _ => context.vtf(
+          'SMS reminder queued for {count} members.',
+          {'count': queuedCount},
+        ),
+      };
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(content: Text(successMessage)));

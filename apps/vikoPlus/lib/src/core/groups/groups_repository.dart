@@ -1131,6 +1131,7 @@ class SendReminderResult {
     required this.smsSent,
     required this.smsFailed,
     required this.whatsappPending,
+    required this.whatsappQueued,
     this.sentAt,
   });
 
@@ -1144,6 +1145,10 @@ class SendReminderResult {
       smsSent: json['smsSent'] as int? ?? 0,
       smsFailed: json['smsFailed'] as int? ?? 0,
       whatsappPending: json['whatsappPending'] as int? ?? 0,
+      whatsappQueued:
+          (json['whatsappQueued'] as int?) ??
+          (json['whatsappPending'] as int?) ??
+          0,
       sentAt: DateTime.tryParse(json['sentAt'] as String? ?? ''),
     );
   }
@@ -1156,6 +1161,7 @@ class SendReminderResult {
   final int smsSent;
   final int smsFailed;
   final int whatsappPending;
+  final int whatsappQueued;
   final DateTime? sentAt;
 }
 

@@ -6,9 +6,15 @@ import {
   SEND_EMAIL_JOB,
   SEND_PUSH_NOTIFICATION_JOB,
   SEND_SMS_JOB,
+  SEND_WHATSAPP_JOB,
 } from "./messaging-queue.constants";
 
 export type SendSmsJob = {
+  to: string;
+  content: string;
+};
+
+export type SendWhatsAppJob = {
   to: string;
   content: string;
 };
@@ -30,6 +36,10 @@ export class MessagingQueueService {
 
   async enqueueSms(job: SendSmsJob, jobId?: string): Promise<void> {
     await this.queue.add(SEND_SMS_JOB, job, { jobId });
+  }
+
+  async enqueueWhatsApp(job: SendWhatsAppJob, jobId?: string): Promise<void> {
+    await this.queue.add(SEND_WHATSAPP_JOB, job, { jobId });
   }
 
   async enqueueEmail(job: SendEmailJob, jobId?: string): Promise<void> {

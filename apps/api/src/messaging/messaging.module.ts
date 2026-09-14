@@ -4,6 +4,7 @@ import { PrismaModule } from "../prisma/prisma.module";
 
 import { BriqMessagingService } from "./briq-messaging.service";
 import { FirebasePushService } from "./firebase-push.service";
+import { MetaWhatsAppService } from "./meta-whatsapp.service";
 import { MESSAGING_QUEUE } from "./messaging-queue.constants";
 import { MessagingQueueProcessor } from "./messaging-queue.processor";
 import { MessagingQueueService } from "./messaging-queue.service";
@@ -16,6 +17,7 @@ import { SmtpEmailService } from "./smtp-email.service";
   ],
   providers: [
     BriqMessagingService,
+    MetaWhatsAppService,
     FirebasePushService,
     SmtpEmailService,
     MessagingQueueService,
@@ -23,6 +25,7 @@ import { SmtpEmailService } from "./smtp-email.service";
   ],
   exports: [
     BriqMessagingService,
+    MetaWhatsAppService,
     FirebasePushService,
     SmtpEmailService,
     MessagingQueueService,

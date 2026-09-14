@@ -63,6 +63,22 @@ export const envValidationSchema = Joi.object({
   BRIQ_BASE_URL: Joi.string().uri().default("https://karibu.briq.tz"),
   BRIQ_API_KEY: Joi.string().required(),
   BRIQ_SENDER_ID: Joi.string().required(),
+  WHATSAPP_PROVIDER: Joi.string().valid("disabled", "meta").default("disabled"),
+  META_GRAPH_BASE_URL: Joi.string()
+    .uri()
+    .default("https://graph.facebook.com"),
+  META_GRAPH_API_VERSION: Joi.string().default("v24.0"),
+  META_WHATSAPP_ACCESS_TOKEN: Joi.string().when("WHATSAPP_PROVIDER", {
+    is: "meta",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  META_WHATSAPP_PHONE_NUMBER_ID: Joi.string().when("WHATSAPP_PROVIDER", {
+    is: "meta",
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  META_WHATSAPP_APP_SECRET: Joi.string().optional(),
   SMTP_HOST: Joi.string().required(),
   SMTP_PORT: Joi.number().port().default(587),
   SMTP_SECURE: Joi.boolean().default(false),

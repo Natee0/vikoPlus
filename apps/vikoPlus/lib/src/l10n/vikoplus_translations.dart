@@ -1252,6 +1252,10 @@ const _swahili = <String, String>{
   'Choose a CSV file.': 'Chagua faili la CSV.',
   'No CSV file was selected.': 'Hakuna faili la CSV lililochaguliwa.',
   'Could not open the CSV picker.': 'Imeshindikana kufungua kichagua CSV.',
+  'WhatsApp reminder queued for {count} members.':
+      'Kikumbusho cha WhatsApp kimewekwa foleni kwa wanachama {count}.',
+  'SMS and WhatsApp reminders queued for {count} deliveries.':
+      'Vikumbusho vya SMS na WhatsApp vimewekwa foleni kwa ujumbe {count}.',
   'CSV file loaded. Review the preview below before importing.':
       'Faili la CSV limepakiwa. Kagua mwonekano kabla ya kuingiza.',
   'Selected CSV file is empty.': 'Faili la CSV ulilochagua halina taarifa.',

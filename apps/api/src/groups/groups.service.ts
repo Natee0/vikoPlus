@@ -2449,10 +2449,6 @@ export class GroupsService {
       GroupRole.SECRETARY,
     ]);
 
-    if (input.channel !== "SMS")
-      throw new BadRequestException(
-        "WhatsApp reminders are not available yet. Select SMS.",
-      );
     const selectedMemberIds =
       input.memberIds?.map((id) => id.trim()).filter(Boolean) ?? [];
     const members =
@@ -2483,6 +2479,8 @@ export class GroupsService {
       .map((member) => member.userId)
       .filter((userId): userId is string => Boolean(userId));
     const shouldSendSms = input.channel === "SMS" || input.channel === "BOTH";
+    const shouldSendWhatsApp =
+      input.channel === "WHATSAPP" || input.channel === "BOTH";
     const smsRecipients = shouldSendSms
       ? members
           .map((member) => member.phone?.trim())
@@ -2493,16 +2491,39 @@ export class GroupsService {
         "No phone numbers were found for the selected SMS reminder recipients.",
       );
     }
+    const whatsappRecipients = shouldSendWhatsApp
+      ? members
+          .map((member) => member.phone?.trim())
+          .filter((phone): phone is string => Boolean(phone))
+      : [];
+    if (shouldSendWhatsApp && whatsappRecipients.length === 0) {
+      throw new BadRequestException(
+        "No phone numbers were found for the selected WhatsApp reminder recipients.",
+      );
+    }
     const uniqueSmsRecipients = [...new Set(smsRecipients)];
+    const uniqueWhatsAppRecipients = [...new Set(whatsappRecipients)];
     const smsContent = `Vikoplus: ${input.message}`;
+    const whatsappContent = `Vikoplus: ${input.message}`;
     if (shouldSendSms) {
       await this.assertReminderCreditsAvailable(
         groupId,
         uniqueSmsRecipients.length * smsSegments(smsContent),
+        ["SMS", "BOTH"],
+        "Insufficient paid SMS credits. Purchase a reminder package first.",
+      );
+    }
+    if (shouldSendWhatsApp) {
+      await this.assertReminderCreditsAvailable(
+        groupId,
+        uniqueWhatsAppRecipients.length,
+        ["WHATSAPP", "BOTH"],
+        "Insufficient paid WhatsApp credits. Purchase a reminder package first.",
       );
     }
     const dispatchId = randomBytes(16).toString("hex");
     let smsQueued = 0;
+    let whatsappQueued = 0;
     if (shouldSendSms) {
       for (const phone of uniqueSmsRecipients) {
         await this.reminderQueue.enqueueSms({
@@ -2512,6 +2533,17 @@ export class GroupsService {
           content: smsContent,
         });
         smsQueued += 1;
+      }
+    }
+    if (shouldSendWhatsApp) {
+      for (const phone of uniqueWhatsAppRecipients) {
+        await this.reminderQueue.enqueueWhatsApp({
+          groupId,
+          key: `manual-whatsapp:${dispatchId}:${this.hash(phone)}`,
+          phone,
+          content: whatsappContent,
+        });
+        whatsappQueued += 1;
       }
     }
 
@@ -2557,10 +2589,12 @@ export class GroupsService {
           recipientCount: members.length,
           appNotificationsCreated: notificationRecipients.length,
           smsRecipients: smsRecipients.length,
+          whatsappRecipients: whatsappRecipients.length,
           smsQueued,
           smsSent: 0,
           smsFailed: 0,
-          whatsappPending: 0,
+          whatsappPending: whatsappQueued,
+          whatsappQueued,
         },
       },
     });
@@ -2573,7 +2607,8 @@ export class GroupsService {
       smsQueued,
       smsSent: 0,
       smsFailed: 0,
-      whatsappPending: 0,
+      whatsappPending: whatsappQueued,
+      whatsappQueued,
       sentAt: campaign.sentAt,
     };
   }
@@ -2586,13 +2621,16 @@ export class GroupsService {
   private async assertReminderCreditsAvailable(
     groupId: string,
     requiredCredits: number,
+    channels: Array<"SMS" | "WHATSAPP" | "BOTH"> = ["SMS", "BOTH"],
+    insufficientMessage =
+      "Insufficient paid SMS credits. Purchase a reminder package first.",
   ): Promise<void> {
     if (requiredCredits <= 0) return;
     const packages = await this.prisma.reminderPackagePurchase.findMany({
       where: {
         groupId,
         status: ReminderPackagePurchaseStatus.PAID,
-        platformPrice: { channel: { in: ["SMS", "BOTH"] } },
+        platformPrice: { channel: { in: channels } },
       },
       select: { quantity: true, usedQuantity: true },
     });
@@ -2601,9 +2639,7 @@ export class GroupsService {
       0,
     );
     if (remaining < requiredCredits) {
-      throw new BadRequestException(
-        "Insufficient paid SMS credits. Purchase a reminder package first.",
-      );
+      throw new BadRequestException(insufficientMessage);
     }
   }
 

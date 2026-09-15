@@ -92,6 +92,14 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
     return '$route&returnTo=${Uri.encodeComponent(returnTo)}';
   }
 
+  String get _currentCreateRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo == null || returnTo.isEmpty) {
+      return '/groups/create';
+    }
+    return '/groups/create?returnTo=${Uri.encodeComponent(returnTo)}';
+  }
+
   String _formatDate(DateTime value) {
     const months = [
       'Jan',
@@ -356,12 +364,17 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   }
 
   Future<void> _openUpgradePlans() async {
+    _persistProfile();
+    final activeGroup = ref.read(activeGroupProvider);
+    GroupAccessSummary? adminGroup =
+        activeGroup?.role == 'GROUP_ADMIN' ? activeGroup : null;
     final groups = await ref.read(groupsRepositoryProvider).myGroups();
-    GroupAccessSummary? adminGroup;
-    for (final group in groups.groups) {
-      if (group.role == 'GROUP_ADMIN') {
-        adminGroup = group;
-        break;
+    if (adminGroup == null) {
+      for (final group in groups.groups) {
+        if (group.role == 'GROUP_ADMIN') {
+          adminGroup = group;
+          break;
+        }
       }
     }
     if (!mounted) {
@@ -372,7 +385,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
       context.go('/groups');
       return;
     }
-    context.go('/billing/plans?groupId=${Uri.encodeComponent(groupId)}');
+    ref.read(activeGroupProvider.notifier).setGroup(adminGroup!);
+    context.go(
+      '/billing/plans?groupId=${Uri.encodeComponent(groupId)}&returnTo=${Uri.encodeComponent(_currentCreateRoute)}',
+    );
   }
 
   @override

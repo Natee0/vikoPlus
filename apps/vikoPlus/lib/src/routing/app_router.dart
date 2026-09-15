@@ -204,10 +204,12 @@ final appRouter = GoRouter(
     ),
     GoRoute(
       path: '/billing/plans',
-      builder: (context, state) => const PortalRouteGuard(
+      builder: (context, state) => PortalRouteGuard(
         area: PortalArea.admin,
         allowExpiredAccess: true,
-        child: SubscriptionPlanScreen(),
+        child: SubscriptionPlanScreen(
+          returnTo: state.uri.queryParameters['returnTo'],
+        ),
       ),
     ),
     GoRoute(

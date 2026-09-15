@@ -17,7 +17,9 @@ import '../auth/auth_widgets.dart';
 import '../common/vikoplus_screen.dart';
 
 class SubscriptionPlanScreen extends ConsumerStatefulWidget {
-  const SubscriptionPlanScreen({super.key});
+  const SubscriptionPlanScreen({this.returnTo, super.key});
+
+  final String? returnTo;
 
   @override
   ConsumerState<SubscriptionPlanScreen> createState() =>
@@ -55,6 +57,22 @@ class _SubscriptionPlanScreenState
   Uri _billingReturnUri(String path) {
     final apiBaseUri = Uri.parse(AppConfig.VIKOPLUS_API_BASE_URL);
     return apiBaseUri.replace(path: path, query: '');
+  }
+
+  String get _completionRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
+    return '/groups';
+  }
+
+  String get _backRoute {
+    final returnTo = widget.returnTo;
+    if (returnTo != null && returnTo.isNotEmpty) {
+      return returnTo;
+    }
+    return '/groups/onboarding-success';
   }
 
   Future<_AccessBillingData>? _accessDataFor(String? groupId) {
@@ -153,7 +171,9 @@ class _SubscriptionPlanScreenState
         _watchPaymentEvents(groupId, attemptToken);
       }
       if (!checkout.walletPaymentStarted && isFreeTrial) {
-        final latest = await ref.read(billingRepositoryProvider).subscription(groupId);
+        final latest = await ref
+            .read(billingRepositoryProvider)
+            .subscription(groupId);
         if (!mounted || attemptToken != _paymentAttemptToken) return;
         ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
               hasPaidFeatureAccess: latest.hasPaidFeatureAccess,
@@ -173,9 +193,14 @@ class _SubscriptionPlanScreenState
           ),
         ),
       );
+      if (!checkout.walletPaymentStarted && isFreeTrial) {
+        context.go(_completionRoute);
+      }
     } on Object catch (error) {
       if (!mounted) return;
-      setState(() => _errorMessage = context.vt(AuthFailure.from(error).message));
+      setState(
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
+      );
     } finally {
       if (mounted) {
         setState(() => _isStartingCheckout = false);
@@ -189,26 +214,29 @@ class _SubscriptionPlanScreenState
       const Duration(seconds: _paymentWaitSeconds),
     );
     setState(() => _paymentSecondsRemaining = _paymentWaitSeconds);
-    _paymentExpiryTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (!mounted || attemptToken != _paymentAttemptToken) {
-        timer.cancel();
-        return;
-      }
-      final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
-      final nextRemaining = remaining.clamp(0, _paymentWaitSeconds).toInt();
-      if (_paymentSecondsRemaining != nextRemaining) {
-        setState(() => _paymentSecondsRemaining = nextRemaining);
-      }
-      if (nextRemaining <= 0) {
-        timer.cancel();
-        _expirePaymentAttempt(groupId, attemptToken);
-      } else if (nextRemaining % 3 == 0) {
-        final confirmed = await _confirmPaymentIfReady(groupId, attemptToken);
-        if (confirmed) {
+    _paymentExpiryTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (timer) async {
+        if (!mounted || attemptToken != _paymentAttemptToken) {
           timer.cancel();
+          return;
         }
-      }
-    });
+        final remaining = expiresAt.difference(DateTime.now()).inSeconds + 1;
+        final nextRemaining = remaining.clamp(0, _paymentWaitSeconds).toInt();
+        if (_paymentSecondsRemaining != nextRemaining) {
+          setState(() => _paymentSecondsRemaining = nextRemaining);
+        }
+        if (nextRemaining <= 0) {
+          timer.cancel();
+          _expirePaymentAttempt(groupId, attemptToken);
+        } else if (nextRemaining % 3 == 0) {
+          final confirmed = await _confirmPaymentIfReady(groupId, attemptToken);
+          if (confirmed) {
+            timer.cancel();
+          }
+        }
+      },
+    );
   }
 
   void _watchPaymentEvents(String groupId, int attemptToken) {
@@ -239,7 +267,9 @@ class _SubscriptionPlanScreenState
     }
     _isPollingPaymentStatus = true;
     try {
-      final latest = await ref.read(billingRepositoryProvider).subscription(groupId);
+      final latest = await ref
+          .read(billingRepositoryProvider)
+          .subscription(groupId);
       if (!mounted || attemptToken != _paymentAttemptToken) return false;
       if (!latest.hasPaidFeatureAccess) return false;
       ref.read(activeGroupProvider.notifier).updateSubscriptionAccess(
@@ -262,7 +292,7 @@ class _SubscriptionPlanScreenState
         _errorMessage = '';
       });
       messenger.showSnackBar(SnackBar(content: Text(confirmedMessage)));
-      context.go('/groups');
+      context.go(_completionRoute);
       return true;
     } on Object {
       return false;
@@ -299,7 +329,7 @@ class _SubscriptionPlanScreenState
 
     return VikoplusScreen(
       title: context.vt('Group Access'),
-      backRoute: '/groups/onboarding-success',
+      backRoute: _backRoute,
       onRefresh: activeGroup == null ? null : _refresh,
       child: activeGroup == null
           ? _MissingGroupState(onChooseGroup: () => context.go('/groups'))
@@ -372,7 +402,7 @@ class _SubscriptionPlanScreenState
                       const SizedBox(height: AppSpacing.md),
                       if (!shouldShowPlanChoices) ...[
                         FilledButton.icon(
-                          onPressed: () => context.go('/groups'),
+                          onPressed: () => context.go(_completionRoute),
                           icon: const Icon(Icons.arrow_forward, size: 18),
                           label: Text(context.vt('Continue with Starter')),
                         ),
@@ -481,8 +511,14 @@ class _SubscriptionPlanScreenState
                       ),
                       const SizedBox(height: AppSpacing.sm),
                       OutlinedButton(
-                        onPressed: () => context.go('/groups'),
-                        child: Text(context.vt('Open My Groups')),
+                        onPressed: () => context.go(_completionRoute),
+                        child: Text(
+                          context.vt(
+                            widget.returnTo == null || widget.returnTo!.isEmpty
+                                ? 'Open My Groups'
+                                : 'Continue',
+                          ),
+                        ),
                       ),
                     ],
                   ],

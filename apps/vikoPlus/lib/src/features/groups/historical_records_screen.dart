@@ -15,7 +15,6 @@ import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 import '../auth/auth_widgets.dart';
-import '../common/vikoplus_components.dart';
 import '../common/vikoplus_screen.dart';
 
 class HistoricalRecordsScreen extends ConsumerStatefulWidget {
@@ -35,7 +34,6 @@ class _HistoricalRecordsScreenState
   final _bulkCsvController = TextEditingController();
   final _referenceController = TextEditingController();
   late Future<GroupMembersResult>? _membersFuture;
-  bool _bulkMode = false;
   bool _isPickingCsv = false;
   String _contributionType = 'RECURRING';
   String _method = 'Cash';
@@ -779,114 +777,99 @@ class _HistoricalRecordsScreenState
         children: [
           const _HistoryHero(),
           const SizedBox(height: AppSpacing.md),
-          SegmentedButton<bool>(
-            style: ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              side: WidgetStateProperty.resolveWith(
-                (states) => BorderSide(
-                  color: states.contains(WidgetState.selected)
-                      ? AppColors.primary
-                      : AppColors.outlineVariant,
+          _HistoricalRecordAccordion(
+            title: context.vt('Single Payment'),
+            subtitle: context.vt('Add previous payments one by one.'),
+            icon: Icons.edit_note_outlined,
+            children: [
+              _MembersLoader(
+                membersFuture: _membersFuture,
+                selectedMemberId: _selectedMemberId,
+                method: _method,
+                methods: _methods,
+                contributionType: _contributionType,
+                contributionTypes: _contributionTypes,
+                paidAtLabel: _dateLabel,
+                amountController: _amountController,
+                referenceController: _referenceController,
+                onMemberChanged: (value) {
+                  setState(() {
+                    _selectedMemberId = value;
+                    _errorMessage = '';
+                  });
+                },
+                onMethodChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _method = value);
+                },
+                onContributionTypeChanged: (value) {
+                  if (value == null) return;
+                  setState(() => _contributionType = value);
+                },
+                onPickPaidAt: _pickPaidAt,
+                onError: (message) => AuthErrorMessage(message: message),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton.icon(
+                onPressed: _isSubmitting ? null : _saveSinglePayment,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.save),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppSizes.buttonHeight),
+                ),
+                label: Text(
+                  context.vt(
+                    _isSubmitting ? 'Saving' : 'Save Historical Payment',
+                  ),
                 ),
               ),
-              backgroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? AppColors.secondaryContainer
-                    : AppColors.surfaceContainerLowest,
-              ),
-              foregroundColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? AppColors.primary
-                    : AppColors.onSurfaceVariant,
-              ),
-            ),
-            segments: [
-              ButtonSegment(
-                value: false,
-                icon: const Icon(Icons.edit_note_outlined),
-                label: Text(context.vt('One by one')),
-              ),
-              ButtonSegment(
-                value: true,
-                icon: const Icon(Icons.upload_file_outlined),
-                label: Text(context.vt('Bulk')),
-              ),
             ],
-            selected: {_bulkMode},
-            onSelectionChanged: (value) {
-              setState(() => _bulkMode = value.first);
-            },
           ),
           const SizedBox(height: AppSpacing.md),
-          if (_bulkMode)
-            _BulkImportCard(
-              controller: _bulkCsvController,
-              membersFuture: _membersFuture,
-              onDownloadTemplate: _downloadCsvTemplate,
-              onShareTemplate: _shareCsvTemplate,
-              onPickCsvDocument: _pickCsvDocument,
-              isPickingCsv: _isPickingCsv,
-              parseCsv: _parseHistoricalCsv,
-            )
-          else
-            _MembersLoader(
-              membersFuture: _membersFuture,
-              selectedMemberId: _selectedMemberId,
-              method: _method,
-              methods: _methods,
-              contributionType: _contributionType,
-              contributionTypes: _contributionTypes,
-              paidAtLabel: _dateLabel,
-              amountController: _amountController,
-              referenceController: _referenceController,
-              onMemberChanged: (value) {
-                setState(() {
-                  _selectedMemberId = value;
-                  _errorMessage = '';
-                });
-              },
-              onMethodChanged: (value) {
-                if (value == null) return;
-                setState(() => _method = value);
-              },
-              onContributionTypeChanged: (value) {
-                if (value == null) return;
-                setState(() => _contributionType = value);
-              },
-              onPickPaidAt: _pickPaidAt,
-              onError: (message) => AuthErrorMessage(message: message),
+          _HistoricalRecordAccordion(
+            title: context.vt('Bulk Import'),
+            subtitle: context.vt(
+              'Paste or upload CSV rows prepared from the old ledger.',
             ),
+            icon: Icons.upload_file_outlined,
+            children: [
+              _BulkImportCard(
+                controller: _bulkCsvController,
+                membersFuture: _membersFuture,
+                onDownloadTemplate: _downloadCsvTemplate,
+                onShareTemplate: _shareCsvTemplate,
+                onPickCsvDocument: _pickCsvDocument,
+                isPickingCsv: _isPickingCsv,
+                parseCsv: _parseHistoricalCsv,
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              FilledButton.icon(
+                onPressed: _isSubmitting ? null : _importBulkPayments,
+                icon: _isSubmitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_upload_outlined),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(AppSizes.buttonHeight),
+                ),
+                label: Text(
+                  context.vt(_isSubmitting ? 'Saving' : 'Import Records'),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: AppSpacing.md),
           const _ImportRulesCard(),
           const SizedBox(height: AppSpacing.md),
           AuthErrorMessage(message: _errorMessage),
-          const SizedBox(height: AppSpacing.sm),
-          FilledButton.icon(
-            onPressed: _isSubmitting
-                ? null
-                : _bulkMode
-                ? _importBulkPayments
-                : _saveSinglePayment,
-            icon: _isSubmitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(_bulkMode ? Icons.cloud_upload_outlined : Icons.save),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(AppSizes.buttonHeight),
-            ),
-            label: Text(
-              context.vt(
-                _isSubmitting
-                    ? 'Saving'
-                    : _bulkMode
-                    ? 'Import Records'
-                    : 'Save Historical Payment',
-              ),
-            ),
-          ),
           const SizedBox(height: AppSpacing.sm),
           TextButton(
             onPressed: _isSubmitting ? null : _continueToReminders,
@@ -953,6 +936,66 @@ class _HistoryHero extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _HistoricalRecordAccordion extends StatelessWidget {
+  const _HistoricalRecordAccordion({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.children,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+        boxShadow: AppShadows.level1(),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        leading: Icon(icon, color: AppColors.primary),
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xxs,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          0,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        title: Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: AppColors.onSurface,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        children: children,
       ),
     );
   }
@@ -1088,8 +1131,6 @@ class _SinglePaymentCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(title: context.vt('Single Payment')),
-          const SizedBox(height: AppSpacing.sm),
           DropdownButtonFormField<String>(
             initialValue: selectedMemberId,
             decoration: InputDecoration(
@@ -1205,8 +1246,6 @@ class _BulkImportCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SectionHeader(title: context.vt('Bulk Import')),
-          const SizedBox(height: AppSpacing.sm),
           Text(
             context.vt(
               'Paste CSV rows prepared from the old ledger. Each row should include member number, contribution type, amount, method, paid date, and reference.',

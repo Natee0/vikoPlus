@@ -1246,13 +1246,17 @@ const _swahili = <String, String>{
       'Chagua mwanachama kwa malipo haya.',
   'Enter a valid payment amount.': 'Weka kiasi sahihi cha malipo.',
   'Single Payment': 'Malipo moja',
+  'Add previous payments one by one.':
+      'Ongeza malipo ya zamani moja baada ya jingine.',
   'Contribution type': 'Aina ya mchango',
   'Amount Paid': 'Kiasi kilicholipwa',
   'Receipt, book page, or old ledger note':
       'Risiti, ukurasa wa daftari, au rejea ya kumbukumbu za zamani',
   'Bulk Import': 'Ingiza kwa wingi',
-  'Paste CSV rows prepared from the old ledger. Each row should include member number, contribution type, amount, method, paid date, and reference.':
-  'Bandika mistari ya CSV kutoka kumbukumbu za zamani. Kila mstari uwe na namba ya mwanachama, aina ya mchango, kiasi, njia, tarehe ya malipo, na rejea.',
+  'Paste or upload CSV rows prepared from the old ledger.':
+  'Bandika au pakia mistari ya CSV iliyoandaliwa kutoka kumbukumbu za zamani.',
+  'Each row should include member number, contribution type, amount, method, paid date, and reference.':
+  'Kila mstari uwe na namba ya mwanachama, aina ya mchango, kiasi, njia, tarehe ya malipo, na rejea.',
   'Share CSV template': 'Shiriki kiolezo cha CSV',
   'Download CSV template': 'Pakua kiolezo cha CSV',
   'Paste CSV': 'Bandika CSV',

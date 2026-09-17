@@ -285,6 +285,7 @@ class _ConfigureContributionsScreenState
           _ContributionSection(
             title: context.vt('Joining Fee'),
             subtitle: context.vt('Require members to pay a fee upon joining.'),
+            collapsible: false,
             trailing: Switch(
               value: _joiningFeeEnabled,
               onChanged: (value) {
@@ -490,55 +491,95 @@ class _ContributionSection extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.trailing,
+    this.collapsible = true,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
   final Widget? trailing;
+  final bool collapsible;
 
   @override
   Widget build(BuildContext context) {
+    final titleWidget = Text(
+      title,
+      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+        color: AppColors.onSurface,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    final subtitleWidget = Text(
+      subtitle,
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+        color: AppColors.onSurfaceVariant,
+      ),
+    );
+
+    if (!collapsible) {
+      return Container(
+        padding: AppInsets.compactCard,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+          border: Border.all(color: AppColors.outlineVariant),
+          boxShadow: AppShadows.level1(),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      titleWidget,
+                      const SizedBox(height: AppSpacing.xxs),
+                      subtitleWidget,
+                    ],
+                  ),
+                ),
+                ?trailing,
+              ],
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            ...children,
+          ],
+        ),
+      );
+    }
+
     return Container(
-      padding: AppInsets.compactCard,
       decoration: BoxDecoration(
         color: AppColors.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(AppRadii.lg),
         border: Border.all(color: AppColors.outlineVariant),
         boxShadow: AppShadows.level1(),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.onSurface,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.xxs),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall
-                          ?.copyWith(color: AppColors.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ),
-              ?trailing,
-            ],
-          ),
-          const SizedBox(height: AppSpacing.sm),
-          ...children,
-        ],
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        tilePadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xxs,
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          0,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        title: titleWidget,
+        subtitle: subtitleWidget,
+        trailing: trailing,
+        children: children,
       ),
     );
   }

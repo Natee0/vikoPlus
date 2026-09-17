@@ -475,13 +475,6 @@ class _ConfigureRemindersScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ToggleCard(
-            value: _enabled,
-            onChanged: _loadingSettings
-                ? null
-                : (value) => setState(() => _enabled = value),
-          ),
-          const SizedBox(height: AppSpacing.md),
           _ReminderPackagePicker(
             groupId: groupId,
             packagesFuture: _packagesFor(groupId),
@@ -529,9 +522,12 @@ class _ConfigureRemindersScreenState
             }),
           ),
           const SizedBox(height: AppSpacing.md),
-          _SectionLabel(context.vt('Message Preview')),
-          const SizedBox(height: AppSpacing.sm),
-          const _MessagePreview(),
+          _ToggleCard(
+            value: _enabled,
+            onChanged: _loadingSettings
+                ? null
+                : (value) => setState(() => _enabled = value),
+          ),
           const SizedBox(height: AppSpacing.md),
           AuthErrorMessage(message: _errorMessage),
           const SizedBox(height: AppSpacing.sm),
@@ -1334,45 +1330,3 @@ class _ScheduleTile extends StatelessWidget {
   }
 }
 
-class _MessagePreview extends StatelessWidget {
-  const _MessagePreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: AppInsets.compactCard,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceContainer,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: AppColors.primaryContainer.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.sms_outlined, color: AppColors.primary),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          Expanded(
-            child: Text(
-              context.vt(
-                'Hi {member_name}, this is a friendly reminder that your payment of {amount} for your group is due soon.',
-              ),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: AppColors.onSurface,
-                fontStyle: FontStyle.italic,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

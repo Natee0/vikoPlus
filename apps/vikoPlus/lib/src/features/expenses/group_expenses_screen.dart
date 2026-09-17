@@ -182,26 +182,26 @@ class _GroupExpensesScreenState extends ConsumerState<GroupExpensesScreen> {
                   children: [
                     _SummaryCard(result: result, formatters: formatters),
                     const SizedBox(height: AppSpacing.lg),
-                    SectionHeader(title: context.vt('Record expense')),
-                    const SizedBox(height: AppSpacing.sm),
-                    _ExpenseForm(
-                      amountController: _amountController,
-                      categoryController: _categoryController,
-                      beneficiaryController: _beneficiaryController,
-                      purposeController: _purposeController,
-                      referenceController: _referenceController,
-                      rail: _rail,
-                      onRailChanged: (value) {
-                        setState(() {
-                          _rail = value;
-                        });
-                      },
-                      submitting: _submitting,
-                      availableExpenseMinor:
-                          result?.summary.availableExpenseMinor,
-                      formatters: formatters,
-                      errorMessage: _errorMessage,
-                      onSubmit: _submit,
+                    _ExpenseFormAccordion(
+                      child: _ExpenseForm(
+                        amountController: _amountController,
+                        categoryController: _categoryController,
+                        beneficiaryController: _beneficiaryController,
+                        purposeController: _purposeController,
+                        referenceController: _referenceController,
+                        rail: _rail,
+                        onRailChanged: (value) {
+                          setState(() {
+                            _rail = value;
+                          });
+                        },
+                        submitting: _submitting,
+                        availableExpenseMinor:
+                            result?.summary.availableExpenseMinor,
+                        formatters: formatters,
+                        errorMessage: _errorMessage,
+                        onSubmit: _submit,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     SectionHeader(title: context.vt('Expense history')),
@@ -283,6 +283,54 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
+class _ExpenseFormAccordion extends StatelessWidget {
+  const _ExpenseFormAccordion({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+        boxShadow: AppShadows.level1(),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        leading: const Icon(Icons.add_card_outlined, color: AppColors.primary),
+        title: Text(
+          context.vt('Record expense'),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                color: AppColors.onSurface,
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        subtitle: Text(
+          context.vt('Record group spending for approval'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
+        ),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          0,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        children: [child],
+      ),
+    );
+  }
+}
+
 class _ExpenseForm extends StatelessWidget {
   const _ExpenseForm({
     required this.amountController,
@@ -317,12 +365,10 @@ class _ExpenseForm extends StatelessWidget {
     const rails = ['M-Pesa B2C Payout', 'Cash', 'Bank Transfer', 'Other'];
 
     return Container(
-      padding: AppInsets.card,
+      padding: AppInsets.compactCard,
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(AppRadii.lg),
-        border: Border.all(color: AppColors.outlineVariant),
-        boxShadow: AppShadows.level1(),
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(AppRadii.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

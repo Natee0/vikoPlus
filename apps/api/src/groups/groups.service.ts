@@ -2656,7 +2656,7 @@ export class GroupsService {
     groupId: string,
     db: Prisma.TransactionClient = this.prisma,
   ) {
-    const [group, savings, obligations, activeLoans, applications] =
+    const [group, savings, obligations, activeLoans, applications, cash] =
       await Promise.all([
         db.group.findUniqueOrThrow({
           where: { id: groupId },
@@ -2710,6 +2710,7 @@ export class GroupsService {
           },
           orderBy: { createdAt: "desc" },
         }),
+        this.groupCashPosition(db, groupId),
       ]);
     const totalSavingsMinor = savings._sum.amountMinor ?? 0;
     const outstandingMinor = Math.max(
@@ -2722,7 +2723,11 @@ export class GroupsService {
         total + Math.max(loan.totalPayableMinor - loan.amountPaidMinor, 0),
       0,
     );
-    const creditLimitMinor = totalSavingsMinor * 2;
+    const memberPolicyLimitMinor = totalSavingsMinor * 2;
+    const creditLimitMinor = Math.min(
+      memberPolicyLimitMinor,
+      cash.cashBalanceMinor,
+    );
     const borrowingPowerMinor = Math.max(
       creditLimitMinor -
         activeLoanBalanceMinor -

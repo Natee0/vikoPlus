@@ -771,7 +771,7 @@ const _swahili = <String, String>{
   'Buy reminder package': 'Nunua kifurushi cha vikumbusho',
   'Buy reminders': 'Nunua vikumbusho',
   'Package name': 'Jina la kifurushi',
-  'Preset packages': 'Vifurushi vilivyowekwa',
+  'Preset packages': 'Vifurushi vilivyopo',
   'Custom credits': 'Salio maalum',
   'Custom reminder credits': 'Idadi maalum ya vikumbusho',
   'Enter how many reminder credits you want to buy.':

@@ -421,6 +421,7 @@ export class CreateReminderPackageCheckoutDto {
   @IsOptional()
   @IsInt()
   @Min(1)
+  @Max(100000)
   quantity?: number;
 
   @IsUrl({ require_tld: false })

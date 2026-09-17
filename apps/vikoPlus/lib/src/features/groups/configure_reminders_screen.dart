@@ -40,6 +40,7 @@ class _ConfigureRemindersScreenState
   String? _loadedPackagesGroupId;
   Future<ReminderPackagesResult>? _packagesFuture;
   final _paymentPhoneController = TextEditingController();
+  final _customReminderCreditsController = TextEditingController(text: '10');
   final _continueActionKey = GlobalKey();
   Timer? _paymentExpiryTimer;
   bool _isSubmitting = false;
@@ -48,6 +49,7 @@ class _ConfigureRemindersScreenState
   bool _isWaitingForPayment = false;
   bool _isPollingPaymentStatus = false;
   bool _reminderPaymentConfirmed = false;
+  bool _useCustomReminderCredits = false;
   int _paymentAttemptToken = 0;
   int _creditBalanceBeforePayment = 0;
   bool _enabled = false;
@@ -68,6 +70,7 @@ class _ConfigureRemindersScreenState
     _paymentExpiryTimer?.cancel();
     _paymentEventsSubscription?.cancel();
     _paymentPhoneController.dispose();
+    _customReminderCreditsController.dispose();
     super.dispose();
   }
 
@@ -133,7 +136,10 @@ class _ConfigureRemindersScreenState
     return apiBaseUri.replace(path: path, query: '');
   }
 
-  Future<void> _startPackageCheckout(ReminderPackageSummary package) async {
+  Future<void> _startPackageCheckout(
+    ReminderPackageSummary package,
+    int quantity,
+  ) async {
     final groupId = _groupId;
     if (_isStartingCheckout) {
       return;
@@ -151,6 +157,14 @@ class _ConfigureRemindersScreenState
       setState(
         () => _errorMessage = context.vt(
           'Enter a phone number to receive the Sayari Pay USSD prompt.',
+        ),
+      );
+      return;
+    }
+    if (quantity < 1) {
+      setState(
+        () => _errorMessage = context.vt(
+          'Enter the number of reminder credits to buy.',
         ),
       );
       return;
@@ -178,7 +192,7 @@ class _ConfigureRemindersScreenState
             groupId,
             ReminderPackageCheckoutInput(
               packageCode: package.code,
-              quantity: package.quantity,
+              quantity: quantity,
               successUrl: _billingReturnUri('/billing/success').toString(),
               cancelUrl: _billingReturnUri('/billing/cancelled').toString(),
               buyerPhone: phone,
@@ -475,12 +489,18 @@ class _ConfigureRemindersScreenState
             isStartingCheckout: _isStartingCheckout,
             isWaitingForPayment: _isWaitingForPayment,
             isPaymentConfirmed: _reminderPaymentConfirmed,
+            useCustomReminderCredits: _useCustomReminderCredits,
             paymentPhoneController: _paymentPhoneController,
+            customReminderCreditsController: _customReminderCreditsController,
             formatters: formatters,
             selectedPackage: _selectedPackage,
             onPackageSelected: (code) {
               setState(() => _selectedPackageCode = code);
             },
+            onCustomModeChanged: (value) {
+              setState(() => _useCustomReminderCredits = value);
+            },
+            onCustomCreditsChanged: (_) => setState(() {}),
             onStartCheckout: _startPackageCheckout,
           ),
           if (!_reminderPaymentConfirmed) ...[
@@ -497,33 +517,17 @@ class _ConfigureRemindersScreenState
             const _ReminderPaymentConfirmedCard(),
           ],
           const SizedBox(height: AppSpacing.md),
-          _SectionLabel(context.vt('Schedule')),
-          const SizedBox(height: AppSpacing.sm),
-          for (final entry in const {
-            -14: '14 days before due date',
-            -7: '7 days before due date',
-            -3: '3 days before due date',
-            -1: '1 day before due date',
-            0: 'On due date',
-            1: '1 day overdue',
-            3: '3 days overdue',
-            7: '7 days overdue',
-          }.entries) ...[
-            _ScheduleTile(
-              label: context.vt(entry.value),
-              selected: _offsets.contains(entry.key),
-              onChanged: _loadingSettings
-                  ? null
-                  : (selected) => setState(() {
-                      if (selected == true) {
-                        _offsets.add(entry.key);
-                      } else {
-                        _offsets.remove(entry.key);
-                      }
-                    }),
-            ),
-            const SizedBox(height: AppSpacing.xs),
-          ],
+          _ScheduleAccordion(
+            offsets: _offsets,
+            enabled: !_loadingSettings,
+            onChanged: (offset, selected) => setState(() {
+              if (selected) {
+                _offsets.add(offset);
+              } else {
+                _offsets.remove(offset);
+              }
+            }),
+          ),
           const SizedBox(height: AppSpacing.md),
           _SectionLabel(context.vt('Message Preview')),
           const SizedBox(height: AppSpacing.sm),
@@ -612,10 +616,14 @@ class _ReminderPackagePicker extends StatelessWidget {
     required this.isStartingCheckout,
     required this.isWaitingForPayment,
     required this.isPaymentConfirmed,
+    required this.useCustomReminderCredits,
     required this.paymentPhoneController,
+    required this.customReminderCreditsController,
     required this.formatters,
     required this.selectedPackage,
     required this.onPackageSelected,
+    required this.onCustomModeChanged,
+    required this.onCustomCreditsChanged,
     required this.onStartCheckout,
   });
 
@@ -625,12 +633,17 @@ class _ReminderPackagePicker extends StatelessWidget {
   final bool isStartingCheckout;
   final bool isWaitingForPayment;
   final bool isPaymentConfirmed;
+  final bool useCustomReminderCredits;
   final TextEditingController paymentPhoneController;
+  final TextEditingController customReminderCreditsController;
   final AppFormatters formatters;
   final ReminderPackageSummary? Function(List<ReminderPackageSummary> packages)
   selectedPackage;
   final ValueChanged<String> onPackageSelected;
-  final ValueChanged<ReminderPackageSummary> onStartCheckout;
+  final ValueChanged<bool> onCustomModeChanged;
+  final ValueChanged<String> onCustomCreditsChanged;
+  final void Function(ReminderPackageSummary package, int quantity)
+  onStartCheckout;
 
   @override
   Widget build(BuildContext context) {
@@ -680,8 +693,12 @@ class _ReminderPackagePicker extends StatelessWidget {
         }
 
         final selected = selectedPackage(packages);
-        final totalMinor =
-            (selected?.amountMinor ?? 0) * (selected?.quantity ?? 1);
+        final customQuantity =
+            int.tryParse(customReminderCreditsController.text.trim()) ?? 0;
+        final checkoutQuantity = useCustomReminderCredits
+            ? customQuantity
+            : selected?.quantity ?? 0;
+        final totalMinor = (selected?.amountMinor ?? 0) * checkoutQuantity;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -689,16 +706,67 @@ class _ReminderPackagePicker extends StatelessWidget {
             const SizedBox(height: AppSpacing.md),
             _SectionLabel(context.vt('Reminder Package')),
             const SizedBox(height: AppSpacing.sm),
-            for (final package in packages) ...[
-              _ReminderPackageTile(
-                package: package,
-                price: _packagePrice(context, package),
-                selected:
-                    package.code ==
-                    (selectedPackageCode ?? selected?.code ?? ''),
-                onTap: () => onPackageSelected(package.code),
+            _ReminderPurchaseModeSelector(
+              useCustom: useCustomReminderCredits,
+              onChanged: onCustomModeChanged,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            if (useCustomReminderCredits) ...[
+              DropdownButtonFormField<String>(
+                initialValue: selected?.code,
+                decoration: InputDecoration(
+                  labelText: context.vt('Package name'),
+                  prefixIcon: const Icon(Icons.inventory_2_outlined),
+                ),
+                items: [
+                  for (final package in packages)
+                    DropdownMenuItem(
+                      value: package.code,
+                      child: Text(package.name),
+                    ),
+                ],
+                onChanged: isStartingCheckout || isWaitingForPayment
+                    ? null
+                    : (value) {
+                        if (value != null) onPackageSelected(value);
+                      },
               ),
-              const SizedBox(height: AppSpacing.xs),
+              const SizedBox(height: AppSpacing.sm),
+              TextField(
+                controller: customReminderCreditsController,
+                enabled: !isStartingCheckout && !isWaitingForPayment,
+                keyboardType: TextInputType.number,
+                onChanged: onCustomCreditsChanged,
+                decoration: InputDecoration(
+                  labelText: context.vt('Custom reminder credits'),
+                  hintText: '100',
+                  prefixIcon: const Icon(Icons.add_card_outlined),
+                  helperText: context.vt(
+                    'Enter how many reminder credits you want to buy.',
+                  ),
+                ),
+              ),
+              if (selected != null) ...[
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  _customPackageHelper(context, selected),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: AppColors.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ] else ...[
+              for (final package in packages) ...[
+                _ReminderPackageTile(
+                  package: package,
+                  price: _packagePrice(context, package),
+                  selected:
+                      package.code ==
+                      (selectedPackageCode ?? selected?.code ?? ''),
+                  onTap: () => onPackageSelected(package.code),
+                ),
+                const SizedBox(height: AppSpacing.xs),
+              ],
             ],
             if (!isPaymentConfirmed) ...[
               const SizedBox(height: AppSpacing.xs),
@@ -720,13 +788,14 @@ class _ReminderPackagePicker extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),
-              OutlinedButton.icon(
+              FilledButton.icon(
                 onPressed:
                     selected == null ||
                         isStartingCheckout ||
-                        isWaitingForPayment
+                        isWaitingForPayment ||
+                        checkoutQuantity < 1
                     ? null
-                    : () => onStartCheckout(selected),
+                    : () => onStartCheckout(selected, checkoutQuantity),
                 icon: isStartingCheckout || isWaitingForPayment
                     ? const SizedBox(
                         width: 18,
@@ -740,6 +809,11 @@ class _ReminderPackagePicker extends StatelessWidget {
                       : isWaitingForPayment
                       ? context.vt('Waiting for confirmation')
                       : context.vt('Buy reminder package'),
+                ),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.onPrimary,
+                  minimumSize: const Size.fromHeight(AppSizes.inputHeight),
                 ),
               ),
             ],
@@ -762,6 +836,57 @@ class _ReminderPackagePicker extends StatelessWidget {
     );
     return '${package.quantity} $creditsLabel - '
         '$price ${context.vt('per message')}';
+  }
+
+  String _customPackageHelper(
+    BuildContext context,
+    ReminderPackageSummary package,
+  ) {
+    final price = formatters.money(
+      package.amountMinor,
+      currency: package.currency,
+    );
+    return '${_channelLabel(context, package.channel)} · '
+        '$price ${context.vt('per message')}';
+  }
+
+  String _channelLabel(BuildContext context, String? channel) {
+    return switch (channel) {
+      'SMS' => context.vt('SMS reminders'),
+      'WHATSAPP' => context.vt('WhatsApp reminders'),
+      'BOTH' => context.vt('SMS and WhatsApp reminders'),
+      _ => context.vt('Reminder messages'),
+    };
+  }
+}
+
+class _ReminderPurchaseModeSelector extends StatelessWidget {
+  const _ReminderPurchaseModeSelector({
+    required this.useCustom,
+    required this.onChanged,
+  });
+
+  final bool useCustom;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<bool>(
+      segments: [
+        ButtonSegment(
+          value: false,
+          icon: const Icon(Icons.inventory_2_outlined, size: 18),
+          label: Text(context.vt('Preset packages')),
+        ),
+        ButtonSegment(
+          value: true,
+          icon: const Icon(Icons.tune_outlined, size: 18),
+          label: Text(context.vt('Custom credits')),
+        ),
+      ],
+      selected: {useCustom},
+      onSelectionChanged: (selection) => onChanged(selection.first),
+    );
   }
 }
 
@@ -1089,6 +1214,82 @@ class _CheckoutTotalCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleAccordion extends StatelessWidget {
+  const _ScheduleAccordion({
+    required this.offsets,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final Set<int> offsets;
+  final bool enabled;
+  final void Function(int offset, bool selected) onChanged;
+
+  static const _entries = {
+    -30: '30 days before due date',
+    -21: '21 days before due date',
+    -14: '14 days before due date',
+    -7: '7 days before due date',
+    -3: '3 days before due date',
+    -1: '1 day before due date',
+    0: 'On due date',
+    1: '1 day overdue',
+    3: '3 days overdue',
+    7: '7 days overdue',
+    14: '14 days overdue',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedLabel = context.vtf('{count} selected', {
+      'count': offsets.length,
+    });
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: ExpansionTile(
+        initiallyExpanded: false,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        collapsedShape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadii.lg),
+        ),
+        leading: const Icon(Icons.event_repeat_outlined),
+        title: Text(
+          context.vt('Schedule'),
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: AppColors.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        subtitle: Text(selectedLabel),
+        childrenPadding: const EdgeInsets.fromLTRB(
+          AppSpacing.sm,
+          0,
+          AppSpacing.sm,
+          AppSpacing.sm,
+        ),
+        children: [
+          for (final entry in _entries.entries) ...[
+            _ScheduleTile(
+              label: context.vt(entry.value),
+              selected: offsets.contains(entry.key),
+              onChanged: enabled
+                  ? (selected) => onChanged(entry.key, selected == true)
+                  : null,
+            ),
+            const SizedBox(height: AppSpacing.xs),
+          ],
         ],
       ),
     );

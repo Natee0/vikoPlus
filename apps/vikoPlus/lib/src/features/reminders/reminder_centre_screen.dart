@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/groups/groups_repository.dart';
 import '../../l10n/vikoplus_translations.dart';
+import '../../theme/app_design_tokens.dart';
 import '../common/vikoplus_screen.dart';
 
 class ReminderCentreScreen extends ConsumerStatefulWidget {
@@ -108,6 +109,14 @@ class _ReminderCentreState extends ConsumerState<ReminderCentreScreen> {
                 onPressed: () => context.push('/reminders/new'),
                 icon: const Icon(Icons.sms_outlined),
                 label: Text(context.vt('Send reminder')),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              OutlinedButton.icon(
+                onPressed: () => context.push(
+                  '/groups/reminders?groupId=${Uri.encodeComponent(id)}&returnTo=${Uri.encodeComponent('/reminders')}',
+                ),
+                icon: const Icon(Icons.add_card_outlined),
+                label: Text(context.vt('Buy reminders')),
               ),
               const SizedBox(height: 24),
               Text(

@@ -739,6 +739,8 @@ const _swahili = <String, String>{
   'Send automated payment alerts to members. Admin pays messaging costs separately from member contributions.': 
   'Tuma taarifa za malipo kwa wanachama moja kwa moja. Msimamizi hulipia gharama za ujumbe tofauti na michango ya wanachama.',
   '14 days before due date': 'Siku 14 kabla ya tarehe ya malipo',
+  '21 days before due date': 'Siku 21 kabla ya tarehe ya malipo',
+  '30 days before due date': 'Siku 30 kabla ya tarehe ya malipo',
   '7 days before due date': 'Siku 7 kabla ya tarehe ya malipo',
   '3 days before due date': 'Siku 3 kabla ya tarehe ya malipo',
   '1 day before due date': 'Siku 1 kabla ya tarehe ya malipo',
@@ -746,6 +748,8 @@ const _swahili = <String, String>{
   '1 day overdue': 'Siku 1 baada ya kuchelewa',
   '3 days overdue': 'Siku 3 baada ya kuchelewa',
   '7 days overdue': 'Siku 7 baada ya kuchelewa',
+  '14 days overdue': 'Siku 14 baada ya kuchelewa',
+  '{count} selected': '{count} zimechaguliwa',
   'Create a group before choosing reminder packages.':
       'Unda kikundi kabla ya kuchagua vifurushi vya vikumbusho.',
   'Could not load reminder packages.': 'Vifurushi vya vikumbusho havijapakiwa.',
@@ -765,6 +769,15 @@ const _swahili = <String, String>{
   'Creating checkout': 'Inatengeneza kiungo cha malipo',
   'Create checkout link': 'Tengeneza kiungo cha malipo',
   'Buy reminder package': 'Nunua kifurushi cha vikumbusho',
+  'Buy reminders': 'Nunua vikumbusho',
+  'Package name': 'Jina la kifurushi',
+  'Preset packages': 'Vifurushi vilivyowekwa',
+  'Custom credits': 'Salio maalum',
+  'Custom reminder credits': 'Idadi maalum ya vikumbusho',
+  'Enter how many reminder credits you want to buy.':
+      'Weka idadi ya vikumbusho unavyotaka kununua.',
+  'Enter the number of reminder credits to buy.':
+      'Weka idadi ya vikumbusho vya kununua.',
   'Reminder payment prompt sent to your phone.':
       'Ombi la malipo ya vikumbusho limetumwa kwenye simu yako.',
   'Reminder package purchased': 'Kifurushi cha vikumbusho kimenunuliwa',

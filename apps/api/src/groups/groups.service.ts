@@ -2364,7 +2364,7 @@ export class GroupsService {
         "Enter a phone number to receive the Sayari Pay USSD prompt.",
       );
     }
-    const quantity = reminderPackage.quantity;
+    const quantity = input.quantity ?? reminderPackage.quantity;
     const amountMinor = reminderPackage.amountMinor * quantity;
     const customer = await this.billingProvider.createCustomer({
       groupId,

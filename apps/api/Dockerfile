@@ -54,4 +54,4 @@ WORKDIR /app/apps/api
 EXPOSE 3000
 
 # Start NestJS production build
-CMD ["node", "dist/src/main.js"]
+CMD ["node", "dist/main.js"]

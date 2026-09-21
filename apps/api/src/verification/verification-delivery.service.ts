@@ -114,6 +114,6 @@ export class VerificationDeliveryService {
   }
 
   private whatsappActionText(input: VerificationInput): string {
-    return input.purpose === "password_reset" ? "password reset" : "verification";
+    return "Vikoplus";
   }
 }

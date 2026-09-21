@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_design_tokens.dart';
 
@@ -224,6 +225,50 @@ class AuthErrorMessage extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class OtpDeliveryChannelSelector extends StatelessWidget {
+  const OtpDeliveryChannelSelector({
+    required this.value,
+    required this.onChanged,
+    super.key,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.vt('Send code through'),
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: AppColors.onSurface,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.xs),
+        SegmentedButton<String>(
+          segments: [
+            ButtonSegment<String>(
+              value: 'sms',
+              icon: const Icon(Icons.sms_outlined),
+              label: Text(context.vt('SMS')),
+            ),
+            ButtonSegment<String>(
+              value: 'whatsapp',
+              icon: const Icon(Icons.chat_outlined),
+              label: const Text('WhatsApp'),
+            ),
+          ],
+          selected: {value},
+          onSelectionChanged: (selection) => onChanged(selection.first),
+        ),
+      ],
     );
   }
 }

@@ -25,6 +25,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
     String? phone,
     String? email,
     required String password,
+    String? deliveryChannel,
   }) async {
     state = const AsyncLoading();
     return _guard(() async {
@@ -35,6 +36,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
             phone: phone,
             email: email,
             password: password,
+            deliveryChannel: deliveryChannel,
           );
       final pendingVerification = PendingVerification(
         challengeId: result.challengeId,
@@ -94,7 +96,7 @@ class AuthController extends AsyncNotifier<AuthSession> {
     });
   }
 
-  Future<void> resendPendingAccountVerification() async {
+  Future<void> resendPendingAccountVerification({String? deliveryChannel}) async {
     state = const AsyncLoading();
     await _guard(() async {
       final pending = ref.read(authSessionProvider).pendingVerification;
@@ -102,9 +104,18 @@ class AuthController extends AsyncNotifier<AuthSession> {
         throw const AuthFailure('Verification session expired. Sign in again.');
       }
 
+      final resendChannel = deliveryChannel ??
+          switch (pending.channel) {
+            'whatsapp' => 'whatsapp',
+            'sms' => 'sms',
+            _ => null,
+          };
       final result = await ref
           .read(authRepositoryProvider)
-          .resendAccountVerification(challengeId: pending.challengeId);
+          .resendAccountVerification(
+            challengeId: pending.challengeId,
+            deliveryChannel: resendChannel,
+          );
       ref.read(authSessionProvider.notifier).setPendingVerification(
             PendingVerification(
               challengeId: result.challengeId,

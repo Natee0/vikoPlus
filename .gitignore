@@ -8,6 +8,8 @@ build/
 coverage/
 node_modules/
 dist/
+dist-check/
+dist.locked-*/
 .env
 .env.local
 *.log

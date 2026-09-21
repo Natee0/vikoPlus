@@ -200,7 +200,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
     }
   }
 
-  Future<void> _resendCode() async {
+  Future<void> _resendCode({String? deliveryChannel}) async {
     if (_isResending || _isSubmitting) {
       return;
     }
@@ -213,7 +213,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
       });
       await ref
           .read(authControllerProvider.notifier)
-          .resendPendingAccountVerification();
+          .resendPendingAccountVerification(deliveryChannel: deliveryChannel);
       for (final controller in _controllers) {
         controller.clear();
       }
@@ -259,6 +259,11 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
         pending?.destination ??
         context.vt('your phone or email');
     final channel = widget.channel ?? pending?.channel ?? 'sms';
+    final canUseWhatsApp = channel == 'sms' || channel == 'whatsapp';
+    final alternateChannel = channel == 'whatsapp' ? 'sms' : 'whatsapp';
+    final alternateLabel = channel == 'whatsapp'
+        ? context.vt('Send through SMS')
+        : context.vt('Send through WhatsApp');
     final isLoading = ref.watch(authControllerProvider).isLoading ||
         _isSubmitting ||
         _isResending;
@@ -466,7 +471,7 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                   TextButton(
                                     onPressed: isLoading
                                         ? null
-                                        : _resendCode,
+                                        : () => _resendCode(),
                                     child: Text(
                                       _isResending
                                           ? context.vt('Sending code')
@@ -475,6 +480,22 @@ class _VerifyAccountScreenState extends ConsumerState<VerifyAccountScreen> {
                                           : context.vt('Resend code'),
                                     ),
                                   ),
+                                  if (canUseWhatsApp)
+                                    TextButton.icon(
+                                      onPressed: isLoading
+                                          ? null
+                                          : () => _resendCode(
+                                                deliveryChannel:
+                                                    alternateChannel,
+                                              ),
+                                      icon: Icon(
+                                        alternateChannel == 'whatsapp'
+                                            ? Icons.chat_outlined
+                                            : Icons.sms_outlined,
+                                        size: 18,
+                                      ),
+                                      label: Text(alternateLabel),
+                                    ),
                                   const SizedBox(height: AppSpacing.sm),
                                   if (_successMessage.isNotEmpty) ...[
                                     Text(

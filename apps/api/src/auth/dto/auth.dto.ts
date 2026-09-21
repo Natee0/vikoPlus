@@ -36,6 +36,10 @@ export class RegisterDto {
   @IsOptional()
   @IsIn(["en", "sw"])
   preferredLocale?: "en" | "sw";
+
+  @IsOptional()
+  @IsIn(["sms", "whatsapp"])
+  deliveryChannel?: "sms" | "whatsapp";
 }
 
 export class LoginDto {
@@ -64,6 +68,10 @@ export class ResendAccountVerificationDto {
   @IsString()
   @IsNotEmpty()
   challengeId!: string;
+
+  @IsOptional()
+  @IsIn(["sms", "whatsapp"])
+  deliveryChannel?: "sms" | "whatsapp";
 }
 
 export class RefreshTokenDto {
@@ -77,6 +85,10 @@ export class RequestPasswordResetDto {
   @IsNotEmpty()
   @MaxLength(254)
   identifier!: string;
+
+  @IsOptional()
+  @IsIn(["sms", "whatsapp"])
+  deliveryChannel?: "sms" | "whatsapp";
 }
 
 export class VerifyPasswordResetCodeDto {

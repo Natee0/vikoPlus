@@ -19,6 +19,7 @@ class AuthRepository {
     String? email,
     required String password,
     String preferredLocale = 'sw',
+    String? deliveryChannel,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/register',
@@ -28,6 +29,7 @@ class AuthRepository {
         'email': email,
         'password': password,
         'preferredLocale': preferredLocale,
+        'deliveryChannel': ?deliveryChannel,
       },
       options: Options(extra: {'skipAuth': true}),
     );
@@ -61,10 +63,14 @@ class AuthRepository {
 
   Future<OtpChallengeResult> resendAccountVerification({
     required String challengeId,
+    String? deliveryChannel,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/resend-account-verification',
-      data: {'challengeId': challengeId},
+      data: {
+        'challengeId': challengeId,
+        'deliveryChannel': ?deliveryChannel,
+      },
       options: Options(extra: {'skipAuth': true}),
     );
 
@@ -73,10 +79,14 @@ class AuthRepository {
 
   Future<PasswordResetRequestResult> requestPasswordReset({
     required String identifier,
+    String? deliveryChannel,
   }) async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/auth/password-reset/request',
-      data: {'identifier': identifier},
+      data: {
+        'identifier': identifier,
+        'deliveryChannel': ?deliveryChannel,
+      },
       options: Options(extra: {'skipAuth': true}),
     );
 
@@ -218,6 +228,7 @@ class PasswordResetRequestResult {
     required this.status,
     required this.destination,
     required this.expiresInSeconds,
+    required this.channel,
   });
 
   factory PasswordResetRequestResult.fromJson(Map<String, dynamic> json) {
@@ -225,12 +236,14 @@ class PasswordResetRequestResult {
       status: json['status'] as String? ?? 'RESET_CODE_SENT_IF_ACCOUNT_EXISTS',
       destination: json['destination'] as String? ?? '',
       expiresInSeconds: json['expiresInSeconds'] as int? ?? 600,
+      channel: json['channel'] as String? ?? 'sms',
     );
   }
 
   final String status;
   final String destination;
   final int expiresInSeconds;
+  final String channel;
 }
 
 class PasswordResetVerificationResult {

@@ -79,6 +79,8 @@ export const envValidationSchema = Joi.object({
     otherwise: Joi.optional(),
   }),
   META_WHATSAPP_APP_SECRET: Joi.string().optional(),
+  AUTH_WHATSAPP_TEMPLATE_NAME: Joi.string().default("auth_template"),
+  AUTH_WHATSAPP_TEMPLATE_LANGUAGE: Joi.string().default("en"),
   SMTP_HOST: Joi.string().required(),
   SMTP_PORT: Joi.number().port().default(587),
   SMTP_SECURE: Joi.boolean().default(false),

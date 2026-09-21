@@ -28,6 +28,18 @@ const _swahili = <String, String>{
   'Enter your phone/email and password.':
       'Weka namba ya simu/barua pepe na nenosiri.',
   'Verify account': 'Thibitisha akaunti',
+  'Send code through': 'Tuma msimbo kupitia',
+  'SMS': 'SMS',
+  'email': 'barua pepe',
+  'Resend OTP': 'Tuma tena OTP',
+  'Send through SMS': 'Tuma kupitia SMS',
+  'Send through WhatsApp': 'Tuma kupitia WhatsApp',
+  'We will send your verification code through WhatsApp.':
+      'Tutatuma msimbo wako wa uthibitisho kupitia WhatsApp.',
+  'We will send the reset code through WhatsApp.':
+      'Tutatuma msimbo wa kuweka upya kupitia WhatsApp.',
+  'We will send the reset code by SMS.':
+      'Tutatuma msimbo wa kuweka upya kupitia SMS.',
   'Your account needs verification. Tap Verify account to continue.': 'Akaunti yako inahitaji uthibitisho. Bonyeza Thibitisha akaunti kuendelea.',
   'Verification session expired. Sign in again.':
       'Muda wa uthibitisho umeisha. Ingia tena.',

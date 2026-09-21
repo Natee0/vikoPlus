@@ -7,11 +7,63 @@ export type SendWhatsAppInput = {
   content: string;
 };
 
+export type SendWhatsAppTemplateInput = {
+  to: string;
+  templateName: string;
+  languageCode?: string;
+  bodyParameters: string[];
+};
+
 @Injectable()
 export class MetaWhatsAppService {
   constructor(private readonly config: ConfigService) {}
 
   async sendText(input: SendWhatsAppInput): Promise<{
+    provider: string;
+    providerRef: string;
+    delivered: boolean;
+  }> {
+    return this.sendMetaPayload({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: this.normalizeMetaPhone(input.to),
+      type: "text",
+      text: {
+        preview_url: true,
+        body: input.content,
+      },
+    });
+  }
+
+  async sendTemplate(input: SendWhatsAppTemplateInput): Promise<{
+    provider: string;
+    providerRef: string;
+    delivered: boolean;
+  }> {
+    return this.sendMetaPayload({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: this.normalizeMetaPhone(input.to),
+      type: "template",
+      template: {
+        name: input.templateName,
+        language: {
+          code: input.languageCode ?? "en",
+        },
+        components: [
+          {
+            type: "body",
+            parameters: input.bodyParameters.map((text) => ({
+              type: "text",
+              text,
+            })),
+          },
+        ],
+      },
+    });
+  }
+
+  private async sendMetaPayload(body: Record<string, unknown>): Promise<{
     provider: string;
     providerRef: string;
     delivered: boolean;
@@ -51,16 +103,7 @@ export class MetaWhatsAppService {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "individual",
-        to: this.normalizeMetaPhone(input.to),
-        type: "text",
-        text: {
-          preview_url: true,
-          body: input.content,
-        },
-      }),
+      body: JSON.stringify(body),
     });
     const payload = await this.readJson(response);
 
@@ -118,4 +161,3 @@ export class MetaWhatsAppService {
     }
   }
 }
-

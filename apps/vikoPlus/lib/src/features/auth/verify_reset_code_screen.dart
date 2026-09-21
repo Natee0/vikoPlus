@@ -29,7 +29,9 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
   late final List<FocusNode> _focusNodes;
   Timer? _timer;
   String _errorMessage = '';
+  String _successMessage = '';
   bool _isSubmitting = false;
+  bool _isResending = false;
 
   @override
   void initState() {
@@ -73,8 +75,11 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
   }
 
   void _clearError() {
-    if (_errorMessage.isEmpty) return;
-    setState(() => _errorMessage = '');
+    if (_errorMessage.isEmpty && _successMessage.isEmpty) return;
+    setState(() {
+      _errorMessage = '';
+      _successMessage = '';
+    });
   }
 
   void _handleCodeChanged(String value, int index) {
@@ -134,7 +139,7 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
   }
 
   Future<void> _verify() async {
-    if (_isSubmitting) return;
+    if (_isSubmitting || _isResending) return;
 
     final flow = ref.read(passwordResetFlowProvider);
     if (flow.identifier.isEmpty) {
@@ -183,12 +188,70 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
     }
   }
 
+  Future<void> _resendCode() async {
+    if (_isSubmitting || _isResending) return;
+
+    final flow = ref.read(passwordResetFlowProvider);
+    if (flow.identifier.isEmpty) {
+      setState(
+        () => _errorMessage = context.vt('Reset session expired. Start again.'),
+      );
+      return;
+    }
+
+    try {
+      setState(() {
+        _errorMessage = '';
+        _successMessage = '';
+        _isResending = true;
+      });
+      final result = await ref.read(authRepositoryProvider).requestPasswordReset(
+            identifier: flow.identifier,
+            deliveryChannel: flow.channel == 'whatsapp'
+                ? 'whatsapp'
+                : flow.channel == 'sms'
+                ? 'sms'
+                : null,
+          );
+      ref.read(passwordResetFlowProvider.notifier).setRequested(
+            identifier: flow.identifier,
+            destination: result.destination.isEmpty
+                ? flow.destination
+                : result.destination,
+            channel: result.channel,
+            expiresInSeconds: result.expiresInSeconds,
+          );
+      for (final controller in _controllers) {
+        controller.clear();
+      }
+      _focusNodes.first.requestFocus();
+      if (!mounted) return;
+      setState(
+        () => _successMessage = context.vt('A new verification code has been sent.'),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _errorMessage = context.vt(AuthFailure.from(error).message),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isResending = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final flow = ref.watch(passwordResetFlowProvider);
     final destination = flow.destination.isEmpty
         ? context.vt('your phone or email')
         : flow.destination;
+    final channelLabel = flow.channel == 'whatsapp'
+        ? 'WhatsApp'
+        : flow.channel == 'email'
+        ? context.vt('email')
+        : context.vt('SMS');
     final remaining = _remainingFor(flow);
     final hasExpired = remaining == Duration.zero;
 
@@ -215,7 +278,7 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
           Text(
             context.vtf(
               'We sent a 6-digit verification code to {destination}.',
-              {'destination': destination},
+              {'destination': '$destination ($channelLabel)'},
             ),
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall
@@ -283,11 +346,32 @@ class _VerifyResetCodeScreenState extends ConsumerState<VerifyResetCodeScreen> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 TextButton(
-                  onPressed: _isSubmitting
+                  onPressed: _isSubmitting || _isResending
+                      ? null
+                      : _resendCode,
+                  child: Text(
+                    _isResending
+                        ? context.vt('Sending')
+                        : context.vt('Resend OTP'),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _isSubmitting || _isResending
                       ? null
                       : () => context.go('/forgot-password'),
                   child: Text(context.vt('Resend or change destination')),
                 ),
+                if (_successMessage.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _successMessage,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
                 AuthErrorMessage(message: _errorMessage),
                 if (_errorMessage.isNotEmpty)
                   const SizedBox(height: AppSpacing.sm),

@@ -22,6 +22,7 @@ class ForgotPasswordScreen extends ConsumerStatefulWidget {
 class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _identifierController = TextEditingController();
   String _errorMessage = '';
+  String _deliveryChannel = 'sms';
   bool _isSubmitting = false;
 
   @override
@@ -48,7 +49,12 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
       });
       final result = await ref
           .read(authRepositoryProvider)
-          .requestPasswordReset(identifier: identifier);
+          .requestPasswordReset(
+            identifier: identifier,
+            deliveryChannel: _isPhoneIdentifier(identifier)
+                ? _deliveryChannel
+                : null,
+          );
       ref
           .read(passwordResetFlowProvider.notifier)
           .setRequested(
@@ -56,6 +62,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             destination: result.destination.isEmpty
                 ? identifier
                 : result.destination,
+            channel: result.channel,
             expiresInSeconds: result.expiresInSeconds,
           );
       if (!mounted) return;
@@ -72,13 +79,14 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     }
   }
 
-  void _clearError() {
-    if (_errorMessage.isEmpty) return;
-    setState(() => _errorMessage = '');
+  bool _isPhoneIdentifier(String value) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty && !trimmed.contains('@');
   }
 
   @override
   Widget build(BuildContext context) {
+    final isPhoneIdentifier = _isPhoneIdentifier(_identifierController.text);
     return PasswordResetScaffold(
       title: context.vt('Forgot Password'),
       onBack: () => context.go('/sign-in'),
@@ -119,11 +127,36 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                   keyboardType: TextInputType.emailAddress,
                   controller: _identifierController,
                   textInputAction: TextInputAction.done,
-                  onChanged: (_) => _clearError(),
+                  onChanged: (_) {
+                    setState(() => _errorMessage = '');
+                  },
                   onSubmitted: (_) {
                     if (!_isSubmitting) _submit();
                   },
                 ),
+                if (isPhoneIdentifier) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  OtpDeliveryChannelSelector(
+                    value: _deliveryChannel,
+                    onChanged: (value) {
+                      setState(() {
+                        _deliveryChannel = value;
+                        _errorMessage = '';
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text(
+                    _deliveryChannel == 'whatsapp'
+                        ? context.vt(
+                            'We will send the reset code through WhatsApp.',
+                          )
+                        : context.vt('We will send the reset code by SMS.'),
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: AppSpacing.sm),
                 TrustNote(
                   icon: Icons.groups_2_outlined,

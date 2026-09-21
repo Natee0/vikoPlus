@@ -27,6 +27,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   bool _obscureConfirmPassword = true;
   bool _acceptedTerms = false;
   bool _useEmail = false;
+  String _deliveryChannel = 'sms';
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -88,6 +89,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             email: _useEmail ? identity : null,
             phone: _useEmail ? null : identity,
             password: password,
+            deliveryChannel: _useEmail ? null : _deliveryChannel,
           );
       if (!mounted) {
         return;
@@ -96,7 +98,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
         queryParameters: {
           'challengeId': challengeId,
           'destination': identity,
-          'channel': _useEmail ? 'email' : 'sms',
+          'channel': _useEmail ? 'email' : _deliveryChannel,
           'next': '/create-or-join-group',
           'back': '/create-account',
         },
@@ -175,6 +177,7 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                   onPressed: () {
                     setState(() {
                       _useEmail = !_useEmail;
+                      _deliveryChannel = 'sms';
                       _identityController.clear();
                       _errorMessage = '';
                     });
@@ -218,10 +221,26 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
             Text(
               _useEmail
                   ? AppLocalizations.of(context).emailVerifyNote
+                  : _deliveryChannel == 'whatsapp'
+                  ? context.vt(
+                      'We will send your verification code through WhatsApp.',
+                    )
                   : AppLocalizations.of(context).verifyNote,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: AppColors.onSurfaceVariant),
             ),
+            if (!_useEmail) ...[
+              const SizedBox(height: AppSpacing.sm),
+              OtpDeliveryChannelSelector(
+                value: _deliveryChannel,
+                onChanged: (value) {
+                  setState(() {
+                    _deliveryChannel = value;
+                    _errorMessage = '';
+                  });
+                },
+              ),
+            ],
             const SizedBox(height: AppSpacing.sm),
             AuthField(
               label: AppLocalizations.of(context).password,

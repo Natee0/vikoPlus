@@ -16,7 +16,10 @@ import { createHash, randomBytes, randomInt } from "crypto";
 import { AuthenticatedUser } from "../common/auth/authenticated-user";
 import { TokenService } from "../common/auth/token.service";
 import { PrismaService } from "../prisma/prisma.service";
-import { VerificationDeliveryService } from "../verification/verification-delivery.service";
+import {
+  VerificationChannel,
+  VerificationDeliveryService,
+} from "../verification/verification-delivery.service";
 import {
   CompletePasswordResetDto,
   LoginDto,
@@ -80,8 +83,9 @@ export class AuthService {
       throw new BadRequestException("OTP challenge could not be created.");
     }
 
+    const channel = this.verificationChannel(identity.type, input.deliveryChannel);
     const delivery = await this.verificationDelivery.sendCode({
-      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      channel,
       destination: identity.value,
       code,
       name: user.displayName,
@@ -93,7 +97,7 @@ export class AuthService {
       otpChallenge: {
         id: challenge.id,
         destination: identity.value,
-        channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+        channel,
         expiresAt: challenge.expiresAt,
         delivery,
       },
@@ -199,14 +203,21 @@ export class AuthService {
     }
 
     return {
-      otpChallenge: await this.createAccountVerificationChallenge(identity),
+      otpChallenge: await this.createAccountVerificationChallenge(
+        identity,
+        input.deliveryChannel,
+      ),
     };
   }
 
   async requestPasswordReset(input: RequestPasswordResetDto) {
     const identity = await this.findIdentity(input.identifier);
     if (!identity || !identity.isVerified) {
-      return this.passwordResetRequestedResponse(input.identifier);
+      return this.passwordResetRequestedResponse(
+        input.identifier,
+        undefined,
+        this.channelForIdentifier(input.identifier, input.deliveryChannel),
+      );
     }
 
     await this.prisma.otpChallenge.updateMany({
@@ -232,8 +243,9 @@ export class AuthService {
       },
     });
 
+    const channel = this.verificationChannel(identity.type, input.deliveryChannel);
     const delivery = await this.verificationDelivery.sendCode({
-      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      channel,
       destination: identity.value,
       code,
       name: identity.user.displayName,
@@ -249,7 +261,7 @@ export class AuthService {
       },
     });
 
-    return this.passwordResetRequestedResponse(identity.value, delivery);
+    return this.passwordResetRequestedResponse(identity.value, delivery, channel);
   }
 
   async verifyPasswordResetCode(input: VerifyPasswordResetCodeDto) {
@@ -450,12 +462,15 @@ export class AuthService {
     });
   }
 
-  private async createAccountVerificationChallenge(identity: {
-    userId: string;
-    type: UserIdentityType;
-    value: string;
-    user: { displayName: string | null };
-  }) {
+  private async createAccountVerificationChallenge(
+    identity: {
+      userId: string;
+      type: UserIdentityType;
+      value: string;
+      user: { displayName: string | null };
+    },
+    deliveryChannel?: "sms" | "whatsapp",
+  ) {
     await this.prisma.otpChallenge.updateMany({
       where: {
         userId: identity.userId,
@@ -479,8 +494,9 @@ export class AuthService {
       },
     });
 
+    const channel = this.verificationChannel(identity.type, deliveryChannel);
     const delivery = await this.verificationDelivery.sendCode({
-      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      channel,
       destination: identity.value,
       code,
       name: identity.user.displayName,
@@ -490,10 +506,31 @@ export class AuthService {
     return {
       id: challenge.id,
       destination: identity.value,
-      channel: identity.type === UserIdentityType.PHONE ? "sms" : "email",
+      channel,
       expiresAt: challenge.expiresAt,
       delivery,
     };
+  }
+
+  private verificationChannel(
+    identityType: UserIdentityType,
+    requested?: "sms" | "whatsapp",
+  ): VerificationChannel {
+    if (identityType === UserIdentityType.EMAIL) {
+      return "email";
+    }
+    return requested === "whatsapp" ? "whatsapp" : "sms";
+  }
+
+  private channelForIdentifier(
+    identifier: string,
+    requested?: "sms" | "whatsapp",
+  ): VerificationChannel {
+    return identifier.includes("@")
+      ? "email"
+      : requested === "whatsapp"
+        ? "whatsapp"
+        : "sms";
   }
 
   private identityInput(input: RegisterDto): {
@@ -568,6 +605,7 @@ export class AuthService {
   private passwordResetRequestedResponse(
     identifier: string,
     delivery?: { provider: string; delivered: boolean },
+    channel?: VerificationChannel,
   ) {
     return {
       status: "RESET_CODE_SENT_IF_ACCOUNT_EXISTS",
@@ -575,6 +613,9 @@ export class AuthService {
         ? identifier.trim().toLowerCase()
         : this.normalizePhone(identifier),
       expiresInSeconds: 600,
+      channel:
+        channel ??
+        (identifier.includes("@") ? "email" : "sms"),
       ...(delivery ? { delivery } : {}),
     };
   }

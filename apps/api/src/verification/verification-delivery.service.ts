@@ -64,8 +64,9 @@ export class VerificationDeliveryService {
       ),
       bodyParameters: [
         { name: "code", text: input.code },
-        { name: "text", text: this.actionText(input) },
+        { name: "text", text: this.whatsappActionText(input) },
       ],
+      copyCodeButtonText: input.code,
     });
   }
 
@@ -110,5 +111,9 @@ export class VerificationDeliveryService {
     return input.purpose === "password_reset"
       ? "reset your Vikoplus password"
       : "verify your Vikoplus account";
+  }
+
+  private whatsappActionText(input: VerificationInput): string {
+    return input.purpose === "password_reset" ? "password reset" : "verification";
   }
 }

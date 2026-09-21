@@ -17,6 +17,7 @@ export type SendWhatsAppTemplateInput = {
   templateName: string;
   languageCode?: string;
   bodyParameters: Array<string | { name?: string; text: string }>;
+  copyCodeButtonText?: string;
 };
 
 @Injectable()
@@ -64,6 +65,18 @@ export class MetaWhatsAppService {
               this.templateTextParameter(parameter),
             ),
           },
+          ...(input.copyCodeButtonText
+            ? [
+                {
+                  type: "button",
+                  sub_type: "url",
+                  index: "0",
+                  parameters: [
+                    this.templateTextParameter(input.copyCodeButtonText),
+                  ],
+                },
+              ]
+            : []),
         ],
       },
     });

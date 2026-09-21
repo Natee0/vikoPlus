@@ -62,7 +62,10 @@ export class VerificationDeliveryService {
         "AUTH_WHATSAPP_TEMPLATE_LANGUAGE",
         "en",
       ),
-      bodyParameters: [input.code, this.actionText(input)],
+      bodyParameters: [
+        { name: "code", text: input.code },
+        { name: "text", text: this.actionText(input) },
+      ],
     });
   }
 

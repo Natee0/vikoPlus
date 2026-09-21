@@ -1,4 +1,9 @@
-import { BadGatewayException, Injectable, InternalServerErrorException } from "@nestjs/common";
+import {
+  BadGatewayException,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { createHmac } from "crypto";
 
@@ -11,11 +16,13 @@ export type SendWhatsAppTemplateInput = {
   to: string;
   templateName: string;
   languageCode?: string;
-  bodyParameters: string[];
+  bodyParameters: Array<string | { name?: string; text: string }>;
 };
 
 @Injectable()
 export class MetaWhatsAppService {
+  private readonly logger = new Logger(MetaWhatsAppService.name);
+
   constructor(private readonly config: ConfigService) {}
 
   async sendText(input: SendWhatsAppInput): Promise<{
@@ -53,10 +60,9 @@ export class MetaWhatsAppService {
         components: [
           {
             type: "body",
-            parameters: input.bodyParameters.map((text) => ({
-              type: "text",
-              text,
-            })),
+            parameters: input.bodyParameters.map((parameter) =>
+              this.templateTextParameter(parameter),
+            ),
           },
         ],
       },
@@ -108,6 +114,11 @@ export class MetaWhatsAppService {
     const payload = await this.readJson(response);
 
     if (!response.ok) {
+      this.logger.error(
+        `Meta WhatsApp send failed with HTTP ${response.status}: ${JSON.stringify(
+          payload,
+        )}`,
+      );
       throw new BadGatewayException({
         message: "Meta WhatsApp send failed.",
         statusCode: response.status,
@@ -141,6 +152,23 @@ export class MetaWhatsAppService {
     if (digits.startsWith("0")) return `255${digits.slice(1)}`;
     if (digits.length === 9) return `255${digits}`;
     return digits;
+  }
+
+  private templateTextParameter(
+    parameter: string | { name?: string; text: string },
+  ): Record<string, string> {
+    if (typeof parameter === "string") {
+      return {
+        type: "text",
+        text: parameter,
+      };
+    }
+
+    return {
+      type: "text",
+      ...(parameter.name ? { parameter_name: parameter.name } : {}),
+      text: parameter.text,
+    };
   }
 
   private extractMetaMessageId(payload: unknown): string | null {

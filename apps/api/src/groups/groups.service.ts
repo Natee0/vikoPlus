@@ -145,22 +145,35 @@ export class GroupsService {
       : null;
   }
 
+  private profilePictureUrl(profile: {
+    profilePictureObjectKey?: string | null;
+    profilePictureUrl?: string | null;
+  }): string | null {
+    return (
+      this.imageUrl(profile.profilePictureObjectKey ?? null) ??
+      profile.profilePictureUrl ??
+      null
+    );
+  }
+
   async profile(user: AuthenticatedUser) {
     const profile = await this.prisma.user.findUniqueOrThrow({
       where: { id: user.id },
       select: {
         id: true,
         displayName: true,
+        username: true,
         profilePictureObjectKey: true,
+        profilePictureUrl: true,
         identities: {
-          where: { isVerified: true },
+          where: { isVerified: true, type: { in: [UserIdentityType.EMAIL, UserIdentityType.PHONE] } },
           select: { type: true, value: true },
         },
       },
     });
     return {
       ...profile,
-      profilePictureUrl: this.imageUrl(profile.profilePictureObjectKey),
+      profilePictureUrl: this.profilePictureUrl(profile),
     };
   }
 
@@ -1218,7 +1231,13 @@ export class GroupsService {
       where: { groupId },
       orderBy: [{ fullName: "asc" }],
       include: {
-        user: { select: { displayName: true, profilePictureObjectKey: true } },
+        user: {
+          select: {
+            displayName: true,
+            profilePictureObjectKey: true,
+            profilePictureUrl: true,
+          },
+        },
         obligations: {
           where: {
             dueAt: { lte: now },
@@ -1239,9 +1258,9 @@ export class GroupsService {
       members: members.map((member) => ({
         ...member,
         fullName: member.user?.displayName ?? member.fullName,
-        profilePictureUrl: this.imageUrl(
-          member.user?.profilePictureObjectKey ?? null,
-        ),
+        profilePictureUrl: member.user
+          ? this.profilePictureUrl(member.user)
+          : null,
         outstandingMinor: member.obligations.reduce(
           (sum, due) =>
             sum + Math.max(0, due.amountDueMinor - due.amountPaidMinor),
@@ -1417,7 +1436,13 @@ export class GroupsService {
     const member = await this.prisma.groupMember.findFirst({
       where: { id: memberId, groupId },
       include: {
-        user: { select: { displayName: true, profilePictureObjectKey: true } },
+        user: {
+          select: {
+            displayName: true,
+            profilePictureObjectKey: true,
+            profilePictureUrl: true,
+          },
+        },
         obligations: true,
         payments: { orderBy: { createdAt: "desc" } },
       },
@@ -1426,9 +1451,7 @@ export class GroupsService {
     return {
       ...member,
       fullName: member.user?.displayName ?? member.fullName,
-      profilePictureUrl: this.imageUrl(
-        member.user?.profilePictureObjectKey ?? null,
-      ),
+      profilePictureUrl: member.user ? this.profilePictureUrl(member.user) : null,
     };
   }
 

@@ -118,10 +118,22 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
     final profile = ref.watch(profileProvider);
     final data = profile.asData?.value;
     if (!_loaded && data != null) {
-      _name.text = data['displayName'] as String? ?? '';
+      _name.text =
+          (data['displayName'] as String?) ??
+          (data['username'] as String?) ??
+          '';
       _profileImageUrl = data['profilePictureUrl'] as String?;
       _loaded = true;
     }
+    final username = (data?['username'] as String?)?.trim();
+    final identities = (data?['identities'] as List? ?? [])
+        .whereType<Map>()
+        .map((identity) => Map<String, dynamic>.from(identity))
+        .where((identity) {
+          final type = identity['type'];
+          return type == 'EMAIL' || type == 'PHONE';
+        })
+        .toList();
     return VikoplusScreen(
       title: 'Complete Profile',
       backRoute: '/more',
@@ -157,15 +169,90 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          for (final identity in (data?['identities'] as List? ?? []))
-            ListTile(
-              title: Text('${identity['value']}'),
-              subtitle: Text('Verified ${identity['type']}'),
+          if (username != null && username.isNotEmpty)
+            _ProfileDetailTile(
+              icon: Icons.alternate_email,
+              label: context.vt('Username'),
+              value: username,
+            ),
+          for (final identity in identities)
+            _ProfileDetailTile(
+              icon: identity['type'] == 'PHONE'
+                  ? Icons.phone_outlined
+                  : Icons.email_outlined,
+              label: identity['type'] == 'PHONE'
+                  ? context.vt('Phone number')
+                  : context.vt('Email address'),
+              value: '${identity['value']}',
+              helper: context.vt('Verified'),
             ),
           const SizedBox(height: AppSpacing.md),
           FilledButton(
             onPressed: _isUploading || _saving || !_loaded ? null : _save,
             child: Text(_saving ? 'Saving...' : 'Save Profile'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileDetailTile extends StatelessWidget {
+  const _ProfileDetailTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.helper,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final String? helper;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                if (helper != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    helper!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),

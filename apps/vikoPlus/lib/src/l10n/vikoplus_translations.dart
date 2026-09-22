@@ -30,6 +30,12 @@ const _swahili = <String, String>{
   'Verify account': 'Thibitisha akaunti',
   'Continue with Sayari Account': 'Endelea kwa Akaunti ya Sayari',
   'Opening Sayari Account': 'Inafungua Akaunti ya Sayari',
+  'Finishing Sayari sign-in': 'Inakamilisha kuingia kwa Sayari',
+  'Sayari sign-in failed': 'Kuingia kwa Sayari kumeshindikana',
+  'Please wait while we connect your account.':
+      'Tafadhali subiri tunaunganisha akaunti yako.',
+  'Username': 'Jina la mtumiaji',
+  'Verified': 'Imethibitishwa',
   'Send code through': 'Tuma msimbo kupitia',
   'SMS': 'SMS',
   'email': 'barua pepe',

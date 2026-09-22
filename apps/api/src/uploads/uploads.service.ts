@@ -64,7 +64,10 @@ export class UploadsService {
     );
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { profilePictureObjectKey: asset.objectKey },
+      data: {
+        profilePictureObjectKey: asset.objectKey,
+        profilePictureUrl: null,
+      },
     });
     return { userId: user.id, ...asset };
   }

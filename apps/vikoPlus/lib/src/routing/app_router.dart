@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/create_account_screen.dart';
 import '../features/auth/forgot_password_screen.dart';
 import '../features/auth/password_reset_success_screen.dart';
+import '../features/auth/sayari_oauth_callback_screen.dart';
 import '../features/auth/sign_in_screen.dart';
 import '../features/auth/set_new_password_screen.dart';
 import '../features/auth/verify_reset_code_screen.dart';
@@ -70,6 +71,18 @@ final appRouter = GoRouter(
     GoRoute(
       path: '/sign-in',
       builder: (context, state) => const SignInScreen(),
+    ),
+    GoRoute(
+      path: '/callback',
+      builder: (context, state) => SayariOAuthCallbackScreen(
+        callbackUri: state.uri,
+      ),
+    ),
+    GoRoute(
+      path: '/oauth/callback',
+      builder: (context, state) => SayariOAuthCallbackScreen(
+        callbackUri: state.uri,
+      ),
     ),
     GoRoute(
       path: '/forgot-password',

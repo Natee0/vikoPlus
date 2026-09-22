@@ -38,6 +38,8 @@ type SayariUserInfo = {
   email?: string;
   phone?: string;
   fullName?: string;
+  username?: string;
+  profilePictureUrl?: string;
 };
 
 @Injectable()
@@ -530,16 +532,30 @@ export class AuthService {
         source["email"],
         source["emailAddress"],
         source["email_address"],
-        source["preferred_username"],
       )?.toLowerCase(),
       phone: this.normalizeOptionalPhone(
-        this.pickString(source["phone"], source["phoneNumber"], source["msisdn"]),
+        this.pickString(
+          source["phone"],
+          source["phoneNumber"],
+          source["phone_number"],
+          source["mobile"],
+          source["mobileNumber"],
+          source["msisdn"],
+        ),
       ),
-      fullName: this.pickString(
-        source["fullName"],
-        source["name"],
-        source["displayName"],
-        source["given_name"],
+      fullName: this.displayNameFromSayari(source),
+      username: this.pickUsername(source),
+      profilePictureUrl: this.pickUrl(
+        source["picture"],
+        source["avatar"],
+        source["avatarUrl"],
+        source["avatar_url"],
+        source["photoUrl"],
+        source["photo_url"],
+        source["profilePictureUrl"],
+        source["profile_picture_url"],
+        source["imageUrl"],
+        source["image_url"],
       ),
     };
   }
@@ -557,9 +573,7 @@ export class AuthService {
     if (sayariIdentity) {
       return this.prisma.user.update({
         where: { id: sayariIdentity.userId },
-        data: {
-          displayName: info.fullName ?? sayariIdentity.user.displayName,
-        },
+        data: this.sayariUserUpdateData(info, sayariIdentity.user),
       });
     }
 
@@ -568,9 +582,7 @@ export class AuthService {
       return this.prisma.$transaction(async (tx) => {
         const user = await tx.user.update({
           where: { id: matchedIdentity.userId },
-          data: {
-            displayName: info.fullName ?? matchedIdentity.user.displayName,
-          },
+          data: this.sayariUserUpdateData(info, matchedIdentity.user),
         });
         await tx.userIdentity.create({
           data: {
@@ -591,9 +603,12 @@ export class AuthService {
       data: {
         displayName:
           info.fullName ??
+          info.username ??
           info.email ??
           info.phone ??
           "Sayari account",
+        username: info.username,
+        profilePictureUrl: info.profilePictureUrl,
         passwordHash: await argon2.hash(randomBytes(32).toString("base64url")),
         preferredLocale: Locale.sw,
         identities: {
@@ -658,6 +673,25 @@ export class AuthService {
         data: { isVerified: true, verifiedAt },
       });
     }
+  }
+
+  private sayariUserUpdateData(
+    info: SayariUserInfo,
+    existing: {
+      displayName: string | null;
+      username?: string | null;
+      profilePictureUrl?: string | null;
+    },
+  ) {
+    return {
+      displayName:
+        info.fullName ??
+        this.nonContactDisplayName(existing.displayName) ??
+        info.username ??
+        existing.displayName,
+      username: info.username ?? existing.username,
+      profilePictureUrl: info.profilePictureUrl ?? existing.profilePictureUrl,
+    };
   }
 
   private sayariIdentitiesToCreate(
@@ -911,6 +945,62 @@ export class AuthService {
     return value && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
+  }
+
+  private displayNameFromSayari(
+    source: Record<string, unknown>,
+  ): string | undefined {
+    const combinedName = this.joinNameParts(
+      this.pickString(source["firstName"], source["first_name"], source["given_name"]),
+      this.pickString(source["lastName"], source["last_name"], source["family_name"]),
+    );
+    const candidate = this.pickString(
+      source["fullName"],
+      source["full_name"],
+      source["name"],
+      source["displayName"],
+      source["display_name"],
+      combinedName,
+    );
+    return this.nonContactDisplayName(candidate);
+  }
+
+  private pickUsername(source: Record<string, unknown>): string | undefined {
+    return this.pickString(
+      source["username"],
+      source["userName"],
+      source["preferredUsername"],
+      source["preferred_username"],
+      source["handle"],
+    );
+  }
+
+  private joinNameParts(...parts: Array<string | undefined>): string | undefined {
+    const name = parts.filter(Boolean).join(" ").trim();
+    return name.length > 0 ? name : undefined;
+  }
+
+  private nonContactDisplayName(value?: string | null): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    if (trimmed.length < 2) return undefined;
+    if (trimmed.includes("@")) return undefined;
+    if (/^\+?\d{7,15}$/.test(trimmed.replace(/\s/g, ""))) return undefined;
+    if (/^[A-Za-z0-9_-]{24,}$/.test(trimmed)) return undefined;
+    return trimmed;
+  }
+
+  private pickUrl(...values: unknown[]): string | undefined {
+    const value = this.pickString(...values);
+    if (!value) return undefined;
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" || url.protocol === "http:"
+        ? url.toString()
+        : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private pickString(...values: unknown[]): string | undefined {

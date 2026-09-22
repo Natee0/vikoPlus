@@ -1,13 +1,23 @@
 ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'PLATFORM_PRICE_CHANGED';
 ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'PLATFORM_PACKAGE_PURCHASE_CREATED';
 
-CREATE TYPE "ReminderChannel" AS ENUM ('SMS', 'WHATSAPP', 'BOTH');
+DO $$
+BEGIN
+    CREATE TYPE "ReminderChannel" AS ENUM ('SMS', 'WHATSAPP', 'BOTH');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TYPE "ReminderPackagePurchaseStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'CANCELLED');
+DO $$
+BEGIN
+    CREATE TYPE "ReminderPackagePurchaseStatus" AS ENUM ('PENDING', 'PAID', 'FAILED', 'CANCELLED');
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "SubscriptionPlan" ADD COLUMN "intervalCount" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "SubscriptionPlan" ADD COLUMN IF NOT EXISTS "intervalCount" INTEGER NOT NULL DEFAULT 1;
 
-CREATE TABLE "PlatformPrice" (
+CREATE TABLE IF NOT EXISTS "PlatformPrice" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -23,11 +33,11 @@ CREATE TABLE "PlatformPrice" (
     CONSTRAINT "PlatformPrice_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "PlatformPrice_code_key" ON "PlatformPrice"("code");
+CREATE UNIQUE INDEX IF NOT EXISTS "PlatformPrice_code_key" ON "PlatformPrice"("code");
 
-CREATE INDEX "PlatformPrice_updatedByUserId_idx" ON "PlatformPrice"("updatedByUserId");
+CREATE INDEX IF NOT EXISTS "PlatformPrice_updatedByUserId_idx" ON "PlatformPrice"("updatedByUserId");
 
-CREATE TABLE "ReminderPackagePurchase" (
+CREATE TABLE IF NOT EXISTS "ReminderPackagePurchase" (
     "id" TEXT NOT NULL,
     "groupId" TEXT NOT NULL,
     "platformPriceId" TEXT NOT NULL,
@@ -47,16 +57,31 @@ CREATE TABLE "ReminderPackagePurchase" (
     CONSTRAINT "ReminderPackagePurchase_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "ReminderPackagePurchase_groupId_idx" ON "ReminderPackagePurchase"("groupId");
+CREATE INDEX IF NOT EXISTS "ReminderPackagePurchase_groupId_idx" ON "ReminderPackagePurchase"("groupId");
 
-CREATE INDEX "ReminderPackagePurchase_platformPriceId_idx" ON "ReminderPackagePurchase"("platformPriceId");
+CREATE INDEX IF NOT EXISTS "ReminderPackagePurchase_platformPriceId_idx" ON "ReminderPackagePurchase"("platformPriceId");
 
-CREATE INDEX "ReminderPackagePurchase_createdByUserId_idx" ON "ReminderPackagePurchase"("createdByUserId");
+CREATE INDEX IF NOT EXISTS "ReminderPackagePurchase_createdByUserId_idx" ON "ReminderPackagePurchase"("createdByUserId");
 
-CREATE INDEX "ReminderPackagePurchase_providerCheckoutId_idx" ON "ReminderPackagePurchase"("providerCheckoutId");
+CREATE INDEX IF NOT EXISTS "ReminderPackagePurchase_providerCheckoutId_idx" ON "ReminderPackagePurchase"("providerCheckoutId");
 
-ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_groupId_fkey" FOREIGN KEY ("groupId") REFERENCES "Group"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_platformPriceId_fkey" FOREIGN KEY ("platformPriceId") REFERENCES "PlatformPrice"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+    ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_platformPriceId_fkey" FOREIGN KEY ("platformPriceId") REFERENCES "PlatformPrice"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
-ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+    ALTER TABLE "ReminderPackagePurchase" ADD CONSTRAINT "ReminderPackagePurchase_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;

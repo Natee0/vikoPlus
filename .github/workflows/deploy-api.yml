@@ -58,30 +58,60 @@ jobs:
             docker compose down --remove-orphans || true
             docker compose up --build -d --force-recreate
 
-            # One-time production recovery for the old init migration that was
-            # applied manually/partially before Prisma recorded it successfully.
-            for migration_recovery in \
-              "20260903125300_init:applied" \
-              "20260903143000_add_platform_pricing:rolled-back" \
-              "20260903153000_add_group_history_and_contribution_cycles:rolled-back" \
-              "20260904113000_add_password_reset_flow:rolled-back" \
-              "20260904170000_add_user_profile_picture:rolled-back" \
-              "20260904173000_add_reminder_campaign_body:rolled-back" \
-              "20260905100000_add_group_loans:rolled-back" \
-              "20260905143000_link_invitations_to_members:rolled-back" \
-              "20260905220000_reminder_rules:rolled-back" \
-              "20260905223000_financial_year_rollover:rolled-back" \
-              "20260905230000_group_payment_rules:rolled-back" \
-              "20260907090000_upcoming_contribution_obligations:rolled-back" \
-              "20260907120000_add_push_device_tokens:rolled-back" \
-              "20260909110000_group_expenses:rolled-back" \
-              "20260911120000_reminder_package_quantity:rolled-back" \
-              "20260912130000_group_deletion_requests:rolled-back"
-            do
-              migration_name="${migration_recovery%%:*}"
-              migration_state="${migration_recovery##*:}"
-              docker exec vikoplus_api npx prisma migrate resolve "--$migration_state" "$migration_name" || true
-            done
+            # One-time production recovery for old migrations that were
+            # applied manually/partially before Prisma recorded them cleanly.
+            FAILED_MIGRATIONS="$(
+              docker exec vikoplus_api node -e '
+                const { PrismaClient } = require("@prisma/client");
+                const prisma = new PrismaClient();
+                prisma.$queryRawUnsafe("SELECT migration_name FROM \"_prisma_migrations\" WHERE finished_at IS NULL AND rolled_back_at IS NULL ORDER BY started_at")
+                  .then((rows) => rows.forEach((row) => console.log(row.migration_name)))
+                  .finally(() => prisma.$disconnect())
+                  .catch((error) => {
+                    console.error(error);
+                    process.exit(1);
+                  });
+              '
+            )"
+
+            if [ -n "$FAILED_MIGRATIONS" ]; then
+              echo "Recovering failed Prisma migrations:"
+              echo "$FAILED_MIGRATIONS"
+            fi
+
+            while IFS= read -r migration_name; do
+              [ -n "$migration_name" ] || continue
+
+              case "$migration_name" in
+                20260903125300_init)
+                  migration_state="applied"
+                  ;;
+                20260903143000_add_platform_pricing|\
+                20260903153000_add_group_history_and_contribution_cycles|\
+                20260904113000_add_password_reset_flow|\
+                20260904143000_add_group_profile_fields|\
+                20260904170000_add_user_profile_picture|\
+                20260904173000_add_reminder_campaign_body|\
+                20260905100000_add_group_loans|\
+                20260905143000_link_invitations_to_members|\
+                20260905220000_reminder_rules|\
+                20260905223000_financial_year_rollover|\
+                20260905230000_group_payment_rules|\
+                20260907090000_upcoming_contribution_obligations|\
+                20260907120000_add_push_device_tokens|\
+                20260909110000_group_expenses|\
+                20260911120000_reminder_package_quantity|\
+                20260912130000_group_deletion_requests)
+                  migration_state="rolled-back"
+                  ;;
+                *)
+                  echo "Migration $migration_name failed but is not in the deploy recovery allowlist."
+                  exit 1
+                  ;;
+              esac
+
+              docker exec vikoplus_api npx prisma migrate resolve "--$migration_state" "$migration_name"
+            done <<< "$FAILED_MIGRATIONS"
 
             docker exec vikoplus_api npx prisma migrate deploy
 

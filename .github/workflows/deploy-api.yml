@@ -61,6 +61,7 @@ jobs:
             # One-time production recovery for the old init migration that was
             # applied manually/partially before Prisma recorded it successfully.
             docker exec vikoplus_api npx prisma migrate resolve --applied 20260903125300_init || true
+            docker exec vikoplus_api npx prisma migrate resolve --rolled-back 20260903143000_add_platform_pricing || true
 
             docker exec vikoplus_api npx prisma migrate deploy
 

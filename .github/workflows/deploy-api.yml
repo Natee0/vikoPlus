@@ -58,14 +58,9 @@ jobs:
             docker compose down --remove-orphans || true
             docker compose up --build -d --force-recreate
 
-            MIGRATION_STATUS="$(docker exec vikoplus_api npx prisma migrate status 2>&1 || true)"
-            echo "$MIGRATION_STATUS"
-
             # One-time production recovery for the old init migration that was
             # applied manually/partially before Prisma recorded it successfully.
-            if echo "$MIGRATION_STATUS" | grep -q "20260903125300_init" && echo "$MIGRATION_STATUS" | grep -qi "failed"; then
-              docker exec vikoplus_api npx prisma migrate resolve --applied 20260903125300_init
-            fi
+            docker exec vikoplus_api npx prisma migrate resolve --applied 20260903125300_init || true
 
             docker exec vikoplus_api npx prisma migrate deploy
 

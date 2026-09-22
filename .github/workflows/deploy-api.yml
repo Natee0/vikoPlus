@@ -70,3 +70,4 @@ jobs:
             docker exec vikoplus_api npx prisma migrate deploy
 
             docker image prune -f
+            

@@ -1,11 +1,11 @@
-ALTER TYPE "ContributionFrequency" ADD VALUE 'DAILY';
-ALTER TYPE "ContributionFrequency" ADD VALUE 'WEEKLY';
+ALTER TYPE "ContributionFrequency" ADD VALUE IF NOT EXISTS 'DAILY';
+ALTER TYPE "ContributionFrequency" ADD VALUE IF NOT EXISTS 'WEEKLY';
 
-ALTER TABLE "Group" ADD COLUMN "establishedAt" TIMESTAMP(3);
-ALTER TABLE "Group" ADD COLUMN "historicalDataStartsAt" TIMESTAMP(3);
+ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "establishedAt" TIMESTAMP(3);
+ALTER TABLE "Group" ADD COLUMN IF NOT EXISTS "historicalDataStartsAt" TIMESTAMP(3);
 
-ALTER TABLE "ContributionPlan" ADD COLUMN "dueDayOfWeek" INTEGER;
-ALTER TABLE "ContributionPlan" ADD COLUMN "dueDayOfMonth" INTEGER;
-ALTER TABLE "ContributionPlan" ADD COLUMN "cycleAnchorDate" TIMESTAMP(3);
+ALTER TABLE "ContributionPlan" ADD COLUMN IF NOT EXISTS "dueDayOfWeek" INTEGER;
+ALTER TABLE "ContributionPlan" ADD COLUMN IF NOT EXISTS "dueDayOfMonth" INTEGER;
+ALTER TABLE "ContributionPlan" ADD COLUMN IF NOT EXISTS "cycleAnchorDate" TIMESTAMP(3);
 
-ALTER TABLE "GroupContributionPayment" ADD COLUMN "paidAt" TIMESTAMP(3);
+ALTER TABLE "GroupContributionPayment" ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP(3);

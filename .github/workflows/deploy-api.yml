@@ -62,7 +62,8 @@ jobs:
             # applied manually/partially before Prisma recorded it successfully.
             for migration_recovery in \
               "20260903125300_init:applied" \
-              "20260903143000_add_platform_pricing:rolled-back"
+              "20260903143000_add_platform_pricing:rolled-back" \
+              "20260903153000_add_group_history_and_contribution_cycles:rolled-back"
             do
               migration_name="${migration_recovery%%:*}"
               migration_state="${migration_recovery##*:}"

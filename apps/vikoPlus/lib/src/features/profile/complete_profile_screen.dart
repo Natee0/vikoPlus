@@ -118,14 +118,11 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
     final profile = ref.watch(profileProvider);
     final data = profile.asData?.value;
     if (!_loaded && data != null) {
-      _name.text =
-          (data['displayName'] as String?) ??
-          (data['username'] as String?) ??
-          '';
+      _name.text = _safePersonName(data['displayName'] as String?) ?? '';
       _profileImageUrl = data['profilePictureUrl'] as String?;
       _loaded = true;
     }
-    final username = (data?['username'] as String?)?.trim();
+    final username = _safePersonName(data?['username'] as String?);
     final identities = (data?['identities'] as List? ?? [])
         .whereType<Map>()
         .map((identity) => Map<String, dynamic>.from(identity))
@@ -195,6 +192,17 @@ class _CompleteProfileScreenState extends ConsumerState<CompleteProfileScreen> {
       ),
     );
   }
+}
+
+String? _safePersonName(String? value) {
+  final trimmed = value?.trim();
+  if (trimmed == null || trimmed.length < 2) return null;
+  if (trimmed.contains('@')) return null;
+  if (RegExp(r'^\+?\d{7,15}$').hasMatch(trimmed.replaceAll(' ', ''))) {
+    return null;
+  }
+  if (RegExp(r'^[A-Za-z0-9_-]{24,}$').hasMatch(trimmed)) return null;
+  return trimmed;
 }
 
 class _ProfileDetailTile extends StatelessWidget {

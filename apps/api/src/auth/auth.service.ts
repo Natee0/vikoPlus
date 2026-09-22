@@ -547,6 +547,9 @@ export class AuthService {
       username: this.pickUsername(source),
       profilePictureUrl: this.pickUrl(
         source["picture"],
+        source["profilePicture"],
+        source["profile_picture"],
+        source["image"],
         source["avatar"],
         source["avatarUrl"],
         source["avatar_url"],
@@ -601,12 +604,7 @@ export class AuthService {
     const existingContactIdentities = await this.existingContactIdentityKeys(info);
     return this.prisma.user.create({
       data: {
-        displayName:
-          info.fullName ??
-          info.username ??
-          info.email ??
-          info.phone ??
-          "Sayari account",
+        displayName: info.fullName ?? null,
         username: info.username,
         profilePictureUrl: info.profilePictureUrl,
         passwordHash: await argon2.hash(randomBytes(32).toString("base64url")),
@@ -687,9 +685,8 @@ export class AuthService {
       displayName:
         info.fullName ??
         this.nonContactDisplayName(existing.displayName) ??
-        info.username ??
-        existing.displayName,
-      username: info.username ?? existing.username,
+        null,
+      username: info.username ?? this.nonContactDisplayName(existing.username),
       profilePictureUrl: info.profilePictureUrl ?? existing.profilePictureUrl,
     };
   }
@@ -966,12 +963,14 @@ export class AuthService {
   }
 
   private pickUsername(source: Record<string, unknown>): string | undefined {
-    return this.pickString(
-      source["username"],
-      source["userName"],
-      source["preferredUsername"],
-      source["preferred_username"],
-      source["handle"],
+    return this.nonContactDisplayName(
+      this.pickString(
+        source["username"],
+        source["userName"],
+        source["preferredUsername"],
+        source["preferred_username"],
+        source["handle"],
+      ),
     );
   }
 
@@ -991,16 +990,26 @@ export class AuthService {
   }
 
   private pickUrl(...values: unknown[]): string | undefined {
-    const value = this.pickString(...values);
-    if (!value) return undefined;
-    try {
-      const url = new URL(value);
-      return url.protocol === "https:" || url.protocol === "http:"
-        ? url.toString()
-        : undefined;
-    } catch {
-      return undefined;
+    for (const candidate of values) {
+      const value =
+        this.pickString(candidate) ??
+        this.pickString(
+          this.asRecord(candidate)["url"],
+          this.asRecord(candidate)["href"],
+          this.asRecord(candidate)["secure_url"],
+          this.asRecord(candidate)["secureUrl"],
+        );
+      if (!value) continue;
+      try {
+        const url = new URL(value);
+        if (url.protocol === "https:" || url.protocol === "http:") {
+          return url.toString();
+        }
+      } catch {
+        // Try the next candidate.
+      }
     }
+    return undefined;
   }
 
   private pickString(...values: unknown[]): string | undefined {

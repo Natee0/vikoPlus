@@ -150,15 +150,17 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
       await ref.read(authControllerProvider.notifier).startSayariAccountSignIn();
     } on AuthFailure catch (error) {
       if (mounted) {
-        setState(() => _errorMessage = context.vt(error.message));
+        setState(() {
+          _errorMessage = context.vt(error.message);
+          _sayariAccountLoading = false;
+        });
       }
     } catch (error) {
       if (mounted) {
-        setState(() => _errorMessage = context.vt(error.toString()));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _sayariAccountLoading = false);
+        setState(() {
+          _errorMessage = context.vt(error.toString());
+          _sayariAccountLoading = false;
+        });
       }
     }
   }

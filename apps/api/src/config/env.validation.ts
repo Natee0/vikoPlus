@@ -19,6 +19,7 @@ export const envValidationSchema = Joi.object({
   SAYARI_ACCOUNT_USERINFO_URL: Joi.string()
     .uri()
     .default("https://accounts-api.sayarisoftware.com/api/v1/oauth/userinfo"),
+  SAYARI_ACCOUNT_DEBUG_USERINFO: Joi.boolean().default(false),
   CORS_ORIGINS: Joi.string().default("http://localhost:3000"),
   TRUST_PROXY: Joi.boolean().default(true),
   ENABLE_SWAGGER: Joi.boolean().default(false),

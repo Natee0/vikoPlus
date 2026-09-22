@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -44,6 +45,8 @@ type SayariUserInfo = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
@@ -497,11 +500,13 @@ export class AuthService {
         signal: AbortSignal.timeout(20000),
       },
     );
-    const body = await response.json().catch(() => ({}));
+    const body: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new BadRequestException(body);
     }
-    return this.normalizeSayariUserInfo(body);
+    const userInfo = this.normalizeSayariUserInfo(body);
+    this.logSayariUserInfo(body, userInfo);
+    return userInfo;
   }
 
   private normalizeSayariUserInfo(body: unknown): SayariUserInfo {
@@ -517,6 +522,7 @@ export class AuthService {
     );
     const source = Object.keys(candidate).length > 0 ? candidate : root;
     const subject = this.pickString(
+      source["sayariSubject"],
       source["sub"],
       source["subject"],
       source["id"],
@@ -557,10 +563,25 @@ export class AuthService {
         source["photo_url"],
         source["profilePictureUrl"],
         source["profile_picture_url"],
+        source["displayPicture"],
+        source["display_picture"],
         source["imageUrl"],
         source["image_url"],
       ),
     };
+  }
+
+  private logSayariUserInfo(rawBody: unknown, userInfo: SayariUserInfo) {
+    if (!this.config.get<boolean>("SAYARI_ACCOUNT_DEBUG_USERINFO")) {
+      return;
+    }
+
+    this.logger.warn(
+      `Sayari Account userinfo raw payload: ${JSON.stringify(rawBody)}`,
+    );
+    this.logger.warn(
+      `Sayari Account userinfo normalized: ${JSON.stringify(userInfo)}`,
+    );
   }
 
   private async upsertSayariUser(info: SayariUserInfo) {
@@ -931,7 +952,7 @@ export class AuthService {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    const payload = await response.json().catch(() => ({}));
+    const payload: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new BadRequestException(payload);
     }

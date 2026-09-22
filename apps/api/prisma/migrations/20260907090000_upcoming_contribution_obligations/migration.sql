@@ -1,1 +1,1 @@
-ALTER TYPE "ContributionObligationStatus" ADD VALUE 'UPCOMING';
+ALTER TYPE "ContributionObligationStatus" ADD VALUE IF NOT EXISTS 'UPCOMING';

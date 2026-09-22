@@ -1,1 +1,1 @@
-ALTER TABLE "FinancialYear" ADD COLUMN "automaticRollover" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "FinancialYear" ADD COLUMN IF NOT EXISTS "automaticRollover" BOOLEAN NOT NULL DEFAULT true;

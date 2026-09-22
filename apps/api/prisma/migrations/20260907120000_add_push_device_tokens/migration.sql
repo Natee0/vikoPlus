@@ -1,4 +1,4 @@
-CREATE TABLE "PushDeviceToken" (
+CREATE TABLE IF NOT EXISTS "PushDeviceToken" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
   "token" TEXT NOT NULL,
@@ -11,10 +11,15 @@ CREATE TABLE "PushDeviceToken" (
   CONSTRAINT "PushDeviceToken_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "PushDeviceToken_token_key" ON "PushDeviceToken"("token");
-CREATE INDEX "PushDeviceToken_userId_idx" ON "PushDeviceToken"("userId");
-CREATE INDEX "PushDeviceToken_platform_idx" ON "PushDeviceToken"("platform");
+CREATE UNIQUE INDEX IF NOT EXISTS "PushDeviceToken_token_key" ON "PushDeviceToken"("token");
+CREATE INDEX IF NOT EXISTS "PushDeviceToken_userId_idx" ON "PushDeviceToken"("userId");
+CREATE INDEX IF NOT EXISTS "PushDeviceToken_platform_idx" ON "PushDeviceToken"("platform");
 
-ALTER TABLE "PushDeviceToken"
-ADD CONSTRAINT "PushDeviceToken_userId_fkey"
-FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+    ALTER TABLE "PushDeviceToken"
+    ADD CONSTRAINT "PushDeviceToken_userId_fkey"
+    FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;

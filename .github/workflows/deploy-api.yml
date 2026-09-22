@@ -63,7 +63,20 @@ jobs:
             for migration_recovery in \
               "20260903125300_init:applied" \
               "20260903143000_add_platform_pricing:rolled-back" \
-              "20260903153000_add_group_history_and_contribution_cycles:rolled-back"
+              "20260903153000_add_group_history_and_contribution_cycles:rolled-back" \
+              "20260904113000_add_password_reset_flow:rolled-back" \
+              "20260904170000_add_user_profile_picture:rolled-back" \
+              "20260904173000_add_reminder_campaign_body:rolled-back" \
+              "20260905100000_add_group_loans:rolled-back" \
+              "20260905143000_link_invitations_to_members:rolled-back" \
+              "20260905220000_reminder_rules:rolled-back" \
+              "20260905223000_financial_year_rollover:rolled-back" \
+              "20260905230000_group_payment_rules:rolled-back" \
+              "20260907090000_upcoming_contribution_obligations:rolled-back" \
+              "20260907120000_add_push_device_tokens:rolled-back" \
+              "20260909110000_group_expenses:rolled-back" \
+              "20260911120000_reminder_package_quantity:rolled-back" \
+              "20260912130000_group_deletion_requests:rolled-back"
             do
               migration_name="${migration_recovery%%:*}"
               migration_state="${migration_recovery##*:}"

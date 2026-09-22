@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'auth_repository.dart';
 import 'auth_secure_storage.dart';
 import 'auth_session.dart';
+import 'sayari_account_auth_service.dart';
 import '../locale/locale_controller.dart';
 
 final authControllerProvider =
@@ -73,6 +74,28 @@ class AuthController extends AsyncNotifier<AuthSession> {
       await ref.read(authSecureStorageProvider).saveSession(session);
       state = AsyncData(session);
       return routeForRole(tokens.user.selectedRole, fallback: previewRoute);
+    });
+  }
+
+  Future<void> startSayariAccountSignIn() async {
+    await ref.read(sayariAccountAuthServiceProvider).signIn();
+  }
+
+  Future<String> completeSayariAccountSignIn(Uri callbackUri) async {
+    state = const AsyncLoading();
+    return _guard(() async {
+      final tokens = await ref
+          .read(sayariAccountAuthServiceProvider)
+          .completeSignIn(callbackUri);
+      ref.read(authSessionProvider.notifier).setAuthenticated(
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: tokens.user,
+          );
+      final session = ref.read(authSessionProvider);
+      await ref.read(authSecureStorageProvider).saveSession(session);
+      state = AsyncData(session);
+      return routeForRole(tokens.user.selectedRole);
     });
   }
 

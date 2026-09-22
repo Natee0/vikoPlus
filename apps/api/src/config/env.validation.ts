@@ -13,6 +13,12 @@ export const envValidationSchema = Joi.object({
   JWT_REFRESH_SECRET: Joi.string().min(24).required(),
   ACCESS_TOKEN_TTL_SECONDS: Joi.number().integer().positive().default(900),
   REFRESH_TOKEN_TTL_DAYS: Joi.number().integer().positive().default(30),
+  SAYARI_ACCOUNT_TOKEN_URL: Joi.string()
+    .uri()
+    .default("https://accounts-api.sayarisoftware.com/api/v1/oauth/token"),
+  SAYARI_ACCOUNT_USERINFO_URL: Joi.string()
+    .uri()
+    .default("https://accounts-api.sayarisoftware.com/api/v1/oauth/userinfo"),
   CORS_ORIGINS: Joi.string().default("http://localhost:3000"),
   TRUST_PROXY: Joi.boolean().default(true),
   ENABLE_SWAGGER: Joi.boolean().default(false),

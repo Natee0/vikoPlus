@@ -1,5 +1,7 @@
-import '../../../l10n/app_localizations.dart';
+import 'dart:async';
 
+import '../../../l10n/app_localizations.dart';
+import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,9 +32,23 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
   String _deliveryChannel = 'sms';
   String _errorMessage = '';
   bool _isSubmitting = false;
+  bool _sayariAccountLoading = false;
+  bool _sayariCallbackInProgress = false;
+  String? _processedSayariCallback;
+  final _appLinks = AppLinks();
+  StreamSubscription<Uri>? _sayariLinkSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _sayariLinkSubscription = _appLinks.uriLinkStream.listen(
+      _handleSayariCallback,
+    );
+  }
 
   @override
   void dispose() {
+    _sayariLinkSubscription?.cancel();
     _fullNameController.dispose();
     _identityController.dispose();
     _passwordController.dispose();
@@ -123,10 +139,76 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
     setState(() => _errorMessage = '');
   }
 
+  Future<void> _startSayariAccount() async {
+    if (_sayariAccountLoading || _isSubmitting) return;
+    setState(() {
+      _errorMessage = '';
+      _sayariAccountLoading = true;
+      _processedSayariCallback = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).startSayariAccountSignIn();
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = context.vt(error.message));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = context.vt(error.toString()));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sayariAccountLoading = false);
+      }
+    }
+  }
+
+  Future<void> _handleSayariCallback(Uri uri) async {
+    if (uri.scheme != 'com.vikoplus' ||
+        uri.host != 'oauth' ||
+        uri.path != '/callback') {
+      return;
+    }
+    final callbackKey = uri.toString();
+    if (_sayariCallbackInProgress ||
+        _processedSayariCallback == callbackKey) {
+      return;
+    }
+    _sayariCallbackInProgress = true;
+    _processedSayariCallback = callbackKey;
+    if (mounted) {
+      setState(() {
+        _errorMessage = '';
+        _sayariAccountLoading = true;
+      });
+    }
+    try {
+      final route = await ref
+          .read(authControllerProvider.notifier)
+          .completeSayariAccountSignIn(uri);
+      if (mounted) context.go(route);
+    } on AuthFailure catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = context.vt(error.message));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() => _errorMessage = context.vt(error.toString()));
+      }
+    } finally {
+      _sayariCallbackInProgress = false;
+      if (mounted) {
+        setState(() => _sayariAccountLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLoading =
-        ref.watch(authControllerProvider).isLoading || _isSubmitting;
+        ref.watch(authControllerProvider).isLoading ||
+        _isSubmitting ||
+        _sayariAccountLoading;
 
     return AuthScaffold(
       child: AuthCard(
@@ -361,6 +443,11 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
                     ? context.vt('Creating account')
                     : context.vt('Create account'),
               ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            SayariAccountButton(
+              isLoading: _sayariAccountLoading,
+              onPressed: isLoading ? null : _startSayariAccount,
             ),
             const SizedBox(height: 12),
             AuthTextLink(

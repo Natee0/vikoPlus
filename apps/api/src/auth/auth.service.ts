@@ -4,6 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import {
   GroupMemberStatus,
   Locale,
@@ -27,9 +28,17 @@ import {
   ResendAccountVerificationDto,
   RegisterDto,
   RequestPasswordResetDto,
+  SayariExchangeDto,
   VerifyPasswordResetCodeDto,
   VerifyOtpDto,
 } from "./dto/auth.dto";
+
+type SayariUserInfo = {
+  subject: string;
+  email?: string;
+  phone?: string;
+  fullName?: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -37,6 +46,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly tokens: TokenService,
     private readonly verificationDelivery: VerificationDeliveryService,
+    private readonly config: ConfigService,
   ) {}
 
   async register(input: RegisterDto) {
@@ -122,6 +132,13 @@ export class AuthService {
     }
 
     return this.authResponse(identity.user.id);
+  }
+
+  async exchangeSayariAccount(input: SayariExchangeDto) {
+    const token = await this.exchangeSayariCode(input);
+    const userInfo = await this.fetchSayariUserInfo(token.accessToken);
+    const user = await this.upsertSayariUser(userInfo);
+    return this.authResponse(user.id);
   }
 
   async verifyOtp(input: VerifyOtpDto) {
@@ -449,6 +466,271 @@ export class AuthService {
     };
   }
 
+  private async exchangeSayariCode(input: SayariExchangeDto) {
+    const body = await this.postJson(
+      this.config.getOrThrow<string>("SAYARI_ACCOUNT_TOKEN_URL"),
+      {
+        grantType: "authorization_code",
+        code: input.code,
+        state: input.state,
+        redirectUri: input.redirectUri,
+        appId: input.appId,
+        codeVerifier: input.codeVerifier,
+      },
+    );
+    const accessToken = this.pickString(body["access_token"], body["accessToken"]);
+    if (!accessToken) {
+      throw new BadRequestException(
+        "Sayari account token response is missing an access token.",
+      );
+    }
+    return { accessToken };
+  }
+
+  private async fetchSayariUserInfo(accessToken: string): Promise<SayariUserInfo> {
+    const response = await fetch(
+      this.config.getOrThrow<string>("SAYARI_ACCOUNT_USERINFO_URL"),
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(20000),
+      },
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new BadRequestException(body);
+    }
+    return this.normalizeSayariUserInfo(body);
+  }
+
+  private normalizeSayariUserInfo(body: unknown): SayariUserInfo {
+    const root = this.asRecord(body);
+    const data = this.asRecord(root["data"]);
+    const candidate = this.asRecord(
+      root["userInfo"] ??
+        root["user"] ??
+        root["profile"] ??
+        data["userInfo"] ??
+        data["user"] ??
+        data,
+    );
+    const source = Object.keys(candidate).length > 0 ? candidate : root;
+    const subject = this.pickString(
+      source["sub"],
+      source["subject"],
+      source["id"],
+      source["userId"],
+    );
+    if (!subject) {
+      throw new BadRequestException("Sayari account profile is missing subject.");
+    }
+
+    return {
+      subject,
+      email: this.pickString(
+        source["email"],
+        source["emailAddress"],
+        source["email_address"],
+        source["preferred_username"],
+      )?.toLowerCase(),
+      phone: this.normalizeOptionalPhone(
+        this.pickString(source["phone"], source["phoneNumber"], source["msisdn"]),
+      ),
+      fullName: this.pickString(
+        source["fullName"],
+        source["name"],
+        source["displayName"],
+        source["given_name"],
+      ),
+    };
+  }
+
+  private async upsertSayariUser(info: SayariUserInfo) {
+    const sayariIdentity = await this.prisma.userIdentity.findUnique({
+      where: {
+        type_value: {
+          type: UserIdentityType.SAYARI,
+          value: info.subject,
+        },
+      },
+      include: { user: true },
+    });
+    if (sayariIdentity) {
+      return this.prisma.user.update({
+        where: { id: sayariIdentity.userId },
+        data: {
+          displayName: info.fullName ?? sayariIdentity.user.displayName,
+        },
+      });
+    }
+
+    const matchedIdentity = await this.findSayariIdentityMatch(info);
+    if (matchedIdentity) {
+      return this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.update({
+          where: { id: matchedIdentity.userId },
+          data: {
+            displayName: info.fullName ?? matchedIdentity.user.displayName,
+          },
+        });
+        await tx.userIdentity.create({
+          data: {
+            userId: matchedIdentity.userId,
+            type: UserIdentityType.SAYARI,
+            value: info.subject,
+            isVerified: true,
+            verifiedAt: new Date(),
+          },
+        });
+        await this.verifyMatchedSayariContacts(tx, matchedIdentity.userId, info);
+        return user;
+      });
+    }
+
+    const existingContactIdentities = await this.existingContactIdentityKeys(info);
+    return this.prisma.user.create({
+      data: {
+        displayName:
+          info.fullName ??
+          info.email ??
+          info.phone ??
+          "Sayari account",
+        passwordHash: await argon2.hash(randomBytes(32).toString("base64url")),
+        preferredLocale: Locale.sw,
+        identities: {
+          create: this.sayariIdentitiesToCreate(info, {
+            includeSayari: true,
+            includeEmail: !existingContactIdentities.has("EMAIL"),
+            includePhone: !existingContactIdentities.has("PHONE"),
+          }),
+        },
+      },
+    });
+  }
+
+  private async findSayariIdentityMatch(info: SayariUserInfo) {
+    if (info.email) {
+      const byEmail = await this.prisma.userIdentity.findUnique({
+        where: {
+          type_value: {
+            type: UserIdentityType.EMAIL,
+            value: info.email,
+          },
+        },
+        include: { user: true },
+      });
+      if (byEmail) return byEmail;
+    }
+
+    if (!info.phone) return null;
+    return this.prisma.userIdentity.findFirst({
+      where: {
+        type: UserIdentityType.PHONE,
+        value: info.phone,
+        isVerified: true,
+      },
+      include: { user: true },
+    });
+  }
+
+  private async verifyMatchedSayariContacts(
+    tx: Pick<PrismaService, "userIdentity">,
+    userId: string,
+    info: SayariUserInfo,
+  ) {
+    const verifiedAt = new Date();
+    if (info.email) {
+      await tx.userIdentity.updateMany({
+        where: {
+          userId,
+          type: UserIdentityType.EMAIL,
+          value: info.email,
+        },
+        data: { isVerified: true, verifiedAt },
+      });
+    }
+    if (info.phone) {
+      await tx.userIdentity.updateMany({
+        where: {
+          userId,
+          type: UserIdentityType.PHONE,
+          value: info.phone,
+        },
+        data: { isVerified: true, verifiedAt },
+      });
+    }
+  }
+
+  private sayariIdentitiesToCreate(
+    info: SayariUserInfo,
+    options: {
+      includeSayari: boolean;
+      includeEmail: boolean;
+      includePhone: boolean;
+    },
+  ) {
+    const now = new Date();
+    const identities: Array<{
+      type: UserIdentityType;
+      value: string;
+      isVerified: boolean;
+      verifiedAt: Date;
+    }> = [];
+    if (options.includeSayari) {
+      identities.push({
+        type: UserIdentityType.SAYARI,
+        value: info.subject,
+        isVerified: true,
+        verifiedAt: now,
+      });
+    }
+    if (options.includeEmail && info.email) {
+      identities.push({
+        type: UserIdentityType.EMAIL,
+        value: info.email,
+        isVerified: true,
+        verifiedAt: now,
+      });
+    }
+    if (options.includePhone && info.phone) {
+      identities.push({
+        type: UserIdentityType.PHONE,
+        value: info.phone,
+        isVerified: true,
+        verifiedAt: now,
+      });
+    }
+    return identities;
+  }
+
+  private async existingContactIdentityKeys(
+    info: SayariUserInfo,
+  ): Promise<Set<"EMAIL" | "PHONE">> {
+    const candidates: Array<{ type: UserIdentityType; value: string }> = [];
+    if (info.email) {
+      candidates.push({ type: UserIdentityType.EMAIL, value: info.email });
+    }
+    if (info.phone) {
+      candidates.push({ type: UserIdentityType.PHONE, value: info.phone });
+    }
+    if (candidates.length === 0) return new Set();
+    const rows = await this.prisma.userIdentity.findMany({
+      where: {
+        OR: candidates.map((item) => ({
+          type: item.type,
+          value: item.value,
+        })),
+      },
+      select: { type: true },
+    });
+    return new Set(
+      rows
+        .map((row) => row.type)
+        .filter((type): type is "EMAIL" | "PHONE" =>
+          type === "EMAIL" || type === "PHONE",
+        ),
+    );
+  }
+
   private async findIdentity(identifier: string) {
     const value = identifier.includes("@")
       ? identifier.trim().toLowerCase()
@@ -560,6 +842,12 @@ export class AuthService {
     return digits;
   }
 
+  private normalizeOptionalPhone(value?: string): string | undefined {
+    if (!value) return undefined;
+    const normalized = this.normalizePhone(value);
+    return normalized ? normalized : undefined;
+  }
+
   private locale(locale?: "en" | "sw"): Locale {
     return locale === "en" ? Locale.en : Locale.sw;
   }
@@ -600,6 +888,41 @@ export class AuthService {
 
   private hashToken(token: string): string {
     return createHash("sha256").update(token).digest("hex");
+  }
+
+  private async postJson(
+    url: string,
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const response = await fetch(url, {
+      method: "POST",
+      signal: AbortSignal.timeout(20000),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new BadRequestException(payload);
+    }
+    return this.asRecord(payload);
+  }
+
+  private asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
+  private pickString(...values: unknown[]): string | undefined {
+    for (const value of values) {
+      if (typeof value === "string" && value.trim().length > 0) {
+        return value.trim();
+      }
+      if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+      }
+    }
+    return undefined;
   }
 
   private passwordResetRequestedResponse(

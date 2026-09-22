@@ -54,6 +54,28 @@ export class LoginDto {
   password!: string;
 }
 
+export class SayariExchangeDto {
+  @IsString()
+  @IsNotEmpty()
+  code!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  state!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  redirectUri!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  appId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  codeVerifier!: string;
+}
+
 export class VerifyOtpDto {
   @IsString()
   @IsNotEmpty()

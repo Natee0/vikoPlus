@@ -15,6 +15,7 @@ enum Locale {
 enum UserIdentityType {
   EMAIL
   PHONE
+  SAYARI
 }
 
 enum OtpPurpose {

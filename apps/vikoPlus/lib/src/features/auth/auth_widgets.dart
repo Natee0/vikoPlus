@@ -229,6 +229,41 @@ class AuthErrorMessage extends StatelessWidget {
   }
 }
 
+class SayariAccountButton extends StatelessWidget {
+  const SayariAccountButton({
+    required this.isLoading,
+    required this.onPressed,
+    super.key,
+  });
+
+  final bool isLoading;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: isLoading ? null : onPressed,
+      icon: isLoading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Image.asset(
+              'assets/logo/sayari-software-logo.png',
+              width: 20,
+              height: 20,
+              fit: BoxFit.contain,
+            ),
+      label: Text(
+        isLoading
+            ? context.vt('Opening Sayari Account')
+            : context.vt('Continue with Sayari Account'),
+      ),
+    );
+  }
+}
+
 class OtpDeliveryChannelSelector extends StatelessWidget {
   const OtpDeliveryChannelSelector({
     required this.value,

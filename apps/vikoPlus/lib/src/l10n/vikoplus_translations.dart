@@ -28,6 +28,8 @@ const _swahili = <String, String>{
   'Enter your phone/email and password.':
       'Weka namba ya simu/barua pepe na nenosiri.',
   'Verify account': 'Thibitisha akaunti',
+  'Continue with Sayari Account': 'Endelea kwa Akaunti ya Sayari',
+  'Opening Sayari Account': 'Inafungua Akaunti ya Sayari',
   'Send code through': 'Tuma msimbo kupitia',
   'SMS': 'SMS',
   'email': 'barua pepe',

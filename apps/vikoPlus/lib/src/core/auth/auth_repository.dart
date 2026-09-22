@@ -50,6 +50,18 @@ class AuthRepository {
     return AuthTokens.fromJson(_responseBody(response.data));
   }
 
+  Future<AuthTokens> exchangeSayariAccount({
+    required Map<String, dynamic> payload,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/auth/sayari/exchange',
+      data: payload,
+      options: Options(extra: {'skipAuth': true}),
+    );
+
+    return AuthTokens.fromJson(_responseBody(response.data));
+  }
+
   Future<void> verifyOtp({
     required String challengeId,
     required String code,

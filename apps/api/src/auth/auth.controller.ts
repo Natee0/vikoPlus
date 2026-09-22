@@ -13,6 +13,7 @@ import {
   ResendAccountVerificationDto,
   RegisterDto,
   RequestPasswordResetDto,
+  SayariExchangeDto,
   VerifyPasswordResetCodeDto,
   VerifyOtpDto,
 } from "./dto/auth.dto";
@@ -34,6 +35,13 @@ export class AuthController {
   @Post("login")
   login(@Body() body: LoginDto) {
     return this.auth.login(body);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 8, ttl: 60000, blockDuration: 300000 } })
+  @Post("sayari/exchange")
+  exchangeSayariAccount(@Body() body: SayariExchangeDto) {
+    return this.auth.exchangeSayariAccount(body);
   }
 
   @Public()

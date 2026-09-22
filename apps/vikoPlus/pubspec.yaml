@@ -46,6 +46,8 @@ dependencies:
   pdf: ^3.12.0
   share_plus: ^13.3.0
   socket_io_client: ^3.1.2
+  app_links: ^7.0.0
+  sayari_oauth_flutter_sdk: ^0.2.1
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
@@ -72,6 +74,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/logo/vikoPlus-logo.png
+    - assets/logo/sayari-software-logo.png
+    - assets/config/sayari-oauth-config.json
     - assets/images/welcome_community.png
     - assets/images/group_choice_community.png
     - assets/images/join_group_growth.png

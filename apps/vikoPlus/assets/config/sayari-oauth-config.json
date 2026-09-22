@@ -1,0 +1,27 @@
+{
+  "appName": "VikoPlus",
+  "projectName": "VikoPlus",
+  "scope": "openid profile email",
+  "sayariAuthApp": {
+    "appId": "01a0c9d5-2365-7ece-af58-cfe0562b95e9",
+    "appName": "VikoPlus",
+    "appIcon": "https://res.cloudinary.com/dei1aetjv/image/upload/v1790092678/assets/projects/019ffbbe-afca-79e7-b8f4-36f7213542d8/apps/01a0c9d5-2365-7ece-af58-cfe0562b95e9/e47jsfvrsq0qsvbtrunz.webp",
+    "appType": "mobile",
+    "authDomain": "https://accounts.sayarisoftware.com",
+    "providerOrigin": "https://accounts.sayarisoftware.com",
+    "authorizeUrl": "https://accounts.sayarisoftware.com/oauth/authorize",
+    "apiBaseUrl": "https://accounts-api.sayarisoftware.com/api/v1",
+    "tokenUrl": "https://accounts-api.sayarisoftware.com/api/v1/oauth/token",
+    "userInfoUrl": "https://accounts-api.sayarisoftware.com/api/v1/oauth/userinfo",
+    "refreshUrl": "https://accounts-api.sayarisoftware.com/api/v1/oauth/refresh",
+    "redirectUris": [
+      "com.vikoplus://oauth/callback"
+    ],
+    "allowedOrigins": [
+      "https://accounts.sayarisoftware.com",
+      "com.vikoplus://oauth"
+    ],
+    "primaryRedirectUri": "com.vikoplus://oauth/callback",
+    "primaryAllowedOrigin": "com.vikoplus://oauth"
+  }
+}

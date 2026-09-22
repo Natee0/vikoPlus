@@ -510,64 +510,20 @@ export class AuthService {
   }
 
   private normalizeSayariUserInfo(body: unknown): SayariUserInfo {
-    const root = this.asRecord(body);
-    const data = this.asRecord(root["data"]);
-    const candidate = this.asRecord(
-      root["userInfo"] ??
-        root["user"] ??
-        root["profile"] ??
-        data["userInfo"] ??
-        data["user"] ??
-        data,
-    );
-    const source = Object.keys(candidate).length > 0 ? candidate : root;
-    const subject = this.pickString(
-      source["sayariSubject"],
-      source["sub"],
-      source["subject"],
-      source["id"],
-      source["userId"],
-    );
+    const source = this.asRecord(body);
+    const subject = this.pickString(source["sub"]);
     if (!subject) {
       throw new BadRequestException("Sayari account profile is missing subject.");
     }
 
     return {
       subject,
-      email: this.pickString(
-        source["email"],
-        source["emailAddress"],
-        source["email_address"],
-      )?.toLowerCase(),
+      email: this.pickString(source["email"])?.toLowerCase(),
       phone: this.normalizeOptionalPhone(
-        this.pickString(
-          source["phone"],
-          source["phoneNumber"],
-          source["phone_number"],
-          source["mobile"],
-          source["mobileNumber"],
-          source["msisdn"],
-        ),
+        this.pickString(source["phoneNumber"]),
       ),
-      fullName: this.displayNameFromSayari(source),
-      username: this.pickUsername(source),
-      profilePictureUrl: this.pickUrl(
-        source["picture"],
-        source["profilePicture"],
-        source["profile_picture"],
-        source["image"],
-        source["avatar"],
-        source["avatarUrl"],
-        source["avatar_url"],
-        source["photoUrl"],
-        source["photo_url"],
-        source["profilePictureUrl"],
-        source["profile_picture_url"],
-        source["displayPicture"],
-        source["display_picture"],
-        source["imageUrl"],
-        source["image_url"],
-      ),
+      fullName: this.nonContactDisplayName(this.pickString(source["fullname"])),
+      profilePictureUrl: this.pickUrl(source["displayPicture"]),
     };
   }
 
@@ -965,41 +921,6 @@ export class AuthService {
       : {};
   }
 
-  private displayNameFromSayari(
-    source: Record<string, unknown>,
-  ): string | undefined {
-    const combinedName = this.joinNameParts(
-      this.pickString(source["firstName"], source["first_name"], source["given_name"]),
-      this.pickString(source["lastName"], source["last_name"], source["family_name"]),
-    );
-    const candidate = this.pickString(
-      source["fullName"],
-      source["full_name"],
-      source["name"],
-      source["displayName"],
-      source["display_name"],
-      combinedName,
-    );
-    return this.nonContactDisplayName(candidate);
-  }
-
-  private pickUsername(source: Record<string, unknown>): string | undefined {
-    return this.nonContactDisplayName(
-      this.pickString(
-        source["username"],
-        source["userName"],
-        source["preferredUsername"],
-        source["preferred_username"],
-        source["handle"],
-      ),
-    );
-  }
-
-  private joinNameParts(...parts: Array<string | undefined>): string | undefined {
-    const name = parts.filter(Boolean).join(" ").trim();
-    return name.length > 0 ? name : undefined;
-  }
-
   private nonContactDisplayName(value?: string | null): string | undefined {
     if (!value) return undefined;
     const trimmed = value.trim();
@@ -1012,14 +933,7 @@ export class AuthService {
 
   private pickUrl(...values: unknown[]): string | undefined {
     for (const candidate of values) {
-      const value =
-        this.pickString(candidate) ??
-        this.pickString(
-          this.asRecord(candidate)["url"],
-          this.asRecord(candidate)["href"],
-          this.asRecord(candidate)["secure_url"],
-          this.asRecord(candidate)["secureUrl"],
-        );
+      const value = this.extractUrl(this.pickString(candidate));
       if (!value) continue;
       try {
         const url = new URL(value);
@@ -1031,6 +945,15 @@ export class AuthService {
       }
     }
     return undefined;
+  }
+
+  private extractUrl(value?: string): string | undefined {
+    if (!value) return undefined;
+    const trimmed = value.trim();
+    const markdownUrl = trimmed.match(/\]\((https?:\/\/[^)\s]+)\)/);
+    if (markdownUrl?.[1]) return markdownUrl[1];
+    const plainUrl = trimmed.match(/https?:\/\/\S+/);
+    return plainUrl?.[0]?.replace(/[)>.,]+$/, "") ?? trimmed;
   }
 
   private pickString(...values: unknown[]): string | undefined {

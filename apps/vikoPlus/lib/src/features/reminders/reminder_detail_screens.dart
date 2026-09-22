@@ -185,6 +185,26 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
     );
   }
 
+  void _openBuyReminders() {
+    final activeGroup = ref.read(activeGroupProvider);
+    if (activeGroup == null) return;
+
+    final returnTo = Uri(
+      path: '/reminders/new',
+      queryParameters: {
+        if (widget.memberId != null) 'memberId': widget.memberId!,
+      },
+    ).toString();
+    final route = Uri(
+      path: '/groups/reminders',
+      queryParameters: {
+        'groupId': activeGroup.id,
+        'returnTo': returnTo,
+      },
+    ).toString();
+    context.push(route);
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeGroup = ref.watch(activeGroupProvider);
@@ -218,6 +238,11 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
               final result = snapshot.data;
               final smsEnabled = _channelHasCredits(result, 'SMS');
               final whatsappEnabled = _channelHasCredits(result, 'WHATSAPP');
+              final noAvailableChannel = activeGroup != null &&
+                  snapshot.connectionState != ConnectionState.waiting &&
+                  !snapshot.hasError &&
+                  !smsEnabled &&
+                  !whatsappEnabled;
               if (_useSms && !smsEnabled && whatsappEnabled) {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (mounted) setState(() => _useSms = false);
@@ -263,6 +288,14 @@ class _SendNewReminderScreenState extends ConsumerState<SendNewReminderScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  if (noAvailableChannel) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    FilledButton.icon(
+                      onPressed: _openBuyReminders,
+                      icon: const Icon(Icons.add_card_outlined),
+                      label: Text(context.vt('Buy reminder package')),
+                    ),
+                  ],
                 ],
               );
             },

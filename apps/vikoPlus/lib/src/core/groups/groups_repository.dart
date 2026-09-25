@@ -1889,6 +1889,11 @@ class ContributionObligationSummary {
     return amountDueMinor;
   }
 
+  int get paidHistoryAmountMinor {
+    if (isUpcoming || outstandingMinor > 0) return 0;
+    return amountPaidMinor > 0 ? amountPaidMinor : amountDueMinor;
+  }
+
   bool get hasPendingPayment => (pendingAllocationMinor ?? 0) > 0;
 
   bool get isUpcoming {

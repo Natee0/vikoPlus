@@ -129,7 +129,7 @@ class MyContributionsScreen extends ConsumerWidget {
                   ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
                 final totalPaid = obligations.fold<int>(
                   0,
-                  (total, item) => total + item.amountPaidMinor,
+                  (total, item) => total + item.paidHistoryAmountMinor,
                 );
                 final outstanding = obligations
                     .where((item) => item.isPayable)
@@ -143,13 +143,13 @@ class MyContributionsScreen extends ConsumerWidget {
                   children: [
                     _MetricPanel(
                       label: context.vt('Total paid'),
-                      value: formatter.compactMoney(totalPaid),
+                      value: formatter.money(totalPaid),
                       icon: Icons.account_balance_wallet_outlined,
                     ),
                     const SizedBox(height: AppSpacing.sm),
                     _MetricPanel(
                       label: context.vt('Outstanding'),
-                      value: formatter.compactMoney(outstanding),
+                      value: formatter.money(outstanding),
                       icon: Icons.pending_actions_outlined,
                       color: AppColors.error,
                       backgroundColor: AppColors.errorContainer.withValues(

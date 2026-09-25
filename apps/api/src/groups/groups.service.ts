@@ -2763,14 +2763,46 @@ export class GroupsService {
     groupId: string,
     db: Prisma.TransactionClient = this.prisma,
   ) {
-    const [group, savings, obligations, activeLoans, applications, cash] =
-      await Promise.all([
+    const [
+      group,
+      recurringObligations,
+      historicalRecurringSavings,
+      obligations,
+      activeLoans,
+      applications,
+      cash,
+    ] = await Promise.all([
         db.group.findUniqueOrThrow({
           where: { id: groupId },
           select: { currency: true },
         }),
+        db.memberContributionObligation.findMany({
+          where: {
+            groupMemberId: membership.id,
+            member: { groupId },
+            plan: {
+              name: { startsWith: "Member contribution" },
+              type: ContributionPlanType.RECURRING,
+            },
+          },
+          select: {
+            amountPaidMinor: true,
+            allocations: {
+              where: {
+                status: PaymentAllocationStatus.APPLIED,
+                payment: {
+                  groupId,
+                  groupMemberId: membership.id,
+                  status: GroupContributionPaymentStatus.APPROVED,
+                },
+              },
+              select: { amountMinor: true },
+            },
+          },
+        }),
         db.paymentAllocation.aggregate({
           where: {
+            obligationId: null,
             payment: {
               groupId,
               groupMemberId: membership.id,
@@ -2819,7 +2851,21 @@ export class GroupsService {
         }),
         this.groupCashPosition(db, groupId),
       ]);
-    const totalSavingsMinor = savings._sum.amountMinor ?? 0;
+    const recurringObligationSavingsMinor = recurringObligations.reduce(
+      (total, obligation) => {
+        const appliedAllocationMinor = obligation.allocations.reduce(
+          (sum, allocation) => sum + allocation.amountMinor,
+          0,
+        );
+        return (
+          total + Math.max(obligation.amountPaidMinor, appliedAllocationMinor)
+        );
+      },
+      0,
+    );
+    const totalSavingsMinor =
+      recurringObligationSavingsMinor +
+      (historicalRecurringSavings._sum.amountMinor ?? 0);
     const outstandingMinor = Math.max(
       (obligations._sum.amountDueMinor ?? 0) -
         (obligations._sum.amountPaidMinor ?? 0),

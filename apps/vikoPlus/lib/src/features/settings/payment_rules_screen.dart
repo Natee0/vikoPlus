@@ -18,7 +18,8 @@ class ContributionPenaltiesScreen extends ConsumerStatefulWidget {
 class _PaymentRulesState extends ConsumerState<ContributionPenaltiesScreen> {
   final _amount = TextEditingController();
   final _days = TextEditingController();
-  bool _partial = true;
+  bool _partial = false;
+  bool _autoAllocate = false;
   bool _enabled = false;
   bool _busy = true;
   bool _loaded = false;
@@ -49,6 +50,7 @@ class _PaymentRulesState extends ConsumerState<ContributionPenaltiesScreen> {
       }
       setState(() {
         _partial = data['allowsPartial'] == true;
+        _autoAllocate = data['autoAllocatePayments'] == true;
         _enabled = data['penaltiesEnabled'] == true;
         _amount.text = '${data['penaltyAmountMinor'] ?? 0}';
         _days.text = '${data['graceDays'] ?? 0}';
@@ -95,6 +97,7 @@ class _PaymentRulesState extends ConsumerState<ContributionPenaltiesScreen> {
           .savePaymentRules(
             group!.id,
             allowsPartial: _partial,
+            autoAllocatePayments: _autoAllocate,
             penaltiesEnabled: _enabled,
             penaltyAmountMinor: amount,
             graceDays: days,

@@ -114,6 +114,7 @@ class GroupsRepository {
   Future<void> savePaymentRules(
     String groupId, {
     required bool allowsPartial,
+    bool autoAllocatePayments = false,
     required bool penaltiesEnabled,
     required int penaltyAmountMinor,
     required int graceDays,
@@ -122,6 +123,7 @@ class GroupsRepository {
       '/groups/$groupId/payment-rules',
       data: {
         'allowsPartial': allowsPartial,
+        'autoAllocatePayments': autoAllocatePayments,
         'penaltiesEnabled': penaltiesEnabled,
         'penaltyAmountMinor': penaltyAmountMinor,
         'graceDays': graceDays,
@@ -865,6 +867,7 @@ class GroupDeletionRequestSummary {
 class GroupSettingsResult {
   const GroupSettingsResult({
     required this.group,
+    this.contributionSettings,
     this.deletionRequest,
   });
 
@@ -874,8 +877,14 @@ class GroupSettingsResult {
       throw const FormatException('Group settings response did not include a group.');
     }
     final deletionRequest = json['deletionRequest'];
+    final contributionSettings = json['contributionSettings'];
     return GroupSettingsResult(
       group: GroupProfileDetails.fromJson(Map<String, dynamic>.from(group)),
+      contributionSettings: contributionSettings is Map
+          ? GroupContributionSettings.fromJson(
+              Map<String, dynamic>.from(contributionSettings),
+            )
+          : null,
       deletionRequest: deletionRequest is Map
           ? GroupDeletionRequestSummary.fromJson(
               Map<String, dynamic>.from(deletionRequest),
@@ -885,7 +894,120 @@ class GroupSettingsResult {
   }
 
   final GroupProfileDetails group;
+  final GroupContributionSettings? contributionSettings;
   final GroupDeletionRequestSummary? deletionRequest;
+}
+
+class GroupContributionSettings {
+  const GroupContributionSettings({
+    required this.plans,
+    required this.paymentRule,
+  });
+
+  factory GroupContributionSettings.fromJson(Map<String, dynamic> json) {
+    final plans = json['plans'];
+    final paymentRule = json['paymentRule'];
+    return GroupContributionSettings(
+      plans: plans is List
+          ? plans
+                .whereType<Map>()
+                .map(
+                  (item) => GroupContributionPlan.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList()
+          : const [],
+      paymentRule: paymentRule is Map
+          ? GroupPaymentRuleSettings.fromJson(
+              Map<String, dynamic>.from(paymentRule),
+            )
+          : const GroupPaymentRuleSettings(),
+    );
+  }
+
+  final List<GroupContributionPlan> plans;
+  final GroupPaymentRuleSettings paymentRule;
+
+  GroupContributionPlan? get joiningFeePlan => _firstPlan(
+        (plan) => plan.type == 'JOINING_FEE' || plan.name == 'Joining fee',
+      );
+
+  GroupContributionPlan? get membershipFeePlan => _firstPlan(
+        (plan) => plan.name == 'Membership fee',
+      );
+
+  List<GroupContributionPlan> get memberContributionPlans => plans
+      .where((plan) => plan.name.startsWith('Member contribution'))
+      .toList();
+
+  GroupContributionPlan? _firstPlan(bool Function(GroupContributionPlan) test) {
+    for (final plan in plans) {
+      if (test(plan)) return plan;
+    }
+    return null;
+  }
+}
+
+class GroupContributionPlan {
+  const GroupContributionPlan({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.frequency,
+    required this.amountMinor,
+    required this.currency,
+    this.dueDayOfWeek,
+    this.dueDayOfMonth,
+  });
+
+  factory GroupContributionPlan.fromJson(Map<String, dynamic> json) {
+    return GroupContributionPlan(
+      id: _requiredString(json, 'id'),
+      name: json['name'] as String? ?? '',
+      type: json['type'] as String? ?? '',
+      frequency: json['frequency'] as String? ?? 'MONTHLY',
+      amountMinor: json['amountMinor'] as int? ?? 0,
+      currency: (json['currency'] as String? ?? 'TZS').trim().toUpperCase(),
+      dueDayOfWeek: json['dueDayOfWeek'] as int?,
+      dueDayOfMonth: json['dueDayOfMonth'] as int?,
+    );
+  }
+
+  final String id;
+  final String name;
+  final String type;
+  final String frequency;
+  final int amountMinor;
+  final String currency;
+  final int? dueDayOfWeek;
+  final int? dueDayOfMonth;
+}
+
+class GroupPaymentRuleSettings {
+  const GroupPaymentRuleSettings({
+    this.allowsPartial = false,
+    this.autoAllocatePayments = false,
+    this.penaltiesEnabled = false,
+    this.penaltyAmountMinor = 0,
+    this.graceDays = 0,
+  });
+
+  factory GroupPaymentRuleSettings.fromJson(Map<String, dynamic> json) {
+    return GroupPaymentRuleSettings(
+      allowsPartial: json['allowsPartial'] as bool? ?? false,
+      autoAllocatePayments: json['autoAllocatePayments'] as bool? ?? false,
+      penaltiesEnabled: json['penaltiesEnabled'] as bool? ?? false,
+      penaltyAmountMinor: json['penaltyAmountMinor'] as int? ?? 0,
+      graceDays: json['graceDays'] as int? ?? 0,
+    );
+  }
+
+  final bool allowsPartial;
+  final bool autoAllocatePayments;
+  final bool penaltiesEnabled;
+  final int penaltyAmountMinor;
+  final int graceDays;
 }
 
 class GroupProfileDetails {

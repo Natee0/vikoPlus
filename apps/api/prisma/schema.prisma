@@ -597,7 +597,7 @@ model ContributionPlan {
   cycleAnchorDate DateTime?
   amountMinor     Int
   currency        String                @default("TZS")
-  allowsPartial   Boolean               @default(true)
+  allowsPartial   Boolean               @default(false)
   isActive        Boolean               @default(true)
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
@@ -914,7 +914,8 @@ model BillingEvent {
 
 model GroupPaymentRule {
   groupId String @id
-  allowsPartial Boolean @default(true)
+  allowsPartial Boolean @default(false)
+  autoAllocatePayments Boolean @default(false)
   penaltiesEnabled Boolean @default(false)
   penaltyAmountMinor Int @default(0)
   graceDays Int @default(0)

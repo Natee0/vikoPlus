@@ -232,6 +232,9 @@ export class ReminderSettingsDto {
 export class PaymentRulesDto {
   @IsBoolean()
   allowsPartial!: boolean;
+  @IsOptional()
+  @IsBoolean()
+  autoAllocatePayments?: boolean;
   @IsBoolean()
   penaltiesEnabled!: boolean;
   @IsInt()

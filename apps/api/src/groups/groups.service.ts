@@ -231,7 +231,8 @@ export class GroupsService {
       (await this.prisma.groupPaymentRule.findUnique({
         where: { groupId },
       })) ?? {
-        allowsPartial: true,
+        allowsPartial: false,
+        autoAllocatePayments: false,
         penaltiesEnabled: false,
         penaltyAmountMinor: 0,
         graceDays: 0,
@@ -248,14 +249,18 @@ export class GroupsService {
     if (input.penaltiesEnabled && input.penaltyAmountMinor <= 0)
       throw new BadRequestException("Enter a positive penalty amount.");
     return this.prisma.$transaction(async (tx) => {
+      const data = {
+        ...input,
+        autoAllocatePayments: input.autoAllocatePayments ?? false,
+      };
       const rule = await tx.groupPaymentRule.upsert({
         where: { groupId },
-        update: { ...input, effectiveAt: new Date() },
-        create: { groupId, ...input },
+        update: { ...data, effectiveAt: new Date() },
+        create: { groupId, ...data },
       });
       await tx.contributionPlan.updateMany({
         where: { groupId },
-        data: { allowsPartial: input.allowsPartial },
+        data: { allowsPartial: data.allowsPartial },
       });
       return rule;
     });
@@ -904,7 +909,7 @@ export class GroupsService {
       where: { groupId },
       data: {
         currency: group.currency,
-        allowsPartial: paymentRule?.allowsPartial ?? true,
+        allowsPartial: paymentRule?.allowsPartial ?? false,
       },
     });
     await this.generateContributionSchedule(groupId);
@@ -3814,16 +3819,37 @@ export class GroupsService {
 
   async settings(user: AuthenticatedUser, groupId: string) {
     await this.requireMembership(user, groupId);
-    const [group, preferences, deletionRequest] = await Promise.all([
+    const [
+      group,
+      preferences,
+      deletionRequest,
+      contributionPlans,
+      paymentRule,
+    ] = await Promise.all([
       this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
       this.prisma.notificationPreference.findMany({
         where: { userId: user.id },
       }),
       this.activeGroupDeletionRequest(groupId),
+      this.prisma.contributionPlan.findMany({
+        where: { groupId, isActive: true },
+        orderBy: [{ type: "asc" }, { createdAt: "asc" }],
+      }),
+      this.prisma.groupPaymentRule.findUnique({ where: { groupId } }),
     ]);
     return {
       group,
       notificationPreferences: preferences,
+      contributionSettings: {
+        plans: contributionPlans,
+        paymentRule: paymentRule ?? {
+          allowsPartial: false,
+          autoAllocatePayments: false,
+          penaltiesEnabled: false,
+          penaltyAmountMinor: 0,
+          graceDays: 0,
+        },
+      },
       deletionRequest: deletionRequest
         ? this.groupDeletionRequestSummary(deletionRequest)
         : null,
@@ -4609,6 +4635,17 @@ export class GroupsService {
     }
 
     const requestedIds = [...new Set(obligationIds ?? [])].filter(Boolean);
+    if (requestedIds.length === 0) {
+      const paymentRule = await db.groupPaymentRule.findUnique({
+        where: { groupId },
+        select: { autoAllocatePayments: true },
+      });
+      if (paymentRule?.autoAllocatePayments === false) {
+        throw new BadRequestException(
+          "Select the contributions to pay before submitting payment.",
+        );
+      }
+    }
     const obligations = await db.memberContributionObligation.findMany({
       where: {
         ...(requestedIds.length ? { id: { in: requestedIds } } : {}),

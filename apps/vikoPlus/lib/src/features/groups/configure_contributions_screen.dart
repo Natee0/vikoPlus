@@ -35,8 +35,13 @@ class _ConfigureContributionsScreenState
   List<int> _weeklyDays = const [6];
   int _monthlyDay = 5;
   bool _joiningFeeEnabled = true;
-  bool _allowPartialPayments = true;
-  bool _autoAllocatePayments = true;
+  bool _allowPartialPayments = false;
+  bool _autoAllocatePayments = false;
+  bool _penaltiesEnabled = false;
+  int _penaltyAmountMinor = 0;
+  int _graceDays = 0;
+  bool _hasLocalDraft = false;
+  String? _loadedSettingsGroupId;
   String _errorMessage = '';
   bool _isSubmitting = false;
 
@@ -47,6 +52,10 @@ class _ConfigureContributionsScreenState
     _joiningFeeController.text = draft.joiningFee;
     _membershipFeeController.text = draft.membershipFee;
     _memberContributionController.text = draft.memberContribution;
+    _hasLocalDraft =
+        draft.joiningFee.trim().isNotEmpty ||
+        draft.membershipFee.trim().isNotEmpty ||
+        draft.memberContribution.trim().isNotEmpty;
     _membershipFeeFrequency = draft.membershipFeeFrequency;
     _memberContributionFrequency = draft.memberContributionFrequency;
     _membershipDueDay = draft.membershipDueDay;
@@ -56,6 +65,9 @@ class _ConfigureContributionsScreenState
     _joiningFeeEnabled = draft.joiningFeeEnabled;
     _allowPartialPayments = draft.allowPartialPayments;
     _autoAllocatePayments = draft.autoAllocatePayments;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _hydrateExistingSettings();
+    });
   }
 
   @override
@@ -110,6 +122,19 @@ class _ConfigureContributionsScreenState
     return frequency.toUpperCase();
   }
 
+  String _uiFrequency(String frequency) {
+    return switch (frequency.toUpperCase()) {
+      'DAILY' => 'Daily',
+      'WEEKLY' => 'Weekly',
+      'MONTHLY' => 'Monthly',
+      'QUARTERLY' => 'Quarterly',
+      'ANNUAL' => 'Yearly',
+      _ => 'Monthly',
+    };
+  }
+
+  String _amountText(int amountMinor) => amountMinor <= 0 ? '' : '$amountMinor';
+
   String _moneyLabel(TextEditingController controller) {
     final amount = _amountFrom(controller) ?? 0;
     return 'TZS ${amount.toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (match) => ',')}';
@@ -125,6 +150,75 @@ class _ConfigureContributionsScreenState
       return draftGroupId;
     }
     return ref.read(activeGroupProvider)?.id;
+  }
+
+  Future<void> _hydrateExistingSettings() async {
+    final groupId = _groupId;
+    if (_hasLocalDraft ||
+        groupId == null ||
+        groupId.isEmpty ||
+        _loadedSettingsGroupId == groupId) {
+      return;
+    }
+    _loadedSettingsGroupId = groupId;
+    try {
+      final settings = await ref.read(groupsRepositoryProvider).settings(groupId);
+      if (!mounted || _groupId != groupId) return;
+      final contributions = settings.contributionSettings;
+      if (contributions == null) return;
+      final joiningFee = contributions.joiningFeePlan;
+      final membershipFee = contributions.membershipFeePlan;
+      final memberContributionPlans = contributions.memberContributionPlans;
+      final memberContribution = memberContributionPlans.isNotEmpty
+          ? memberContributionPlans.first
+          : null;
+      final weeklyDays = memberContributionPlans
+          .map((plan) => plan.dueDayOfWeek)
+          .whereType<int>()
+          .where((day) => day >= 1 && day <= 7)
+          .toSet()
+          .toList()
+        ..sort();
+
+      setState(() {
+        if (joiningFee != null) {
+          _joiningFeeController.text = _amountText(joiningFee.amountMinor);
+          _joiningFeeEnabled = joiningFee.amountMinor > 0;
+        }
+        if (membershipFee != null) {
+          _membershipFeeController.text = _amountText(
+            membershipFee.amountMinor,
+          );
+          _membershipFeeFrequency = _uiFrequency(membershipFee.frequency);
+          _membershipDueDay = membershipFee.dueDayOfMonth ?? _membershipDueDay;
+        }
+        if (memberContribution != null) {
+          _memberContributionController.text = _amountText(
+            memberContribution.amountMinor,
+          );
+          _memberContributionFrequency = _uiFrequency(
+            memberContribution.frequency,
+          );
+          if (_memberContributionFrequency == 'Weekly') {
+            _weeklyDays = weeklyDays.isEmpty ? const [6] : weeklyDays;
+          } else if (_memberContributionFrequency != 'Daily') {
+            _monthlyDay =
+                memberContribution.dueDayOfMonth ??
+                memberContribution.dueDayOfWeek ??
+                _monthlyDay;
+          }
+        }
+        final paymentRule = contributions.paymentRule;
+        _allowPartialPayments = paymentRule.allowsPartial;
+        _autoAllocatePayments = paymentRule.autoAllocatePayments;
+        _penaltiesEnabled = paymentRule.penaltiesEnabled;
+        _penaltyAmountMinor = paymentRule.penaltyAmountMinor;
+        _graceDays = paymentRule.graceDays;
+      });
+      _persistContributions();
+    } on Object {
+      // Keep the screen usable even if older backends do not return settings.
+    }
   }
 
   String _routeWithReturnTo(String route) {
@@ -242,6 +336,16 @@ class _ConfigureContributionsScreenState
                   : _monthlyDay,
               cycleAnchorDate: DateTime.now(),
             ),
+          );
+      await ref
+          .read(groupsRepositoryProvider)
+          .savePaymentRules(
+            groupId,
+            allowsPartial: _allowPartialPayments,
+            autoAllocatePayments: _autoAllocatePayments,
+            penaltiesEnabled: _penaltiesEnabled,
+            penaltyAmountMinor: _penaltyAmountMinor,
+            graceDays: _graceDays,
           );
       if (!mounted) return;
       context.go(_groupRoute('/groups/reminders', groupId));

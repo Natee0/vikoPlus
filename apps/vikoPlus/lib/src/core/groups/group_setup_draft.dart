@@ -117,8 +117,8 @@ class ContributionSettingsDraft {
     this.weeklyDays = const [6],
     this.monthlyDay = 5,
     this.joiningFeeEnabled = true,
-    this.allowPartialPayments = true,
-    this.autoAllocatePayments = true,
+    this.allowPartialPayments = false,
+    this.autoAllocatePayments = false,
   });
 
   final String joiningFee;

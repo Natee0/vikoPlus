@@ -2758,6 +2758,13 @@ export class GroupsService {
     }
   }
 
+  private loanEligibleContributionPlanFilter(): Prisma.ContributionPlanWhereInput {
+    return {
+      type: ContributionPlanType.RECURRING,
+      name: { startsWith: "Member contribution" },
+    };
+  }
+
   private async loanOverviewForMember(
     membership: GroupMember,
     groupId: string,
@@ -2765,107 +2772,105 @@ export class GroupsService {
   ) {
     const [
       group,
-      recurringObligations,
-      historicalRecurringSavings,
+      recurringContributionAllocations,
+      recurringContributionObligations,
       obligations,
       activeLoans,
       applications,
       cash,
     ] = await Promise.all([
-        db.group.findUniqueOrThrow({
-          where: { id: groupId },
-          select: { currency: true },
-        }),
-        db.memberContributionObligation.findMany({
-          where: {
+      db.group.findUniqueOrThrow({
+        where: { id: groupId },
+        select: { currency: true },
+      }),
+      db.paymentAllocation.findMany({
+        where: {
+          payment: {
+            groupId,
             groupMemberId: membership.id,
-            member: { groupId },
-            plan: {
-              type: ContributionPlanType.RECURRING,
-              name: { not: "Membership fee" },
-            },
+            status: GroupContributionPaymentStatus.APPROVED,
           },
-          select: {
-            amountPaidMinor: true,
-            allocations: {
-              where: {
-                status: PaymentAllocationStatus.APPLIED,
-                payment: {
-                  groupId,
-                  groupMemberId: membership.id,
-                  status: GroupContributionPaymentStatus.APPROVED,
-                },
+          plan: this.loanEligibleContributionPlanFilter(),
+          status: PaymentAllocationStatus.APPLIED,
+        },
+        select: { amountMinor: true, obligationId: true },
+      }),
+      db.memberContributionObligation.findMany({
+        where: {
+          groupMemberId: membership.id,
+          member: { groupId },
+          plan: this.loanEligibleContributionPlanFilter(),
+          amountPaidMinor: { gt: 0 },
+        },
+        select: {
+          amountPaidMinor: true,
+          allocations: {
+            where: {
+              status: PaymentAllocationStatus.APPLIED,
+              payment: {
+                groupId,
+                groupMemberId: membership.id,
+                status: GroupContributionPaymentStatus.APPROVED,
               },
-              select: { amountMinor: true },
             },
+            select: { amountMinor: true },
           },
-        }),
-        db.paymentAllocation.aggregate({
-          where: {
-            obligationId: null,
-            payment: {
-              groupId,
-              groupMemberId: membership.id,
-              status: GroupContributionPaymentStatus.APPROVED,
-            },
-            plan: {
-              type: ContributionPlanType.RECURRING,
-              name: { not: "Membership fee" },
-            },
-            status: PaymentAllocationStatus.APPLIED,
+        },
+      }),
+      db.memberContributionObligation.aggregate({
+        where: {
+          groupMemberId: membership.id,
+          dueAt: { lte: new Date() },
+          status: {
+            in: [
+              ContributionObligationStatus.UPCOMING,
+              ContributionObligationStatus.DUE,
+              ContributionObligationStatus.PARTIALLY_PAID,
+              ContributionObligationStatus.OVERDUE,
+            ],
           },
-          _sum: { amountMinor: true },
-        }),
-        db.memberContributionObligation.aggregate({
-          where: {
-            groupMemberId: membership.id,
-            dueAt: { lte: new Date() },
-            status: {
-              in: [
-                ContributionObligationStatus.UPCOMING,
-                ContributionObligationStatus.DUE,
-                ContributionObligationStatus.PARTIALLY_PAID,
-                ContributionObligationStatus.OVERDUE,
-              ],
-            },
-          },
-          _sum: { amountDueMinor: true, amountPaidMinor: true },
-          _count: true,
-        }),
-        db.groupLoan.findMany({
-          where: {
-            groupId,
-            groupMemberId: membership.id,
-            status: GroupLoanStatus.ACTIVE,
-          },
-          include: { repayments: { orderBy: { createdAt: "desc" } } },
-          orderBy: { createdAt: "desc" },
-        }),
-        db.loanApplication.findMany({
-          where: {
-            groupId,
-            groupMemberId: membership.id,
-            status: { in: [LoanApplicationStatus.SUBMITTED] },
-          },
-          orderBy: { createdAt: "desc" },
-        }),
-        this.groupCashPosition(db, groupId),
-      ]);
-    const recurringObligationSavingsMinor = recurringObligations.reduce(
+        },
+        _sum: { amountDueMinor: true, amountPaidMinor: true },
+        _count: true,
+      }),
+      db.groupLoan.findMany({
+        where: {
+          groupId,
+          groupMemberId: membership.id,
+          status: GroupLoanStatus.ACTIVE,
+        },
+        include: { repayments: { orderBy: { createdAt: "desc" } } },
+        orderBy: { createdAt: "desc" },
+      }),
+      db.loanApplication.findMany({
+        where: {
+          groupId,
+          groupMemberId: membership.id,
+          status: { in: [LoanApplicationStatus.SUBMITTED] },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      this.groupCashPosition(db, groupId),
+    ]);
+    const allocationSavingsMinor = recurringContributionAllocations.reduce(
+      (total, allocation) => total + allocation.amountMinor,
+      0,
+    );
+    const legacyObligationSavingsMinor = recurringContributionObligations.reduce(
       (total, obligation) => {
         const appliedAllocationMinor = obligation.allocations.reduce(
           (sum, allocation) => sum + allocation.amountMinor,
           0,
         );
         return (
-          total + Math.max(obligation.amountPaidMinor, appliedAllocationMinor)
+          total +
+          Math.max(obligation.amountPaidMinor - appliedAllocationMinor, 0)
         );
       },
       0,
     );
     const totalSavingsMinor =
-      recurringObligationSavingsMinor +
-      (historicalRecurringSavings._sum.amountMinor ?? 0);
+      allocationSavingsMinor + legacyObligationSavingsMinor;
     const outstandingMinor = Math.max(
       (obligations._sum.amountDueMinor ?? 0) -
         (obligations._sum.amountPaidMinor ?? 0),
@@ -2894,6 +2899,7 @@ export class GroupsService {
       totalSavingsMinor,
       outstandingMinor,
       activeDefaults: obligations._count,
+      recurringContributionSavingsMinor: totalSavingsMinor,
       creditLimitMinor,
       borrowingPowerMinor,
       tierLabel: totalSavingsMinor >= 1000000 ? "Tier 2 Member" : "Starter",

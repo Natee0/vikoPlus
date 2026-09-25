@@ -1610,15 +1610,48 @@ export class GroupsService {
       },
       orderBy: [{ dueAt: "asc" }],
     });
+    const penaltySourceIds = [
+      ...new Set(
+        obligations
+          .map((obligation) => obligation.penaltySourceId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const penaltySources =
+      penaltySourceIds.length === 0
+        ? []
+        : await this.prisma.memberContributionObligation.findMany({
+            where: { id: { in: penaltySourceIds } },
+            include: {
+              plan: true,
+              period: true,
+            },
+          });
+    const penaltySourceById = new Map(
+      penaltySources.map((source) => [source.id, source]),
+    );
     return {
       groupId,
-      obligations: obligations.map((obligation) => ({
-        ...obligation,
-        pendingAllocationMinor: obligation.allocations.reduce(
-          (total, allocation) => total + allocation.amountMinor,
-          0,
-        ),
-      })),
+      obligations: obligations.map((obligation) => {
+        const penaltySource = obligation.penaltySourceId
+          ? penaltySourceById.get(obligation.penaltySourceId)
+          : null;
+        return {
+          ...obligation,
+          penaltySource: penaltySource
+            ? {
+                id: penaltySource.id,
+                plan: penaltySource.plan,
+                period: penaltySource.period,
+                dueAt: penaltySource.dueAt,
+              }
+            : null,
+          pendingAllocationMinor: obligation.allocations.reduce(
+            (total, allocation) => total + allocation.amountMinor,
+            0,
+          ),
+        };
+      }),
     };
   }
 

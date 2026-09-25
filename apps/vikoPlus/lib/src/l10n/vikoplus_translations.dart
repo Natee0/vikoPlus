@@ -491,6 +491,9 @@ const _swahili = <String, String>{
   'Your current contribution obligations are fully paid.':
       'Michango yako ya sasa imelipwa yote.',
   'Selected items': 'Vipengee vilivyochaguliwa',
+  'Contribution amount': 'Kiasi cha mchango',
+  'Penalties': 'Faini',
+  'Late penalty': 'Faini ya kuchelewa',
   'Payment purpose': 'Sababu ya malipo',
   'Payment Method': 'Njia ya malipo',
   'Mobile money': 'Malipo ya simu',

@@ -560,14 +560,21 @@ class _SelectContributionScreenState
                   0,
                   (total, obligation) => total + obligation.outstandingMinor,
                 );
+                final penaltyMinor = selected.fold<int>(
+                  0,
+                  (total, obligation) => obligation.isPenalty
+                      ? total + obligation.outstandingMinor
+                      : total,
+                );
+                final contributionMinor = amountMinor - penaltyMinor;
 
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     for (final obligation in obligations) ...[
                       _SelectableObligation(
-                        title: obligation.planName,
-                        subtitle: obligation.periodLabel,
+                        title: context.vt(obligation.planName),
+                        subtitle: _obligationPeriodLabel(obligation),
                         amount: formatters.money(
                           obligation.outstandingMinor,
                           currency: obligation.currency,
@@ -591,9 +598,20 @@ class _SelectContributionScreenState
                       lines: [
                         (context.vt('Selected items'), '${selected.length}'),
                         (
+                          context.vt('Contribution amount'),
+                          formatters.money(contributionMinor),
+                        ),
+                        (
+                          context.vt('Penalties'),
+                          formatters.money(penaltyMinor),
+                        ),
+                        (
                           context.vt('Payment purpose'),
                           selected
-                              .map((obligation) => obligation.planName)
+                              .map(
+                                (obligation) =>
+                                    context.vt(obligation.planName),
+                              )
                               .toSet()
                               .join(', '),
                         ),
@@ -1216,9 +1234,28 @@ String _obligationSubtitle(
   final dateLabel = obligation.isUpcoming
       ? context.vt('Collection date')
       : context.vt('Due');
-  return '${obligation.periodLabel} • '
+  return '${_obligationPeriodLabel(obligation)} • '
       '$dateLabel ${formatter.date(obligation.dueAt)}';
 }
+
+String _obligationPeriodLabel(
+  ContributionObligationSummary obligation,
+) {
+  if (!obligation.isPenalty) return obligation.periodLabel;
+  final sourceLabel = obligation.penaltySourcePeriodLabel?.trim();
+  if (sourceLabel != null && sourceLabel.isNotEmpty) {
+    return sourceLabel;
+  }
+  final sourceName = obligation.penaltySourcePlanName?.trim();
+  final sourceDate = obligation.penaltySourceDueAt;
+  if (sourceName != null && sourceName.isNotEmpty && sourceDate != null) {
+    return '$sourceName ${_dateKey(sourceDate)}';
+  }
+  if (sourceName != null && sourceName.isNotEmpty) return sourceName;
+  return obligation.periodLabel;
+}
+
+String _dateKey(DateTime value) => value.toIso8601String().split('T').first;
 
 class _SelectableObligation extends StatelessWidget {
   const _SelectableObligation({

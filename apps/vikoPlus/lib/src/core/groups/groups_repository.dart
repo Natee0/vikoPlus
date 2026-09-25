@@ -1808,15 +1808,31 @@ class ContributionObligationSummary {
     required this.currency,
     required this.status,
     required this.dueAt,
+    this.penaltySourceId,
+    this.penaltySourcePlanName,
+    this.penaltySourcePeriodLabel,
+    this.penaltySourceDueAt,
   });
 
   factory ContributionObligationSummary.fromJson(Map<String, dynamic> json) {
     final member = json['member'];
     final plan = json['plan'];
     final period = json['period'];
+    final penaltySource = json['penaltySource'];
     final memberJson = member is Map ? Map<String, dynamic>.from(member) : null;
     final planJson = plan is Map ? Map<String, dynamic>.from(plan) : null;
     final periodJson = period is Map ? Map<String, dynamic>.from(period) : null;
+    final penaltySourceJson = penaltySource is Map
+        ? Map<String, dynamic>.from(penaltySource)
+        : null;
+    final penaltySourcePlan = penaltySourceJson?['plan'];
+    final penaltySourcePeriod = penaltySourceJson?['period'];
+    final penaltySourcePlanJson = penaltySourcePlan is Map
+        ? Map<String, dynamic>.from(penaltySourcePlan)
+        : null;
+    final penaltySourcePeriodJson = penaltySourcePeriod is Map
+        ? Map<String, dynamic>.from(penaltySourcePeriod)
+        : null;
 
     return ContributionObligationSummary(
       id: _requiredString(json, 'id'),
@@ -1832,6 +1848,11 @@ class ContributionObligationSummary {
       currency: json['currency'] as String? ?? 'TZS',
       status: json['status'] as String? ?? 'DUE',
       dueAt: _parseDate(json['dueAt']) ?? DateTime.now(),
+      penaltySourceId: json['penaltySourceId'] as String? ??
+          penaltySourceJson?['id'] as String?,
+      penaltySourcePlanName: penaltySourcePlanJson?['name'] as String?,
+      penaltySourcePeriodLabel: penaltySourcePeriodJson?['label'] as String?,
+      penaltySourceDueAt: _parseDate(penaltySourceJson?['dueAt']),
     );
   }
 
@@ -1848,12 +1869,18 @@ class ContributionObligationSummary {
   final String currency;
   final String status;
   final DateTime dueAt;
+  final String? penaltySourceId;
+  final String? penaltySourcePlanName;
+  final String? penaltySourcePeriodLabel;
+  final DateTime? penaltySourceDueAt;
 
   int get outstandingMinor {
     final remaining =
         amountDueMinor - amountPaidMinor - (pendingAllocationMinor ?? 0);
     return remaining <= 0 ? 0 : remaining;
   }
+
+  bool get isPenalty => planType.toUpperCase() == 'PENALTY';
 
   bool get hasPendingPayment => (pendingAllocationMinor ?? 0) > 0;
 

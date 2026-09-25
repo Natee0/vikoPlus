@@ -236,8 +236,8 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                       children: [
                         for (final obligation in obligations)
                           _ContributionTypeChip(
-                            label:
-                                '${obligation.planName}\n${obligation.periodLabel}',
+                            label: '${context.vt(obligation.planName)}\n'
+                                '${_obligationPeriodLabel(obligation)}',
                             status: context.vt('Due'),
                             selected:
                                 _selectedObligationIds.contains(obligation.id),
@@ -255,8 +255,8 @@ class _RecordPaymentScreenState extends ConsumerState<RecordPaymentScreen> {
                           ),
                         for (final obligation in upcoming)
                           _ContributionTypeChip(
-                            label:
-                                '${obligation.planName}\n${obligation.periodLabel}',
+                            label: '${context.vt(obligation.planName)}\n'
+                                '${_obligationPeriodLabel(obligation)}',
                             status: context.vt('Upcoming'),
                             disabled: true,
                           ),
@@ -413,6 +413,21 @@ class _StepBadge extends StatelessWidget {
       ],
     );
   }
+}
+
+String _obligationPeriodLabel(ContributionObligationSummary obligation) {
+  if (!obligation.isPenalty) return obligation.periodLabel;
+  final sourceLabel = obligation.penaltySourcePeriodLabel?.trim();
+  if (sourceLabel != null && sourceLabel.isNotEmpty) {
+    return sourceLabel;
+  }
+  final sourceName = obligation.penaltySourcePlanName?.trim();
+  final sourceDate = obligation.penaltySourceDueAt;
+  if (sourceName != null && sourceName.isNotEmpty && sourceDate != null) {
+    return '$sourceName ${sourceDate.toIso8601String().split('T').first}';
+  }
+  if (sourceName != null && sourceName.isNotEmpty) return sourceName;
+  return obligation.periodLabel;
 }
 
 class _SelectedMemberCard extends StatelessWidget {

@@ -2781,8 +2781,8 @@ export class GroupsService {
             groupMemberId: membership.id,
             member: { groupId },
             plan: {
-              name: { startsWith: "Member contribution" },
               type: ContributionPlanType.RECURRING,
+              name: { not: "Membership fee" },
             },
           },
           select: {
@@ -2809,8 +2809,8 @@ export class GroupsService {
               status: GroupContributionPaymentStatus.APPROVED,
             },
             plan: {
-              name: { startsWith: "Member contribution" },
               type: ContributionPlanType.RECURRING,
+              name: { not: "Membership fee" },
             },
             status: PaymentAllocationStatus.APPLIED,
           },

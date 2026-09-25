@@ -1121,6 +1121,10 @@ class _BorrowingPowerCard extends StatelessWidget {
     final progress = overview.creditLimitMinor == 0
         ? 0.0
         : overview.borrowingPowerMinor / overview.creditLimitMinor;
+    final activeLoanBalanceMinor = overview.activeLoans.fold<int>(
+      0,
+      (total, loan) => total + loan.outstandingMinor,
+    );
     return Container(
       padding: AppInsets.card,
       decoration: BoxDecoration(
@@ -1160,28 +1164,31 @@ class _BorrowingPowerCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpacing.sm),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  context.vtf('Credit Limit: {amount}', {
-                    'amount': _money(
-                      overview.creditLimitMinor,
-                      overview.currency,
-                    ),
-                  }),
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: AppColors.onPrimaryContainer),
-                ),
+          _LoanLimitBreakdown(
+            label: context.vt('Savings counted'),
+            value: _money(overview.totalSavingsMinor, overview.currency),
+          ),
+          _LoanLimitBreakdown(
+            label: context.vt('Credit Limit'),
+            value: _money(overview.creditLimitMinor, overview.currency),
+          ),
+          _LoanLimitBreakdown(
+            label: context.vt('Active loans'),
+            value: _money(activeLoanBalanceMinor, overview.currency),
+          ),
+          _LoanLimitBreakdown(
+            label: context.vt('Pending applications'),
+            value: '${overview.pendingApplicationsCount}',
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              overview.tierLabel,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onPrimaryContainer,
+                fontWeight: FontWeight.w700,
               ),
-              Text(
-                overview.tierLabel,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.onPrimaryContainer,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: AppSpacing.xs),
           ClipRRect(
@@ -1191,6 +1198,40 @@ class _BorrowingPowerCard extends StatelessWidget {
               minHeight: 7,
               color: AppColors.primaryFixed,
               backgroundColor: AppColors.surfaceTint,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoanLimitBreakdown extends StatelessWidget {
+  const _LoanLimitBreakdown({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xxs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppColors.onPrimaryContainer,
+              ),
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: AppColors.onPrimaryContainer,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],

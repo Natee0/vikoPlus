@@ -1882,6 +1882,13 @@ class ContributionObligationSummary {
 
   bool get isPenalty => planType.toUpperCase() == 'PENALTY';
 
+  int get historyAmountMinor {
+    if (amountPaidMinor > 0) return amountPaidMinor;
+    if (isUpcoming) return amountDueMinor;
+    if (outstandingMinor > 0) return outstandingMinor;
+    return amountDueMinor;
+  }
+
   bool get hasPendingPayment => (pendingAllocationMinor ?? 0) > 0;
 
   bool get isUpcoming {

@@ -5,6 +5,7 @@ import '../common/profile_avatar.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/auth/auth_session.dart';
@@ -124,7 +125,8 @@ class MyContributionsScreen extends ConsumerWidget {
                 final obligations = _myObligations(
                   snapshot.data!.obligations,
                   activeGroup,
-                );
+                ).where((item) => item.historyAmountMinor > 0).toList()
+                  ..sort((a, b) => a.dueAt.compareTo(b.dueAt));
                 final totalPaid = obligations.fold<int>(
                   0,
                   (total, item) => total + item.amountPaidMinor,
@@ -166,14 +168,14 @@ class MyContributionsScreen extends ConsumerWidget {
                     else
                       for (final obligation in obligations) ...[
                         _MemberContributionTile(
-                          title: obligation.planName,
+                          title: context.vt(obligation.planName),
                           subtitle: _obligationSubtitle(
                             context,
                             formatter,
                             obligation,
                           ),
                           amount: formatter.money(
-                            obligation.outstandingMinor,
+                            obligation.historyAmountMinor,
                             currency: obligation.currency,
                           ),
                           paid: obligation.outstandingMinor <= 0,
@@ -852,6 +854,45 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
   final String method;
   final String? paymentId;
 
+  Future<void> _sharePaymentRequest({
+    required BuildContext context,
+    required GroupAccessSummary? activeGroup,
+    required List<ContributionObligationSummary> obligations,
+    required String paymentMethod,
+    required String totalAmount,
+  }) async {
+    final memberName = obligations.isEmpty
+        ? context.vt('Member')
+        : obligations.first.memberName;
+    final requestId = paymentId ?? context.vt('Pending');
+    final purpose = obligations
+        .map((obligation) => context.vt(obligation.planName))
+        .toSet()
+        .join(', ');
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+
+    await SharePlus.instance.share(
+      ShareParams(
+        text: [
+          'vikoPlus - ${context.vt('Payment Submitted')}',
+          '${context.vt('Member')}: $memberName',
+          '${context.vt('Group')}: '
+              '${activeGroup?.name ?? context.vt('Selected group')}',
+          '${context.vt('Request ID')}: $requestId',
+          '${context.vt('Payment Method')}: ${context.vt(paymentMethod)}',
+          '${context.vt('Payment purpose')}: '
+              '${purpose.isEmpty ? context.vt('Contribution') : purpose}',
+          '${context.vt('Total Amount')}: $totalAmount',
+          context.vt('Please review this payment request for approval.'),
+        ].join('\n'),
+        sharePositionOrigin: origin,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final formatters = AppFormatters(
@@ -862,6 +903,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
     final selectedObligations = selectedPayment?.obligations ?? const [];
     final paymentMethod = selectedPayment?.method ?? method;
     final amountMinor = selectedPayment?.amountMinor ?? 0;
+    final totalAmount = formatters.money(amountMinor);
 
     return VikoplusScreen(
       child: Column(
@@ -900,7 +942,7 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
               (context.vt('Status'), context.vt('Pending verification')),
               (context.vt('Payment Method'), context.vt(paymentMethod)),
             ],
-            total: formatters.money(amountMinor),
+            total: totalAmount,
             label: context.vt('Total Amount'),
           ),
           const SizedBox(height: AppSpacing.md),
@@ -914,7 +956,13 @@ class PaymentSuccessfulScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: () => _sharePaymentRequest(
+                    context: context,
+                    activeGroup: activeGroup,
+                    obligations: selectedObligations,
+                    paymentMethod: paymentMethod,
+                    totalAmount: totalAmount,
+                  ),
                   icon: const Icon(Icons.share_outlined),
                   label: Text(context.vt('Share')),
                 ),

@@ -527,6 +527,8 @@ const _swahili = <String, String>{
   'Total Amount': 'Jumla ya kiasi',
   'View Contributions': 'Angalia michango',
   'Share': 'Shiriki',
+  'Please review this payment request for approval.':
+      'Tafadhali kagua ombi hili la malipo ili liidhinishwe.',
   'Record New': 'Rekodi mpya',
   'Return to Dashboard': 'Rudi kwenye dashibodi',
   'Digital Receipt': 'Risiti ya kidigitali',

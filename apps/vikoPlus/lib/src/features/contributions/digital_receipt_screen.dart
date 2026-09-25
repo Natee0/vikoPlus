@@ -1,8 +1,7 @@
-import 'dart:typed_data';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -201,11 +200,15 @@ class _ReceiptLayoutState extends State<_ReceiptLayout> {
     final localizedLines = widget.lines
         .map((line) => (context.vt(line.$1), line.$2))
         .toList(growable: false);
+    final totalLabel = context.vt('Total');
+    final logoData = await rootBundle.load('assets/logo/vikoPlus-logo.png');
+    final logoBytes = logoData.buffer.asUint8List();
     final bytes = await _buildReceiptPdf(
       amount: widget.amount,
+      logoBytes: logoBytes,
       lines: localizedLines,
       total: widget.amount,
-      totalLabel: context.vt('Total'),
+      totalLabel: totalLabel,
       note: note,
     );
     return (
@@ -447,6 +450,7 @@ class _ReceiptLine extends StatelessWidget {
 
 Future<Uint8List> _buildReceiptPdf({
   required String amount,
+  required Uint8List logoBytes,
   required List<(String, String)> lines,
   required String total,
   required String totalLabel,
@@ -454,6 +458,7 @@ Future<Uint8List> _buildReceiptPdf({
 }) async {
   const green = PdfColor.fromInt(0xff005843);
   final document = pw.Document(title: 'vikoPlus receipt');
+  final logo = pw.MemoryImage(logoBytes);
 
   document.addPage(
     pw.Page(
@@ -465,23 +470,11 @@ Future<Uint8List> _buildReceiptPdf({
           pw.Center(
             child: pw.Column(
               children: [
-                pw.Container(
-                  width: 48,
-                  height: 48,
-                  decoration: const pw.BoxDecoration(
-                    color: green,
-                    shape: pw.BoxShape.circle,
-                  ),
-                  child: pw.Center(
-                    child: pw.Text(
-                      'OK',
-                      style: pw.TextStyle(
-                        color: PdfColors.white,
-                        fontSize: 18,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                pw.Image(
+                  logo,
+                  width: 72,
+                  height: 72,
+                  fit: pw.BoxFit.contain,
                 ),
                 pw.SizedBox(height: 12),
                 pw.Text(

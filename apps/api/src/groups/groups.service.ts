@@ -1630,28 +1630,79 @@ export class GroupsService {
     const penaltySourceById = new Map(
       penaltySources.map((source) => [source.id, source]),
     );
+    const historicalAllocations = await this.prisma.paymentAllocation.findMany({
+      where: {
+        obligationId: null,
+        status: PaymentAllocationStatus.APPLIED,
+        payment: {
+          groupId,
+          status: GroupContributionPaymentStatus.APPROVED,
+          ...(canSeeAllObligations ? {} : { groupMemberId: membership.id }),
+        },
+      },
+      include: {
+        plan: true,
+        payment: { include: { member: true } },
+      },
+      orderBy: [{ createdAt: "desc" }],
+    });
+    const historicalObligations = historicalAllocations.map((allocation) => {
+      const paidAt =
+        allocation.payment.paidAt ??
+        allocation.payment.reviewedAt ??
+        allocation.payment.createdAt;
+      return {
+        id: `historical:${allocation.id}`,
+        groupMemberId: allocation.payment.groupMemberId,
+        planId: allocation.planId,
+        periodId: null,
+        amountDueMinor: allocation.amountMinor,
+        amountPaidMinor: allocation.amountMinor,
+        currency: allocation.payment.currency,
+        status: ContributionObligationStatus.PAID,
+        dueAt: paidAt,
+        createdAt: allocation.createdAt,
+        updatedAt: allocation.createdAt,
+        member: allocation.payment.member,
+        plan: allocation.plan,
+        period: {
+          id: `historical:${allocation.id}`,
+          label: `${allocation.plan.name} ${this.dateKey(paidAt)}`,
+          startsAt: paidAt,
+          endsAt: paidAt,
+          dueAt: paidAt,
+          sortOrder: 0,
+        },
+        penaltySourceId: null,
+        penaltySource: null,
+        pendingAllocationMinor: 0,
+      };
+    });
     return {
       groupId,
-      obligations: obligations.map((obligation) => {
-        const penaltySource = obligation.penaltySourceId
-          ? penaltySourceById.get(obligation.penaltySourceId)
-          : null;
-        return {
-          ...obligation,
-          penaltySource: penaltySource
-            ? {
-                id: penaltySource.id,
-                plan: penaltySource.plan,
-                period: penaltySource.period,
-                dueAt: penaltySource.dueAt,
-              }
-            : null,
-          pendingAllocationMinor: obligation.allocations.reduce(
-            (total, allocation) => total + allocation.amountMinor,
-            0,
-          ),
-        };
-      }),
+      obligations: [
+        ...obligations.map((obligation) => {
+          const penaltySource = obligation.penaltySourceId
+            ? penaltySourceById.get(obligation.penaltySourceId)
+            : null;
+          return {
+            ...obligation,
+            penaltySource: penaltySource
+              ? {
+                  id: penaltySource.id,
+                  plan: penaltySource.plan,
+                  period: penaltySource.period,
+                  dueAt: penaltySource.dueAt,
+                }
+              : null,
+            pendingAllocationMinor: obligation.allocations.reduce(
+              (total, allocation) => total + allocation.amountMinor,
+              0,
+            ),
+          };
+        }),
+        ...historicalObligations,
+      ],
     };
   }
 

@@ -978,6 +978,8 @@ const _swahili = <String, String>{
       'Nenosiri lazima liwe na angalau herufi 8.',
   'Accept the terms before creating an account.':
       'Kubali vigezo kabla ya kutengeneza akaunti.',
+  'Terms of Service': 'Masharti ya huduma',
+  'Privacy Policy': 'Sera ya faragha',
   'John Doe': 'Jina kamili',
   'Creating account': 'Inatengeneza akaunti',
   'Create account': 'Tengeneza akaunti',

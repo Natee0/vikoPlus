@@ -391,6 +391,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   isLoading: _sayariAccountLoading,
                   onPressed: isLoading ? null : _startSayariAccount,
                 ),
+                const SizedBox(height: AppSpacing.xs),
+                const AuthLegalLinks(),
               ],
             ),
           ),

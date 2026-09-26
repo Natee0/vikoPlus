@@ -451,6 +451,8 @@ class _CreateAccountScreenState extends ConsumerState<CreateAccountScreen> {
               isLoading: _sayariAccountLoading,
               onPressed: isLoading ? null : _startSayariAccount,
             ),
+            const SizedBox(height: AppSpacing.xs),
+            const AuthLegalLinks(),
             const SizedBox(height: 12),
             AuthTextLink(
               text: context.vt('Already have an account? '),

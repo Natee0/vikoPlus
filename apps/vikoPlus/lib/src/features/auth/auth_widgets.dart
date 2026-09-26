@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
@@ -185,6 +186,46 @@ class AuthTextLink extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class AuthLegalLinks extends StatelessWidget {
+  const AuthLegalLinks({super.key});
+
+  static final Uri _termsUri = Uri.parse('https://vikoplus.co.tz/terms');
+  static final Uri _privacyUri = Uri.parse('https://vikoplus.co.tz/privacy');
+
+  Future<void> _open(Uri uri) async {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(
+      color: AppColors.primary,
+      fontWeight: FontWeight.w700,
+    );
+    return Wrap(
+      alignment: WrapAlignment.center,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.xs,
+      children: [
+        TextButton(
+          onPressed: () => _open(_termsUri),
+          child: Text(context.vt('Terms of Service'), style: style),
+        ),
+        Text(
+          '|',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.onSurfaceVariant,
+          ),
+        ),
+        TextButton(
+          onPressed: () => _open(_privacyUri),
+          child: Text(context.vt('Privacy Policy'), style: style),
+        ),
+      ],
     );
   }
 }

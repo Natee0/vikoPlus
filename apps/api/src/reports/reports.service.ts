@@ -223,7 +223,11 @@ export class ReportsService {
         "Joining fees paid minor",
         report.joiningFeesPaidMinor.toString(),
       ],
-      ["Summary", "Recurring paid minor", report.recurringPaidMinor.toString()],
+      [
+        "Summary",
+        "Group contributions paid minor",
+        report.recurringPaidMinor.toString(),
+      ],
       [
         "Summary",
         "Approved expenses minor",
@@ -262,10 +266,10 @@ export class ReportsService {
         "Member number",
         "Member name",
         "Joining fee paid minor",
-        "Recurring paid minor",
+        "Group contributions paid minor",
         "Total paid minor",
         "Outstanding minor",
-        "Paid recurring periods",
+        "Paid group contribution periods",
         "Percentage of group total",
       ],
       ...members.map((member) => [

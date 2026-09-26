@@ -161,7 +161,7 @@ Future<Uint8List> buildContributionReportPdf({
         tr('Members', 'Wanachama'),
         totalLabel,
         joiningLabel,
-        tr('Recurring fees', 'Ada za vipindi'),
+        tr('Group contributions', 'Michango ya kikundi'),
         tr('Outstanding', 'Deni'),
         tr('Approved expenses', 'Matumizi yaliyoidhinishwa'),
         tr('Loan principal out', 'Mikopo iliyotolewa'),
@@ -224,7 +224,9 @@ Future<Uint8List> buildContributionReportPdf({
       ),
       style: const pw.TextStyle(fontSize: 8),
     ),
-    heading(tr('Recurring contribution trend', 'Mwenendo wa ada za vipindi')),
+    heading(
+      tr('Group contribution trend', 'Mwenendo wa michango ya kikundi'),
+    ),
     if (periods.isEmpty)
       pw.Text(tr('No period data available.', 'Hakuna taarifa za vipindi.')),
     for (final p in periods)
@@ -342,7 +344,7 @@ Future<Uint8List> buildContributionReportPdf({
           tr('Rank', 'Na.'),
           nameLabel,
           joiningLabel,
-          tr('Recurring fees', 'Ada za vipindi'),
+          tr('Group contributions', 'Michango ya kikundi'),
           totalLabel,
           tr('Paid periods', 'Vipindi vilivyolipwa'),
           tr('% of total', '% ya jumla'),

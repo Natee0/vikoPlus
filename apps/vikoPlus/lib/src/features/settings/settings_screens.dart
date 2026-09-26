@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/auth/auth_controller.dart';
 import '../../core/formatters/app_formatters.dart';
 import '../../core/groups/groups_repository.dart';
+import '../../core/loans/loans_repository.dart';
 import '../../core/roles/vikoplus_role.dart';
 import '../../l10n/vikoplus_translations.dart';
 import '../../theme/app_colors.dart';
@@ -71,6 +74,14 @@ class AdminSettingsDashboardScreen extends ConsumerWidget {
         icon: Icons.history_edu_outlined,
         route: _setupRoute('/groups/history', activeGroup),
         color: AppColors.secondaryGreen,
+      ),
+      _SettingsAction(
+        title: context.vt('Loan policy'),
+        subtitle: context.vt(
+          'Set loan limits, interest, fees and guarantors',
+        ),
+        icon: Icons.account_balance_wallet_outlined,
+        route: '/settings/loan-policy',
       ),
       _SettingsAction(
         title: context.vt('Member roles'),
@@ -382,6 +393,234 @@ class AuditLogsScreen extends ConsumerWidget {
             ),
     );
   }
+}
+
+class LoanPolicySettingsScreen extends ConsumerStatefulWidget {
+  const LoanPolicySettingsScreen({super.key});
+
+  @override
+  ConsumerState<LoanPolicySettingsScreen> createState() =>
+      _LoanPolicySettingsScreenState();
+}
+
+class _LoanPolicySettingsScreenState
+    extends ConsumerState<LoanPolicySettingsScreen> {
+  final _savingsMultiplier = TextEditingController();
+  final _monthlyInterest = TextEditingController();
+  final _processingFee = TextEditingController();
+  final _minimumGuarantors = TextEditingController();
+  final _maximumTerm = TextEditingController();
+  bool _busy = true;
+  bool _loaded = false;
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(_load);
+  }
+
+  @override
+  void dispose() {
+    _savingsMultiplier.dispose();
+    _monthlyInterest.dispose();
+    _processingFee.dispose();
+    _minimumGuarantors.dispose();
+    _maximumTerm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final groupId = ref.read(activeGroupProvider)?.id;
+    if (groupId == null) {
+      setState(() {
+        _busy = false;
+        _error = context.vt('Choose a group first');
+      });
+      return;
+    }
+    try {
+      final policy = await ref.read(loansRepositoryProvider).policy(groupId);
+      if (!mounted) return;
+      setState(() {
+        _savingsMultiplier.text = _formatDecimal(policy.savingsMultiplier);
+        _monthlyInterest.text = _formatDecimal(policy.monthlyInterestPercent);
+        _processingFee.text = _formatDecimal(policy.processingFeePercent);
+        _minimumGuarantors.text = '${policy.minimumGuarantors}';
+        _maximumTerm.text = '${policy.maximumTermMonths}';
+        _loaded = true;
+        _error = '';
+      });
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _error = context.vt(AuthFailure.from(error).message));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  int? _basisPointsFromDecimal(String value, int multiplier) {
+    final parsed = double.tryParse(value.trim());
+    if (parsed == null || parsed < 0) return null;
+    return (parsed * multiplier).round();
+  }
+
+  Future<void> _save() async {
+    final group = ref.read(activeGroupProvider);
+    if (_busy || !_loaded || group?.role != 'GROUP_ADMIN') return;
+    final savingsMultiplierBps =
+        _basisPointsFromDecimal(_savingsMultiplier.text, 10000);
+    final monthlyInterestRateBps =
+        _basisPointsFromDecimal(_monthlyInterest.text, 100);
+    final processingFeeBps = _basisPointsFromDecimal(_processingFee.text, 100);
+    final minimumGuarantors = int.tryParse(_minimumGuarantors.text.trim());
+    final maximumTermMonths = int.tryParse(_maximumTerm.text.trim());
+
+    if (savingsMultiplierBps == null ||
+        savingsMultiplierBps > 100000 ||
+        monthlyInterestRateBps == null ||
+        monthlyInterestRateBps > 10000 ||
+        processingFeeBps == null ||
+        processingFeeBps > 10000 ||
+        minimumGuarantors == null ||
+        minimumGuarantors < 0 ||
+        minimumGuarantors > 10 ||
+        maximumTermMonths == null ||
+        maximumTermMonths < 1 ||
+        maximumTermMonths > 120) {
+      setState(
+        () => _error = context.vt('Enter valid loan policy details.'),
+      );
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _error = '';
+    });
+    try {
+      await ref.read(loansRepositoryProvider).updatePolicy(
+            group!.id,
+            LoanPolicyInput(
+              savingsMultiplierBps: savingsMultiplierBps,
+              monthlyInterestRateBps: monthlyInterestRateBps,
+              processingFeeBps: processingFeeBps,
+              minimumGuarantors: minimumGuarantors,
+              maximumTermMonths: maximumTermMonths,
+            ),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.vt('Loan policy saved.'))),
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _error = context.vt(AuthFailure.from(error).message));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canEdit =
+        ref.watch(activeGroupProvider)?.role == 'GROUP_ADMIN' && !_busy;
+    return VikoplusScreen(
+      title: context.vt('Loan policy'),
+      backRoute: '/settings/admin',
+      onRefresh: _load,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            context.vt(
+              'These values control borrowing limits and loan charges for this group.',
+            ),
+            style: Theme.of(context).textTheme.bodyLarge
+                ?.copyWith(color: AppColors.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          TextField(
+            controller: _savingsMultiplier,
+            enabled: canEdit,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_decimalFormatter],
+            decoration: InputDecoration(
+              labelText: context.vt('Savings multiplier'),
+              helperText: context.vt('Example: 2 means members can borrow up to 2x their savings.'),
+              prefixIcon: const Icon(Icons.savings_outlined),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _monthlyInterest,
+            enabled: canEdit,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_decimalFormatter],
+            decoration: InputDecoration(
+              labelText: context.vt('Monthly interest rate (%)'),
+              prefixIcon: const Icon(Icons.percent_outlined),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _processingFee,
+            enabled: canEdit,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [_decimalFormatter],
+            decoration: InputDecoration(
+              labelText: context.vt('Processing fee (%)'),
+              prefixIcon: const Icon(Icons.receipt_long_outlined),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _minimumGuarantors,
+            enabled: canEdit,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: context.vt('Minimum guarantors'),
+              prefixIcon: const Icon(Icons.verified_user_outlined),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: _maximumTerm,
+            enabled: canEdit,
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            decoration: InputDecoration(
+              labelText: context.vt('Maximum term (months)'),
+              prefixIcon: const Icon(Icons.event_repeat_outlined),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          AuthErrorMessage(message: _error),
+          FilledButton.icon(
+            onPressed: canEdit && _loaded ? _save : null,
+            icon: _busy
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+            label: Text(context.vt(_busy ? 'Saving' : 'Save loan policy')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+final _decimalFormatter = FilteringTextInputFormatter.allow(
+  RegExp(r'^\d*\.?\d{0,2}'),
+);
+
+String _formatDecimal(double value) {
+  if (value == value.roundToDouble()) return value.toStringAsFixed(0);
+  return value.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '');
 }
 
 class CurrencyFeesScreen extends StatelessWidget {

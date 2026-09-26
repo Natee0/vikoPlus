@@ -86,7 +86,9 @@ class ApplyForLoanScreen extends ConsumerStatefulWidget {
 class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
   final _amountController = TextEditingController();
   Future<GroupMembersResult>? _membersFuture;
+  Future<LoanPolicy>? _policyFuture;
   String? _membersGroupId;
+  String? _policyGroupId;
   final Set<String> _selectedGuarantors = {};
   int _term = 6;
   String _purpose = 'School fees';
@@ -105,25 +107,53 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
     return int.tryParse(digits);
   }
 
-  int get _processingFeeMinor => ((_amountMinor ?? 0) * 0.02).ceil();
-  int get _interestMinor =>
-      (((_amountMinor ?? 0) * 150 * _term) / 10000).ceil();
-  int get _totalPayableMinor =>
-      (_amountMinor ?? 0) + _processingFeeMinor + _interestMinor;
+  int _processingFeeMinor(LoanPolicy policy) {
+    return (((_amountMinor ?? 0) * policy.processingFeeBps) / 10000).ceil();
+  }
+
+  int _interestMinor(LoanPolicy policy, int term) {
+    return (((_amountMinor ?? 0) * policy.monthlyInterestRateBps * term) /
+            10000)
+        .ceil();
+  }
+
+  int _totalPayableMinor(LoanPolicy policy, int term) {
+    return (_amountMinor ?? 0) +
+        _processingFeeMinor(policy) +
+        _interestMinor(policy, term);
+  }
+
+  List<int> _termOptions(LoanPolicy policy) {
+    final maximum = policy.maximumTermMonths.clamp(1, 120).toInt();
+    final terms = <int>{
+      for (final term in const [3, 6, 12, 24, 36, 60])
+        if (term <= maximum) term,
+      maximum,
+    }.toList()
+      ..sort();
+    return terms;
+  }
 
   void _clearError() {
     if (_errorMessage.isNotEmpty) setState(() => _errorMessage = '');
   }
 
-  Future<void> _submit(String groupId) async {
+  Future<void> _submit(String groupId, LoanPolicy policy, int term) async {
     if (_isSubmitting) return;
     final amount = _amountMinor;
     if (amount == null || amount <= 0) {
       setState(() => _errorMessage = 'Enter a valid loan amount.');
       return;
     }
-    if (_selectedGuarantors.length < 2) {
-      setState(() => _errorMessage = 'Select at least 2 guarantors.');
+    if (term > policy.maximumTermMonths) {
+      setState(() => _errorMessage = 'Loan term exceeds the group maximum term.');
+      return;
+    }
+    if (_selectedGuarantors.length < policy.minimumGuarantors) {
+      setState(
+        () => _errorMessage =
+            'Select at least ${policy.minimumGuarantors} guarantors.',
+      );
       return;
     }
 
@@ -139,7 +169,7 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
             CreateLoanApplicationInput(
               amountMinor: amount,
               purpose: _purpose,
-              termMonths: _term,
+              termMonths: term,
               guarantorMemberIds: _selectedGuarantors.toList(),
             ),
           );
@@ -162,123 +192,156 @@ class _ApplyForLoanScreenState extends ConsumerState<ApplyForLoanScreen> {
       _membersFuture = ref.read(groupsRepositoryProvider).listMembers(group.id);
       _selectedGuarantors.clear();
     }
+    if (_policyGroupId != group.id) {
+      _policyGroupId = group.id;
+      _policyFuture = ref.read(loansRepositoryProvider).policy(group.id);
+    }
     final userId = ref.watch(authSessionProvider).user?.id;
 
     return _LoanScaffold(
       title: 'Loans',
       selectedIndex: 2,
-      child: FutureBuilder<GroupMembersResult>(
-        future: _membersFuture,
-        builder: (context, snapshot) {
-          final members =
-              (snapshot.data?.members ?? const <GroupMemberSummary>[])
-                  .where(
-                    (member) =>
-                        member.status == 'ACTIVE' && member.userId != userId,
-                  )
-                  .toList();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _SurfacePanel(
-                padding: AppInsets.card,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _LoanPanelHeader(title: 'Apply for Loan'),
-                    const SizedBox(height: AppSpacing.md),
-                    TextField(
-                      controller: _amountController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onChanged: (_) {
-                        _clearError();
-                        setState(() {});
-                      },
-                      decoration: InputDecoration(
-                        labelText: context.vt('Loan Amount'),
-                        prefixText: 'TZS ',
-                      ),
-                    ),
-                    const SizedBox(height: AppSpacing.sm),
-                    Wrap(
-                      spacing: AppSpacing.xs,
-                      runSpacing: AppSpacing.xs,
+      child: FutureBuilder<LoanPolicy>(
+        future: _policyFuture,
+        builder: (context, policySnapshot) {
+          final policy = policySnapshot.data ?? LoanPolicy.defaults(group.id);
+          final termOptions = _termOptions(policy);
+          final selectedTerm = termOptions.contains(_term)
+              ? _term
+              : termOptions.last;
+          return FutureBuilder<GroupMembersResult>(
+            future: _membersFuture,
+            builder: (context, snapshot) {
+              final members =
+                  (snapshot.data?.members ?? const <GroupMemberSummary>[])
+                      .where(
+                        (member) =>
+                            member.status == 'ACTIVE' &&
+                            member.userId != userId,
+                      )
+                      .toList();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SurfacePanel(
+                    padding: AppInsets.card,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        for (final amount in [
-                          10000,
-                          25000,
-                          50000,
-                          100000,
-                          250000,
-                        ])
-                          ActionChip(
-                            label: Text(_shortMoney(amount)),
-                            onPressed: () {
-                              _amountController.text = amount.toString();
-                              _clearError();
-                              setState(() {});
-                            },
+                        const _LoanPanelHeader(title: 'Apply for Loan'),
+                        const SizedBox(height: AppSpacing.md),
+                        TextField(
+                          controller: _amountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          onChanged: (_) {
+                            _clearError();
+                            setState(() {});
+                          },
+                          decoration: InputDecoration(
+                            labelText: context.vt('Loan Amount'),
+                            prefixText: 'TZS ',
                           ),
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                        Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            for (final amount in [
+                              10000,
+                              25000,
+                              50000,
+                              100000,
+                              250000,
+                            ])
+                              ActionChip(
+                                label: Text(_shortMoney(amount)),
+                                onPressed: () {
+                                  _amountController.text = amount.toString();
+                                  _clearError();
+                                  setState(() {});
+                                },
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _PurposeSelector(
+                          value: _purpose,
+                          onChanged: (value) =>
+                              setState(() => _purpose = value),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _TermSelector(
+                          value: selectedTerm,
+                          terms: termOptions,
+                          onChanged: (value) => setState(() => _term = value),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _LoanEstimateCard(
+                          monthlyPaymentMinor: selectedTerm == 0
+                              ? 0
+                              : (_totalPayableMinor(policy, selectedTerm) /
+                                      selectedTerm)
+                                  .ceil(),
+                          interestMinor: _interestMinor(policy, selectedTerm),
+                          processingFeeMinor: _processingFeeMinor(policy),
+                          totalPayableMinor:
+                              _totalPayableMinor(policy, selectedTerm),
+                          monthlyInterestRateBps:
+                              policy.monthlyInterestRateBps,
+                          processingFeeBps: policy.processingFeeBps,
+                        ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  _GuarantorCard(
+                    members: members,
+                    selectedIds: _selectedGuarantors,
+                    requiredCount: policy.minimumGuarantors,
+                    isLoading:
+                        snapshot.connectionState == ConnectionState.waiting,
+                    onToggle: (memberId) {
+                      _clearError();
+                      setState(() {
+                        if (_selectedGuarantors.contains(memberId)) {
+                          _selectedGuarantors.remove(memberId);
+                        } else {
+                          _selectedGuarantors.add(memberId);
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  AuthErrorMessage(message: _errorMessage),
+                  if (_errorMessage.isNotEmpty)
                     const SizedBox(height: AppSpacing.md),
-                    _PurposeSelector(
-                      value: _purpose,
-                      onChanged: (value) => setState(() => _purpose = value),
+                  FilledButton.icon(
+                    onPressed: _isSubmitting ||
+                            policySnapshot.connectionState ==
+                                ConnectionState.waiting
+                        ? null
+                        : () => _submit(group.id, policy, selectedTerm),
+                    iconAlignment: IconAlignment.end,
+                    icon: _isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.arrow_forward),
+                    label: Text(
+                      _isSubmitting
+                          ? 'Submitting'
+                          : 'Submit Loan Application',
                     ),
-                    const SizedBox(height: AppSpacing.md),
-                    _TermSelector(
-                      value: _term,
-                      onChanged: (value) => setState(() => _term = value),
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _LoanEstimateCard(
-                      monthlyPaymentMinor: _term == 0
-                          ? 0
-                          : (_totalPayableMinor / _term).ceil(),
-                      interestMinor: _interestMinor,
-                      processingFeeMinor: _processingFeeMinor,
-                      totalPayableMinor: _totalPayableMinor,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              _GuarantorCard(
-                members: members,
-                selectedIds: _selectedGuarantors,
-                isLoading: snapshot.connectionState == ConnectionState.waiting,
-                onToggle: (memberId) {
-                  _clearError();
-                  setState(() {
-                    if (_selectedGuarantors.contains(memberId)) {
-                      _selectedGuarantors.remove(memberId);
-                    } else {
-                      _selectedGuarantors.add(memberId);
-                    }
-                  });
-                },
-              ),
-              const SizedBox(height: AppSpacing.md),
-              AuthErrorMessage(message: _errorMessage),
-              if (_errorMessage.isNotEmpty)
-                const SizedBox(height: AppSpacing.md),
-              FilledButton.icon(
-                onPressed: _isSubmitting ? null : () => _submit(group.id),
-                iconAlignment: IconAlignment.end,
-                icon: _isSubmitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.arrow_forward),
-                label: Text(
-                  _isSubmitting ? 'Submitting' : 'Submit Loan Application',
-                ),
-              ),
-            ],
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -1429,27 +1492,28 @@ class _PurposeSelector extends StatelessWidget {
 }
 
 class _TermSelector extends StatelessWidget {
-  const _TermSelector({required this.value, required this.onChanged});
+  const _TermSelector({
+    required this.value,
+    required this.terms,
+    required this.onChanged,
+  });
 
   final int value;
+  final List<int> terms;
   final ValueChanged<int> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
       children: [
-        for (final months in [3, 6, 12]) ...[
-          Expanded(
-            child: ChoiceChip(
-              label: Center(
-                child: Text(context.vtf('{months} Months', {'months': months})),
-              ),
-              selected: value == months,
-              onSelected: (_) => onChanged(months),
-            ),
+        for (final months in terms)
+          ChoiceChip(
+            label: Text(context.vtf('{months} Months', {'months': months})),
+            selected: value == months,
+            onSelected: (_) => onChanged(months),
           ),
-          if (months != 12) const SizedBox(width: AppSpacing.xs),
-        ],
       ],
     );
   }
@@ -1461,12 +1525,16 @@ class _LoanEstimateCard extends StatelessWidget {
     required this.interestMinor,
     required this.processingFeeMinor,
     required this.totalPayableMinor,
+    required this.monthlyInterestRateBps,
+    required this.processingFeeBps,
   });
 
   final int monthlyPaymentMinor;
   final int interestMinor;
   final int processingFeeMinor;
   final int totalPayableMinor;
+  final int monthlyInterestRateBps;
+  final int processingFeeBps;
 
   @override
   Widget build(BuildContext context) {
@@ -1482,10 +1550,14 @@ class _LoanEstimateCard extends StatelessWidget {
             label: 'Estimated Monthly Payment',
             value: _money(monthlyPaymentMinor, 'TZS'),
           ),
-          _ReviewDetailRow(label: 'Interest Rate', value: '1.5% / month'),
+          _ReviewDetailRow(
+            label: 'Interest Rate',
+            value: '${_rate(monthlyInterestRateBps)} / month',
+          ),
           _ReviewDetailRow(
             label: 'Processing Fee',
-            value: _money(processingFeeMinor, 'TZS'),
+            value:
+                '${_money(processingFeeMinor, 'TZS')} (${_rate(processingFeeBps)})',
           ),
           _ReviewDetailRow(
             label: 'Total Payable',
@@ -1501,12 +1573,14 @@ class _GuarantorCard extends StatelessWidget {
   const _GuarantorCard({
     required this.members,
     required this.selectedIds,
+    required this.requiredCount,
     required this.isLoading,
     required this.onToggle,
   });
 
   final List<GroupMemberSummary> members;
   final Set<String> selectedIds;
+  final int requiredCount;
   final bool isLoading;
   final ValueChanged<String> onToggle;
 
@@ -1526,13 +1600,13 @@ class _GuarantorCard extends StatelessWidget {
                       ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
-              StatusPill(label: '${selectedIds.length}/2 Selected'),
+              StatusPill(label: '${selectedIds.length}/$requiredCount Selected'),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
           if (isLoading)
             const LinearProgressIndicator()
-          else if (members.length < 2)
+          else if (members.length < requiredCount)
             Text(
               'Add more group members before applying for a loan.',
               style: Theme.of(context).textTheme.bodySmall
@@ -1995,7 +2069,9 @@ class _LoanReviewDetailsCard extends StatelessWidget {
           ),
           _ReviewDetailRow(
             label: context.vt('Interest Rate'),
-            value: context.vt('1.5% / month'),
+            value: context.vtf('{rate} / month', {
+              'rate': _rate(application.monthlyInterestRateBps),
+            }),
           ),
         ],
       ),
@@ -2186,6 +2262,14 @@ String _money(int amountMinor, String currency) {
 String _shortMoney(int amountMinor) {
   if (amountMinor >= 1000) return '${amountMinor ~/ 1000}k';
   return amountMinor.toString();
+}
+
+String _rate(int bps) {
+  final percent = bps / 100;
+  if (percent == percent.roundToDouble()) {
+    return '${percent.toStringAsFixed(0)}%';
+  }
+  return '${percent.toStringAsFixed(2).replaceFirst(RegExp(r'0$'), '')}%';
 }
 
 String _date(DateTime? value) {

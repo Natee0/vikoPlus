@@ -43,6 +43,7 @@ import {
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
   UpdateLanguageDto,
+  UpdateLoanPolicyDto,
   UpdateProfileDto,
 } from "./dto/group.dto";
 
@@ -403,6 +404,24 @@ export class GroupsController {
     @Param("groupId") groupId: string,
   ) {
     return this.groups.loansOverview(user, groupId);
+  }
+
+  @Get("groups/:groupId/loans/policy")
+  loanPolicy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+  ) {
+    return this.groups.loanPolicy(user, groupId);
+  }
+
+  @Put("groups/:groupId/loans/policy")
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  updateLoanPolicy(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("groupId") groupId: string,
+    @Body() body: UpdateLoanPolicyDto,
+  ) {
+    return this.groups.updateLoanPolicy(user, groupId, body);
   }
 
   @Get("groups/:groupId/loans/tasks")

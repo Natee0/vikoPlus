@@ -35,6 +35,24 @@ class LoansRepository {
     return LoanOverviewResult.fromJson(_responseBody(response.data));
   }
 
+  Future<LoanPolicy> policy(String groupId) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/groups/$groupId/loans/policy',
+    );
+    return LoanPolicy.fromJson(_responseBody(response.data));
+  }
+
+  Future<LoanPolicy> updatePolicy(
+    String groupId,
+    LoanPolicyInput input,
+  ) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/groups/$groupId/loans/policy',
+      data: input.toJson(),
+    );
+    return LoanPolicy.fromJson(_responseBody(response.data));
+  }
+
   Future<LoanApplicationSummary> createApplication(
     String groupId,
     CreateLoanApplicationInput input,
@@ -159,6 +177,7 @@ class LoanOverviewResult {
     required this.pendingApplicationsCount,
     required this.activeLoans,
     required this.eligibility,
+    required this.loanPolicy,
   });
 
   factory LoanOverviewResult.fromJson(Map<String, dynamic> json) {
@@ -190,6 +209,9 @@ class LoanOverviewResult {
                   ))
               .toList()
           : const [],
+      loanPolicy: json['loanPolicy'] is Map
+          ? LoanPolicy.fromJson(Map<String, dynamic>.from(json['loanPolicy'] as Map))
+          : LoanPolicy.defaults(json['groupId'] as String? ?? ''),
     );
   }
 
@@ -204,6 +226,77 @@ class LoanOverviewResult {
   final int pendingApplicationsCount;
   final List<LoanSummary> activeLoans;
   final List<LoanEligibilityItem> eligibility;
+  final LoanPolicy loanPolicy;
+}
+
+class LoanPolicy {
+  const LoanPolicy({
+    required this.groupId,
+    required this.savingsMultiplierBps,
+    required this.monthlyInterestRateBps,
+    required this.processingFeeBps,
+    required this.minimumGuarantors,
+    required this.maximumTermMonths,
+  });
+
+  factory LoanPolicy.defaults([String groupId = '']) {
+    return LoanPolicy(
+      groupId: groupId,
+      savingsMultiplierBps: 20000,
+      monthlyInterestRateBps: 150,
+      processingFeeBps: 200,
+      minimumGuarantors: 1,
+      maximumTermMonths: 60,
+    );
+  }
+
+  factory LoanPolicy.fromJson(Map<String, dynamic> json) {
+    return LoanPolicy(
+      groupId: json['groupId'] as String? ?? '',
+      savingsMultiplierBps: json['savingsMultiplierBps'] as int? ?? 20000,
+      monthlyInterestRateBps: json['monthlyInterestRateBps'] as int? ?? 150,
+      processingFeeBps: json['processingFeeBps'] as int? ?? 200,
+      minimumGuarantors: json['minimumGuarantors'] as int? ?? 1,
+      maximumTermMonths: json['maximumTermMonths'] as int? ?? 60,
+    );
+  }
+
+  double get savingsMultiplier => savingsMultiplierBps / 10000;
+  double get monthlyInterestPercent => monthlyInterestRateBps / 100;
+  double get processingFeePercent => processingFeeBps / 100;
+
+  final String groupId;
+  final int savingsMultiplierBps;
+  final int monthlyInterestRateBps;
+  final int processingFeeBps;
+  final int minimumGuarantors;
+  final int maximumTermMonths;
+}
+
+class LoanPolicyInput {
+  const LoanPolicyInput({
+    required this.savingsMultiplierBps,
+    required this.monthlyInterestRateBps,
+    required this.processingFeeBps,
+    required this.minimumGuarantors,
+    required this.maximumTermMonths,
+  });
+
+  final int savingsMultiplierBps;
+  final int monthlyInterestRateBps;
+  final int processingFeeBps;
+  final int minimumGuarantors;
+  final int maximumTermMonths;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'savingsMultiplierBps': savingsMultiplierBps,
+      'monthlyInterestRateBps': monthlyInterestRateBps,
+      'processingFeeBps': processingFeeBps,
+      'minimumGuarantors': minimumGuarantors,
+      'maximumTermMonths': maximumTermMonths,
+    };
+  }
 }
 
 class LoanSummary {
@@ -217,6 +310,7 @@ class LoanSummary {
     required this.purpose,
     required this.termMonths,
     required this.monthlyInterestRateBps,
+    required this.processingFeeBps,
     required this.status,
     this.disbursedAt,
     this.dueAt,
@@ -233,6 +327,7 @@ class LoanSummary {
       purpose: json['purpose'] as String? ?? 'Group loan',
       termMonths: json['termMonths'] as int? ?? 0,
       monthlyInterestRateBps: json['monthlyInterestRateBps'] as int? ?? 0,
+      processingFeeBps: json['processingFeeBps'] as int? ?? 200,
       status: json['status'] as String? ?? 'ACTIVE',
       disbursedAt: _parseDate(json['disbursedAt']),
       dueAt: _parseDate(json['dueAt']),
@@ -248,6 +343,7 @@ class LoanSummary {
   final String purpose;
   final int termMonths;
   final int monthlyInterestRateBps;
+  final int processingFeeBps;
   final String status;
   final DateTime? disbursedAt;
   final DateTime? dueAt;
@@ -297,6 +393,7 @@ class LoanApplicationSummary {
     required this.purpose,
     required this.termMonths,
     required this.monthlyInterestRateBps,
+    required this.processingFeeBps,
     required this.processingFeeMinor,
     required this.estimatedTotalPayableMinor,
     required this.status,
@@ -322,6 +419,7 @@ class LoanApplicationSummary {
       purpose: json['purpose'] as String? ?? 'Group loan',
       termMonths: json['termMonths'] as int? ?? 0,
       monthlyInterestRateBps: json['monthlyInterestRateBps'] as int? ?? 0,
+      processingFeeBps: json['processingFeeBps'] as int? ?? 200,
       processingFeeMinor: json['processingFeeMinor'] as int? ?? 0,
       estimatedTotalPayableMinor:
           json['estimatedTotalPayableMinor'] as int? ?? 0,
@@ -345,7 +443,7 @@ class LoanApplicationSummary {
           ? GuarantorSummary.fromJson(
               Map<String, dynamic>.from(guarantorSummary),
             )
-          : const GuarantorSummary(confirmed: 0, required: 2, total: 0),
+          : const GuarantorSummary(confirmed: 0, required: 1, total: 0),
     );
   }
 
@@ -356,6 +454,7 @@ class LoanApplicationSummary {
   final String purpose;
   final int termMonths;
   final int monthlyInterestRateBps;
+  final int processingFeeBps;
   final int processingFeeMinor;
   final int estimatedTotalPayableMinor;
   final String status;
@@ -453,6 +552,7 @@ class LoanRepaymentResult {
               purpose: 'Group loan',
               termMonths: 0,
               monthlyInterestRateBps: 0,
+              processingFeeBps: 200,
               status: 'ACTIVE',
             ),
       repayments: repayments is List

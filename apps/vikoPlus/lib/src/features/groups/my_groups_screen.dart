@@ -570,6 +570,8 @@ class _GroupAccessCard extends StatelessWidget {
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
+                        if (group.attention.hasItems)
+                          _AttentionChip(attention: group.attention),
                         _MiniChip(label: role, icon: Icons.badge_outlined),
                         _MiniChip(
                           label: context
@@ -650,6 +652,46 @@ String _formatRoleLabel(String role) {
       .where((part) => part.isNotEmpty)
       .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
       .join(' ');
+}
+
+class _AttentionChip extends StatelessWidget {
+  const _AttentionChip({required this.attention});
+
+  final GroupAttentionSummary attention;
+
+  @override
+  Widget build(BuildContext context) {
+    final danger = attention.severity == 'danger';
+    final color = danger ? AppColors.error : AppColors.warning;
+    final label = attention.label == null || attention.label!.isEmpty
+        ? context.vt('Needs attention')
+        : context.vt(attention.label!);
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xs,
+        vertical: AppSpacing.xxs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.notifications_active_outlined, size: 14, color: color),
+          const SizedBox(width: AppSpacing.xxs),
+          Text(
+            '$label (${attention.count})',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _MiniChip extends StatelessWidget {

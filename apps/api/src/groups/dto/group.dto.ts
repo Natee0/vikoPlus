@@ -471,6 +471,33 @@ export class CreateLoanApplicationDto {
   guarantorMemberIds!: string[];
 }
 
+export class UpdateLoanPolicyDto {
+  @IsInt()
+  @Min(0)
+  @Max(100000)
+  savingsMultiplierBps!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  monthlyInterestRateBps!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(10000)
+  processingFeeBps!: number;
+
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  minimumGuarantors!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  maximumTermMonths!: number;
+}
+
 export class ReviewLoanApplicationDto {
   @IsOptional()
   @IsInt()

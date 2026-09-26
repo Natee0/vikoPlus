@@ -358,6 +358,7 @@ model Group {
   loanApplications    LoanApplication[]
   loans               GroupLoan[]
   loanRepayments      LoanRepayment[]
+  loanPolicy          GroupLoanPolicy?
   expenses            GroupExpense[]
   deletionRequests    GroupDeletionRequest[]
 }
@@ -430,7 +431,9 @@ model LoanApplication {
   purpose                String
   termMonths             Int
   monthlyInterestRateBps Int                   @default(150)
+  processingFeeBps       Int                   @default(200)
   processingFeeMinor     Int                   @default(0)
+  requiredGuarantors     Int                   @default(1)
   status                 LoanApplicationStatus @default(SUBMITTED)
   reviewNotes            String?
   rejectionReason        String?
@@ -478,6 +481,7 @@ model GroupLoan {
   purpose                String
   termMonths             Int
   monthlyInterestRateBps Int             @default(150)
+  processingFeeBps       Int             @default(200)
   status                 GroupLoanStatus @default(ACTIVE)
   disbursedAt            DateTime        @default(now())
   dueAt                  DateTime
@@ -493,6 +497,17 @@ model GroupLoan {
   @@index([status])
   @@index([groupId, status, dueAt])
   @@index([groupMemberId, status, dueAt])
+}
+
+model GroupLoanPolicy {
+  groupId                String   @id
+  savingsMultiplierBps   Int      @default(20000)
+  monthlyInterestRateBps Int      @default(150)
+  processingFeeBps       Int      @default(200)
+  minimumGuarantors      Int      @default(1)
+  maximumTermMonths      Int      @default(60)
+  updatedAt              DateTime @updatedAt
+  group                  Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 model LoanRepayment {

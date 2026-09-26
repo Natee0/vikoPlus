@@ -447,6 +447,13 @@ final appRouter = GoRouter(
       ),
     ),
     GoRoute(
+      path: '/settings/loan-policy',
+      builder: (context, state) => const PortalRouteGuard(
+        area: PortalArea.admin,
+        child: LoanPolicySettingsScreen(),
+      ),
+    ),
+    GoRoute(
       path: '/expenses',
       builder: (context, state) => const PortalRouteGuard(
         area: PortalArea.financeStaff,

@@ -691,6 +691,7 @@ class GroupAccessSummary {
     this.subscriptionEndsAt,
     this.membershipId,
     this.logoUrl,
+    this.attention = const GroupAttentionSummary(count: 0),
   });
 
   factory GroupAccessSummary.fromJson(Map<String, dynamic> json) {
@@ -711,6 +712,11 @@ class GroupAccessSummary {
       subscriptionEndsAt: _parseDate(subscriptionMap['currentPeriodEndsAt']),
       membershipId: json['membershipId'] as String?,
       logoUrl: json['logoUrl'] as String?,
+      attention: json['attention'] is Map
+          ? GroupAttentionSummary.fromJson(
+              Map<String, dynamic>.from(json['attention'] as Map),
+            )
+          : const GroupAttentionSummary(count: 0),
     );
   }
 
@@ -726,6 +732,7 @@ class GroupAccessSummary {
     DateTime? subscriptionEndsAt,
     String? membershipId,
     String? logoUrl,
+    GroupAttentionSummary? attention,
   }) {
     return GroupAccessSummary(
       id: id ?? this.id,
@@ -739,6 +746,7 @@ class GroupAccessSummary {
       subscriptionEndsAt: subscriptionEndsAt ?? this.subscriptionEndsAt,
       membershipId: membershipId ?? this.membershipId,
       logoUrl: logoUrl ?? this.logoUrl,
+      attention: attention ?? this.attention,
     );
   }
 
@@ -753,6 +761,29 @@ class GroupAccessSummary {
   final DateTime? subscriptionEndsAt;
   final String? membershipId;
   final String? logoUrl;
+  final GroupAttentionSummary attention;
+}
+
+class GroupAttentionSummary {
+  const GroupAttentionSummary({
+    required this.count,
+    this.label,
+    this.severity,
+  });
+
+  factory GroupAttentionSummary.fromJson(Map<String, dynamic> json) {
+    return GroupAttentionSummary(
+      count: json['count'] as int? ?? 0,
+      label: json['label'] as String?,
+      severity: json['severity'] as String?,
+    );
+  }
+
+  final int count;
+  final String? label;
+  final String? severity;
+
+  bool get hasItems => count > 0;
 }
 
 class JoinGroupPreview {

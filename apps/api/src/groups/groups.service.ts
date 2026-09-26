@@ -73,6 +73,7 @@ import {
   SendReminderDto,
   SubmitContributionPaymentRequestDto,
   UpdateLanguageDto,
+  UpdateLoanPolicyDto,
 } from "./dto/group.dto";
 
 type ScheduleFinancialYear = {
@@ -337,9 +338,10 @@ export class GroupsService {
     });
     const groups = await Promise.all(
       memberships.map(async (membership) => {
-        const subscription = await this.syncProviderSubscription(
-          membership.group.subscriptions[0] ?? null,
-        );
+        const [subscription, attention] = await Promise.all([
+          this.syncProviderSubscription(membership.group.subscriptions[0] ?? null),
+          this.groupAttentionSummary(user.id, membership),
+        ]);
         return {
           id: membership.groupId,
           membershipId: membership.id,
@@ -348,6 +350,7 @@ export class GroupsService {
           status: membership.status,
           membersCount: membership.group._count.members,
           logoUrl: this.imageUrl(membership.group.logoObjectKey),
+          attention,
           subscription: subscription
             ? {
                 planCode: subscription.plan.code,
@@ -363,6 +366,123 @@ export class GroupsService {
       }),
     );
     return { groups };
+  }
+
+  private async groupAttentionSummary(
+    userId: string,
+    membership: Pick<GroupMember, "id" | "groupId" | "role">,
+  ) {
+    const reviewPaymentStatuses = [
+      GroupContributionPaymentStatus.SUBMITTED,
+      GroupContributionPaymentStatus.PENDING_VERIFICATION,
+    ];
+    const reviewRoles: GroupRole[] = [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+      GroupRole.SECRETARY,
+    ];
+    const financeRoles: GroupRole[] = [
+      GroupRole.GROUP_ADMIN,
+      GroupRole.TREASURER,
+    ];
+
+    if (reviewRoles.includes(membership.role)) {
+      const [
+        paymentReviews,
+        expenseReviews,
+        loanApplicationReviews,
+        repaymentReviews,
+        deletionApprovals,
+      ] = await Promise.all([
+        this.prisma.groupContributionPayment.count({
+          where: {
+            groupId: membership.groupId,
+            createdByUserId: { not: userId },
+            status: { in: reviewPaymentStatuses },
+          },
+        }),
+        financeRoles.includes(membership.role)
+          ? this.prisma.groupExpense.count({
+              where: {
+                groupId: membership.groupId,
+                status: GroupExpenseStatus.SUBMITTED,
+              },
+            })
+          : Promise.resolve(0),
+        financeRoles.includes(membership.role)
+          ? this.prisma.loanApplication.count({
+              where: {
+                groupId: membership.groupId,
+                groupMemberId: { not: membership.id },
+                status: LoanApplicationStatus.SUBMITTED,
+              },
+            })
+          : Promise.resolve(0),
+        financeRoles.includes(membership.role)
+          ? this.prisma.loanRepayment.count({
+              where: {
+                groupId: membership.groupId,
+                groupMemberId: { not: membership.id },
+                status: LoanRepaymentStatus.SUBMITTED,
+              },
+            })
+          : Promise.resolve(0),
+        membership.role === GroupRole.TREASURER ||
+        membership.role === GroupRole.SECRETARY
+          ? this.prisma.groupDeletionRequest.count({
+              where: {
+                groupId: membership.groupId,
+                status:
+                  GroupDeletionRequestStatus.PENDING_INTERNAL_APPROVAL,
+              },
+            })
+          : Promise.resolve(0),
+      ]);
+      const total =
+        paymentReviews +
+        expenseReviews +
+        loanApplicationReviews +
+        repaymentReviews +
+        deletionApprovals;
+      return {
+        count: total,
+        label: total > 0 ? "Needs review" : null,
+        severity: total > 0 ? "warning" : null,
+      };
+    }
+
+    const [corrections, guarantees, repayments] = await Promise.all([
+      this.prisma.groupContributionPayment.count({
+        where: {
+          groupId: membership.groupId,
+          groupMemberId: membership.id,
+          status: GroupContributionPaymentStatus.CORRECTION_REQUESTED,
+        },
+      }),
+      this.prisma.loanGuarantor.count({
+        where: {
+          groupMemberId: membership.id,
+          status: LoanGuarantorStatus.PENDING,
+          application: {
+            groupId: membership.groupId,
+            status: LoanApplicationStatus.SUBMITTED,
+          },
+        },
+      }),
+      this.prisma.loanRepayment.count({
+        where: {
+          groupId: membership.groupId,
+          groupMemberId: membership.id,
+          status: LoanRepaymentStatus.REJECTED,
+        },
+      }),
+    ]);
+    const total = corrections + guarantees + repayments;
+    return {
+      count: total,
+      label: total > 0 ? "Needs attention" : null,
+      severity: corrections > 0 || repayments > 0 ? "danger" : "warning",
+    };
   }
 
   async createGroup(user: AuthenticatedUser, input: CreateGroupDto) {
@@ -2738,6 +2858,53 @@ export class GroupsService {
     return this.loanOverviewForMember(membership, groupId);
   }
 
+  async loanPolicy(user: AuthenticatedUser, groupId: string) {
+    await this.requireMembership(user, groupId);
+    return this.resolveLoanPolicy(groupId);
+  }
+
+  async updateLoanPolicy(
+    user: AuthenticatedUser,
+    groupId: string,
+    input: UpdateLoanPolicyDto,
+  ) {
+    await this.requireMembership(user, groupId, [GroupRole.GROUP_ADMIN]);
+    if (input.minimumGuarantors > 0) {
+      const activeMembers = await this.prisma.groupMember.count({
+        where: { groupId, status: GroupMemberStatus.ACTIVE },
+      });
+      if (input.minimumGuarantors >= activeMembers) {
+        throw new BadRequestException(
+          "Minimum guarantors must be lower than active group members.",
+        );
+      }
+    }
+    return this.prisma.groupLoanPolicy.upsert({
+      where: { groupId },
+      update: input,
+      create: { groupId, ...input },
+    });
+  }
+
+  private defaultLoanPolicy() {
+    return {
+      groupId: "",
+      savingsMultiplierBps: 20000,
+      monthlyInterestRateBps: 150,
+      processingFeeBps: 200,
+      minimumGuarantors: 1,
+      maximumTermMonths: 60,
+    };
+  }
+
+  private async resolveLoanPolicy(
+    groupId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const policy = await db.groupLoanPolicy.findUnique({ where: { groupId } });
+    return policy ?? { ...this.defaultLoanPolicy(), groupId };
+  }
+
   private async assertReminderCreditsAvailable(
     groupId: string,
     requiredCredits: number,
@@ -2783,6 +2950,7 @@ export class GroupsService {
       activeLoans,
       applications,
       cash,
+      policy,
     ] = await Promise.all([
       db.group.findUniqueOrThrow({
         where: { id: groupId },
@@ -2856,6 +3024,7 @@ export class GroupsService {
         orderBy: { createdAt: "desc" },
       }),
       this.groupCashPosition(db, groupId),
+      this.resolveLoanPolicy(groupId, db),
     ]);
     const allocationSavingsMinor = recurringContributionAllocations.reduce(
       (total, allocation) => total + allocation.amountMinor,
@@ -2886,7 +3055,9 @@ export class GroupsService {
         total + Math.max(loan.totalPayableMinor - loan.amountPaidMinor, 0),
       0,
     );
-    const memberPolicyLimitMinor = totalSavingsMinor * 2;
+    const memberPolicyLimitMinor = Math.floor(
+      (totalSavingsMinor * policy.savingsMultiplierBps) / 10000,
+    );
     const creditLimitMinor = Math.min(
       memberPolicyLimitMinor,
       cash.cashBalanceMinor,
@@ -2905,6 +3076,7 @@ export class GroupsService {
       outstandingMinor,
       activeDefaults: obligations._count,
       recurringContributionSavingsMinor: totalSavingsMinor,
+      loanPolicy: policy,
       creditLimitMinor,
       borrowingPowerMinor,
       tierLabel: totalSavingsMinor >= 1000000 ? "Tier 2 Member" : "Starter",
@@ -2935,10 +3107,16 @@ export class GroupsService {
     const membership = await this.requireMembership(user, groupId);
     return this.prisma.$transaction(
       async (tx) => {
+        const policy = await this.resolveLoanPolicy(groupId, tx);
         const guarantorIds = [...new Set(input.guarantorMemberIds)];
-        if (guarantorIds.length < 2) {
+        if (input.termMonths > policy.maximumTermMonths) {
           throw new BadRequestException(
-            "Select at least two different guarantors.",
+            "Loan term exceeds the group maximum term.",
+          );
+        }
+        if (guarantorIds.length < policy.minimumGuarantors) {
+          throw new BadRequestException(
+            `Select at least ${policy.minimumGuarantors} different guarantors.`,
           );
         }
         const overview = await this.loanOverviewForMember(
@@ -2980,7 +3158,13 @@ export class GroupsService {
             currency: overview.currency,
             purpose: input.purpose.trim(),
             termMonths: input.termMonths,
-            processingFeeMinor: this.processingFee(input.amountMinor),
+            monthlyInterestRateBps: policy.monthlyInterestRateBps,
+            processingFeeBps: policy.processingFeeBps,
+            processingFeeMinor: this.processingFee(
+              input.amountMinor,
+              policy.processingFeeBps,
+            ),
+            requiredGuarantors: policy.minimumGuarantors,
             guarantors: {
               create: guarantorIds.map((groupMemberId) => ({ groupMemberId })),
             },
@@ -3098,10 +3282,10 @@ export class GroupsService {
         (item) =>
           item.status === LoanGuarantorStatus.CONFIRMED &&
           item.member.status === GroupMemberStatus.ACTIVE,
-      ).length < 2
+      ).length < application.requiredGuarantors
     ) {
       throw new BadRequestException(
-        "At least two active guarantors must confirm before approval.",
+        `At least ${application.requiredGuarantors} active guarantors must confirm before approval.`,
       );
     }
     if (application.status !== LoanApplicationStatus.SUBMITTED) {
@@ -3119,7 +3303,7 @@ export class GroupsService {
       amountMinor,
       application.termMonths,
       application.monthlyInterestRateBps,
-      this.processingFee(amountMinor),
+      this.processingFee(amountMinor, application.processingFeeBps),
     );
     const dueAt = this.addMonths(new Date(), application.termMonths);
     const updated = await this.prisma.$transaction(
@@ -3146,7 +3330,10 @@ export class GroupsService {
           data: {
             status: LoanApplicationStatus.DISBURSED,
             approvedAmountMinor: amountMinor,
-            processingFeeMinor: this.processingFee(amountMinor),
+            processingFeeMinor: this.processingFee(
+              amountMinor,
+              application.processingFeeBps,
+            ),
             reviewedByUserId: user.id,
             reviewNotes: input.notes,
             approvedAt: new Date(),
@@ -3169,6 +3356,7 @@ export class GroupsService {
             purpose: application.purpose,
             termMonths: application.termMonths,
             monthlyInterestRateBps: application.monthlyInterestRateBps,
+            processingFeeBps: application.processingFeeBps,
             dueAt,
           },
         });
@@ -3577,8 +3765,8 @@ export class GroupsService {
     }
   }
 
-  private processingFee(amountMinor: number): number {
-    return Math.ceil(amountMinor * 0.02);
+  private processingFee(amountMinor: number, processingFeeBps: number): number {
+    return Math.ceil((amountMinor * processingFeeBps) / 10000);
   }
 
   private loanTotalPayable(
@@ -3638,6 +3826,7 @@ export class GroupsService {
     purpose: string;
     termMonths: number;
     monthlyInterestRateBps: number;
+    processingFeeBps: number;
     status: GroupLoanStatus;
     disbursedAt: Date;
     dueAt: Date;
@@ -3655,6 +3844,7 @@ export class GroupsService {
       purpose: loan.purpose,
       termMonths: loan.termMonths,
       monthlyInterestRateBps: loan.monthlyInterestRateBps,
+      processingFeeBps: loan.processingFeeBps,
       status: loan.status,
       disbursedAt: loan.disbursedAt,
       dueAt: loan.dueAt,
@@ -3715,7 +3905,9 @@ export class GroupsService {
     purpose: string;
     termMonths: number;
     monthlyInterestRateBps: number;
+    processingFeeBps: number;
     processingFeeMinor: number;
+    requiredGuarantors: number;
     status: LoanApplicationStatus;
     reviewNotes: string | null;
     rejectionReason: string | null;
@@ -3751,6 +3943,7 @@ export class GroupsService {
       purpose: application.purpose,
       termMonths: application.termMonths,
       monthlyInterestRateBps: application.monthlyInterestRateBps,
+      processingFeeBps: application.processingFeeBps,
       processingFeeMinor: application.processingFeeMinor,
       estimatedTotalPayableMinor: this.loanTotalPayable(
         application.approvedAmountMinor ?? application.amountMinor,
@@ -3773,7 +3966,7 @@ export class GroupsService {
       })),
       guarantorSummary: {
         confirmed: confirmedGuarantors,
-        required: 2,
+        required: application.requiredGuarantors,
         total: application.guarantors.length,
       },
     };
@@ -3788,6 +3981,7 @@ export class GroupsService {
     purpose: string;
     termMonths: number;
     monthlyInterestRateBps: number;
+    processingFeeBps: number;
     status: GroupLoanStatus;
     disbursedAt: Date;
     dueAt: Date;

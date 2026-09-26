@@ -411,6 +411,25 @@ const _swahili = <String, String>{
   'Estimated Total': 'Jumla inayokadiriwa',
   'Interest Rate': 'Riba',
   '1.5% / month': '1.5% / mwezi',
+  '{rate} / month': '{rate} / mwezi',
+  'Loan policy': 'Sera ya mikopo',
+  'Set loan limits, interest, fees and guarantors':
+      'Weka vikomo vya mikopo, riba, ada na wadhamini',
+  'These values control borrowing limits and loan charges for this group.':
+      'Thamani hizi hudhibiti vikomo vya kukopa na gharama za mkopo kwa kikundi hiki.',
+  'Savings multiplier': 'Kizidishi cha akiba',
+  'Example: 2 means members can borrow up to 2x their savings.':
+      'Mfano: 2 maana yake mwanachama anaweza kukopa hadi mara 2 ya akiba yake.',
+  'Monthly interest rate (%)': 'Riba ya mwezi (%)',
+  'Processing fee (%)': 'Ada ya huduma (%)',
+  'Minimum guarantors': 'Idadi ya chini ya wadhamini',
+  'Maximum term (months)': 'Muda wa juu (miezi)',
+  'Save loan policy': 'Hifadhi sera ya mikopo',
+  'Loan policy saved.': 'Sera ya mikopo imehifadhiwa.',
+  'Enter valid loan policy details.':
+      'Weka taarifa sahihi za sera ya mikopo.',
+  'Loan term exceeds the group maximum term.':
+      'Muda wa mkopo umezidi kiwango cha juu cha kikundi.',
   'Guarantor Verification': 'Uthibitisho wa wadhamini',
   'Confirmed': 'Imethibitishwa',
   'Declined': 'Imekataliwa',
@@ -612,6 +631,8 @@ const _swahili = <String, String>{
       'Jaribu jina lingine la kikundi au futa utafutaji.',
   'Group actions': 'Vitendo vya kikundi',
   'Groups you can access': 'Vikundi unavyoweza kufikia',
+  'Needs review': 'Inahitaji ukaguzi',
+  'Needs attention': 'Inahitaji kushughulikiwa',
   'No groups yet': 'Bado hakuna vikundi',
   'Create a group or join one with an invitation code.':
       'Unda kikundi au jiunge na kikundi kwa msimbo wa mwaliko.',

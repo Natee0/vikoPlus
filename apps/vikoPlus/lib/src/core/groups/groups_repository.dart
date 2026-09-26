@@ -691,7 +691,7 @@ class GroupAccessSummary {
     this.subscriptionEndsAt,
     this.membershipId,
     this.logoUrl,
-    this.attention = const GroupAttentionSummary(count: 0),
+    this.attention,
   });
 
   factory GroupAccessSummary.fromJson(Map<String, dynamic> json) {
@@ -716,7 +716,7 @@ class GroupAccessSummary {
           ? GroupAttentionSummary.fromJson(
               Map<String, dynamic>.from(json['attention'] as Map),
             )
-          : const GroupAttentionSummary(count: 0),
+          : null,
     );
   }
 
@@ -761,7 +761,7 @@ class GroupAccessSummary {
   final DateTime? subscriptionEndsAt;
   final String? membershipId;
   final String? logoUrl;
-  final GroupAttentionSummary attention;
+  final GroupAttentionSummary? attention;
 }
 
 class GroupAttentionSummary {

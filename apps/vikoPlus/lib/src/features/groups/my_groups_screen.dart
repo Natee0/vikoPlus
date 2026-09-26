@@ -492,6 +492,8 @@ class _GroupAccessCard extends StatelessWidget {
     final expired = group.hasPaidFeatureAccess == false;
     final accent = highlighted ? AppColors.primaryContainer : AppColors.primary;
     final role = _roleLabel(group.role);
+    final attention =
+        group.attention ?? const GroupAttentionSummary(count: 0);
 
     return Material(
       color: AppColors.surfaceContainerLowest,
@@ -570,8 +572,8 @@ class _GroupAccessCard extends StatelessWidget {
                       spacing: AppSpacing.xs,
                       runSpacing: AppSpacing.xs,
                       children: [
-                        if (group.attention.hasItems)
-                          _AttentionChip(attention: group.attention),
+                        if (attention.hasItems)
+                          _AttentionChip(attention: attention),
                         _MiniChip(label: role, icon: Icons.badge_outlined),
                         _MiniChip(
                           label: context

@@ -464,7 +464,7 @@ export class CreateLoanApplicationDto {
   termMonths!: number;
 
   @IsArray()
-  @ArrayMinSize(2)
+  @ArrayMinSize(1)
   @ArrayUnique()
   @ArrayMaxSize(10)
   @IsString({ each: true })
